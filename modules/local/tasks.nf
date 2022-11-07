@@ -1,6 +1,8 @@
 
 process LOAD_SAMPLE_INFO {
 
+    tag "$sample_id"
+
     input:
     tuple val(sample_id), path(image), val(meta_grid)
     
@@ -24,6 +26,7 @@ process LOAD_SAMPLE_INFO {
 
 process CONVERT_TO_TILED_TIFF {
 
+    tag "$sample_id"
     label 'vips_process'
 
     input:
@@ -41,6 +44,7 @@ process CONVERT_TO_TILED_TIFF {
 
 process CREATE_THUMBNAIL_TIFF {
 
+    tag "$sample_id"
     label 'vips_process'
     publishDir "${params.outdir}/${sample_id}", mode: 'copy', overwrite: true
 
@@ -59,6 +63,7 @@ process CREATE_THUMBNAIL_TIFF {
 
 process GET_PIXEL_MASK {
 
+    tag "$sample_id"
     label 'python_process_low'
     publishDir "${params.outdir}/${sample_id}", mode: 'copy', overwrite: true
     
@@ -86,6 +91,7 @@ process GET_PIXEL_MASK {
 
 process TILE_WSI {
 
+    tag "$sample_id"
     label 'python_process_low'
     publishDir "${params.outdir}/${sample_id}", mode: 'copy', overwrite: true
     
@@ -145,6 +151,7 @@ process TILE_WSI {
 
 process GET_TILE_MASK {
 
+    tag "$sample_id"
     label 'python_process_low'
     publishDir "${params.outdir}/${sample_id}", mode: 'copy', overwrite: true
     
@@ -174,6 +181,7 @@ process GET_TILE_MASK {
 
 process GET_INCEPTION_FEATURES {
 
+    tag "$sample_id"
     label 'process_inception'
     publishDir "${params.outdir}/${sample_id}", mode: 'copy', overwrite: true
         
@@ -181,7 +189,7 @@ process GET_INCEPTION_FEATURES {
     tuple val(sample_id), path(image), path(tile_mask), path(grid_csv), path(grid_json), path(meta_grid_csv), path(meta_grid_json)
     
     output:
-    tuple val(sample_id), file("inception_features.tsv.gz"), optional: true
+    tuple val(sample_id), file("inception/inception_features.tsv.gz"), optional: true
     
     script:
     """
@@ -193,13 +201,15 @@ process GET_INCEPTION_FEATURES {
     else
         vtilemask="${tile_mask}"
     fi
+    
+    mkdir inception
 
     python -u ${projectDir}/bin/run-inception-v3.py \
     --wsi-file="${image}" \
     --positions-list-file="${grid_csv}" \
     --tile-mask="\${vtilemask}" \
     --scalefactors-json-file="${grid_json}" \
-    --output-path="inception_features" \
+    --output-path="inception/inception_features" \
     --overlap-scale-factor=${params.overlap_scale_factor} 
     """   
 }
@@ -207,6 +217,7 @@ process GET_INCEPTION_FEATURES {
 
 process INFER_HOVERNET {
 
+    tag "$sample_id"
     label 'process_hovernet'
     publishDir "${params.outdir}/${sample_id}", mode: 'copy', overwrite: true
     
@@ -244,6 +255,7 @@ process INFER_HOVERNET {
 
 process COMPUTE_HOVERNET_DATA {
 
+    tag "$sample_id"
     label 'python_process_low'
     publishDir "${params.outdir}/${sample_id}", mode: 'copy', overwrite: true
     
@@ -268,6 +280,7 @@ process COMPUTE_HOVERNET_DATA {
 
 process GENERATE_PERSPOT_HOVERNET_DATA {
 
+    tag "$sample_id"
     label 'python_process_low'
     publishDir "${params.outdir}/${sample_id}", mode: 'copy', overwrite: true
     
@@ -301,6 +314,7 @@ process GENERATE_PERSPOT_HOVERNET_DATA {
 
 process MERGE_IMAGING_DATA {
 
+    tag "$sample_id"
     label 'python_process_low'
     publishDir "${params.outdir}/${sample_id}", mode: 'copy', overwrite: true
     
