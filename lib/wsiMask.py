@@ -88,7 +88,10 @@ def plotMask(df, width: int = None, height: int = None, size: float = None,
     fig.tight_layout()
     
     if not savepath is None:
-        fig.savefig(savepath + 'mask_%s.png' % sname, dpi=150, facecolor='w')
+        if not os.path.exists(savepath):
+            os.makedirs(savepath)
+            
+        fig.savefig(savepath + '%s.png' % sname, dpi=150, facecolor='w')
 
     if show:
         plt.show()
@@ -96,11 +99,46 @@ def plotMask(df, width: int = None, height: int = None, size: float = None,
         plt.close(fig)
     
     return
+    
+    
+def getInTissuePixelMask(low_res_image: str, low: float = 100, high: float = 200, savepath: str = None, sname: str = ''):
 
+    """Plot mask as square tiles or disks/spots
+    
+    Parameters:
+    low_res_image: path to file with low resolution image
+    
+    low: low threshold
+    
+    high: high threshold
 
-def getInTissueMask(grid_csv: str, grid_json: str, low_res_image: str,
-                    low: float = 100, high: float = 200, plot_mask: bool = True,
-                    fraction: float = 0.1, savepath: str = '', sname: str = '', show: bool = False):
+    savepath: directory to save data files
+
+    sname: identifier for saving data files
+
+    Output:
+    Pixel in tissue mask
+    """
+     
+    v = plt.imread(low_res_image)[:, :, :3].mean(axis=2)
+
+    vc = v.copy()
+    v[vc < low] = 0
+    v[vc > high] = 0
+    v[(vc >= low) & (vc <= high)] = 1
+    
+    df = pd.DataFrame(v.T)
+    
+    if not savepath is None:
+        if not os.path.exists(savepath):
+            os.makedirs(savepath)
+            
+        df.to_csv(savepath + '%s.csv' % sname, header=False, index=False)
+    
+    return df
+
+def getInTissueTileMask(pixel_mask_csv: str, grid_csv: str, grid_json: str, low_res_image: str, plot_mask: bool = True,
+                    fraction: float = 0.1, savepath: str = None, sname: str = '', show: bool = False):
 
     """Plot mask as square tiles or disks/spots
     
@@ -124,23 +162,14 @@ def getInTissueMask(grid_csv: str, grid_json: str, low_res_image: str,
     Output:
     df_grid: grid of centers with updated mask column
     """
-
-
-    
-    img_RGB_high_res = plt.imread(low_res_image)
-    v = img_RGB_high_res[:, :, :3].copy()
-    v = v.mean(axis=2)
-    vc = v.copy()
-    v[vc < low] = 0
-    v[vc > high] = 0
-    v[(vc >= low) & (vc <= high)] = 1
-    df = pd.DataFrame(v.T)
-    
+ 
     with open(grid_json) as f:
         info_dict = json.load(f)
     slide_fullres_width = info_dict['x']
     slide_fullres_height = info_dict['y']
     spot_diameter_fullres = info_dict['spot_diameter_fullres']
+    
+    img_RGB_high_res = plt.imread(low_res_image)[:, :, :3]
     
     scale_factor = 0.5 * (img_RGB_high_res.shape[0] / slide_fullres_height) + 0.5 * (img_RGB_high_res.shape[1] / slide_fullres_width)
     
@@ -148,11 +177,13 @@ def getInTissueMask(grid_csv: str, grid_json: str, low_res_image: str,
     df_grid.columns = ['in_tissue', 'array_row', 'array_col', 'pxl_row_in_fullres', 'pxl_col_in_fullres']
     df_grid.index.name = 'barcode'
     
+    df_pixel_mask = pd.read_csv(pixel_mask_csv, index_col=None, header=None)
+    
     for tile in df_grid.index[:]:
         tile_x = int(df_grid.loc[tile]['pxl_col_in_fullres'] * scale_factor)
         tile_y = int(df_grid.loc[tile]['pxl_row_in_fullres'] * scale_factor)
         tile_half_size = int(spot_diameter_fullres * scale_factor / 2)
-        in_tissue = int(df.iloc[tile_x - tile_half_size : tile_x + tile_half_size,
+        in_tissue = int(df_pixel_mask.iloc[tile_x - tile_half_size : tile_x + tile_half_size,
                                 tile_y - tile_half_size : tile_y + tile_half_size].mean().mean() >= fraction)
         df_grid.loc[tile, 'in_tissue'] = in_tissue
         
@@ -162,6 +193,9 @@ def getInTissueMask(grid_csv: str, grid_json: str, low_res_image: str,
                  figdim=10, object_shape='square', savepath=savepath, sname=sname, show=show)
         
     if not savepath is None:
-        df_grid.to_csv(savepath + 'grid_with_mask_%s.csv' % sname, header=False)
+        if not os.path.exists(savepath):
+            os.makedirs(savepath)
+        
+        df_grid['in_tissue'].to_csv(savepath + '%s.csv' % sname, header=False)
         
     return df_grid

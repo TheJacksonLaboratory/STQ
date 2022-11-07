@@ -94,7 +94,10 @@ def loadNuclei(json_file_path: str = '', savepath: str = None, sname: str = ''):
     df = pd.concat([df, df_info], axis=1)
     
     if not savepath is None:
-        df.to_csv(savepath + 'hovernet_data_%s.csv.gz' % sname)
+        if not os.path.exists(savepath):
+            os.makedirs(savepath)
+            
+        df.to_csv(savepath + '%s.csv.gz' % sname)
     
     return df
 
@@ -136,7 +139,11 @@ def assignNuceiToSpots(grid_file_path: str = None, scalefactors_json_file: str =
     
     func = lambda coords: getSpotID(*coords, df_spaceranger_alignment, spot_diameter_fullres=factor * spot_size_pixels, spot_shape=spot_shape)
     df_hovernet_cells['barcode'] = df_hovernet_cells[['centroid_x', 'centroid_y']].apply(func, axis=1)
-    df_hovernet_cells.to_csv(savepath + os.path.basename(hovernet_data_file_path) + '.with_barcode.csv.gz')
+    
+    if not os.path.exists(savepath):
+        os.makedirs(savepath)    
+    
+    df_hovernet_cells['barcode'].to_csv(savepath + os.path.basename(hovernet_data_file_path) + '.csv')
     
     return df_hovernet_cells
 
@@ -227,7 +234,8 @@ def calculateAggregateValues(df_hovernet_cells, min_cell_type_prob: float = 0.75
             df_temp = df_filtered.loc[barcode]
             if type(df_temp) is pd.Series:
                 df_temp = df_temp.to_frame().T
-            df_q_classes.append(df_temp.set_index('cell_type')[q].groupby(level=0).mean().rename(barcode))
+            df_q_classes.append(df_temp.set_index('cell_type')[q].astype(float).groupby(level=0).mean().rename(barcode))
+                
         df_q_classes = pd.concat(df_q_classes, axis=1).T
         df_q_classes.columns = 'average_%s_' % q + df_q_classes.columns
         df_q_classes.index.name = 'barcode'
@@ -238,6 +246,9 @@ def calculateAggregateValues(df_hovernet_cells, min_cell_type_prob: float = 0.75
         df = pd.concat([df, df_q_classes, df_q], axis=1)
 
     if not savepath is None:
+        if not os.path.exists(savepath):
+            os.makedirs(savepath)
+    
         df.to_csv(savepath + '%s.csv' % sname)
 
     return df

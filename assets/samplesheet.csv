@@ -1,0 +1,5 @@
+sample,image,grid
+WM4237_sml,/projects/chuang-lab/USERS/domans/melanoma_PDX_ST/additionalHandE/tiff/WM4237/WM4237 #229_T1_Day_14__20220520_083037_cut_level_0_oid_1.tiff,
+WM4237st14,/projects/chuang-lab/rubinstein/ST_melanomaPDX/data/SC2200323_WM4237-T1-Day14-229/img/SC2200323.tiff,/projects/chuang-lab/rubinstein/ST_melanomaPDX/data/SC2200323_WM4237-T1-Day14-229/spaceranger/spatial/
+WM4237_lrg,/projects/chuang-lab/USERS/domans/melanoma_PDX_ST/additionalHandE/tiff/WM4237/WM4237 CTRL_#200__20220520_084919_cut_level_0_oid_1.tiff,
+WM4237_med,/projects/chuang-lab/USERS/domans/melanoma_PDX_ST/additionalHandE/tiff/WM4237/WM4237 #229_T1__20220520_091746_cut_level_0_oid_0.tiff,

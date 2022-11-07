@@ -35,6 +35,7 @@ grid, tile_size = wsiGrid.getGrid(*slide_dimensions, savepath='')
 wsiGrid.plotGrid(grid, *slide_dimensions, size=tile_size, show_spot_labels=False, savepath='')
 """
 
+import os
 import json
 import pandas as pd
 import numpy as np
@@ -90,11 +91,14 @@ def getGrid(x: int, y: int, grid_type: str = 'hex', factor: float = 64/39, magni
         raise NotImplementedError
       
     if not savepath is None:
+        if not os.path.exists(savepath):
+            os.makedirs(savepath)
+            
         info_dict = {'grid_type': grid_type, 'factor': factor, 'magnification': magnification,
                      'resolution': resolution, 'aspect_correction': aspect_correction,
                      'spot_diamter': spot_diamter, 'spot_horizontal_spacing': spot_horizontal_spacing,
                      'spot_diameter_fullres': tile_size_pixels, 'x': x, 'y': y}
-        with open(savepath + 'grid_%s.json' % sname, 'w') as outfile:
+        with open(savepath + '%s.json' % sname, 'w') as outfile:        
             outfile.write(json.dumps(info_dict))
     
     nx = int(np.ceil(x / tile_horizontal_spacing_pixels))
@@ -117,7 +121,10 @@ def getGrid(x: int, y: int, grid_type: str = 'hex', factor: float = 64/39, magni
     _grid.index.name = 'barcode'
     
     if not savepath is None:
-        _grid.to_csv(savepath + 'grid_%s.csv' % sname, header=False)
+        if not os.path.exists(savepath):
+            os.makedirs(savepath)
+            
+        _grid.to_csv(savepath + '%s.csv' % sname, header=False)
     
     return _grid, tile_size_pixels
 
@@ -246,7 +253,10 @@ def plotGrid(grid: pd.DataFrame, x: int, y: int, f: float = 300, object_shape: s
     fig.tight_layout()
     
     if not savepath is None:
-        fig.savefig(savepath + 'grid_%s.png' % sname, facecolor='w')
+        if not os.path.exists(savepath):
+            os.makedirs(savepath)
+    
+        fig.savefig(savepath + '%s.png' % sname, facecolor='w')
 
     if show:
         plt.show()
