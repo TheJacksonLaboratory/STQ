@@ -1,1 +1,1 @@
-nextflow run main.nf -w /fastscratch/domans/dev/work -profile slurm,singularity -resume --input=./assets/samplesheet.csv --stage=1
+./internal.sh 1 "./assets/samplesheet.csv" "/fastscratch/domans/dev/work"

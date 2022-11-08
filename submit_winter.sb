@@ -1,0 +1,22 @@
+#!/bin/bash --login
+#SBATCH -p gpu
+#SBATCH -q inference
+#SBATCH -t 6:00:00
+#SBATCH --gres=gpu:1
+#SBATCH --mem-per-gpu=2GB
+
+stage=$1
+samplesheet=$2
+workdir=$3
+
+cd $SLURM_SUBMIT_DIR
+
+#module use --append /projects/omics_share/meta/modules
+#module load nextflow
+
+nextflow run main.nf \
+-w ${workdir} \
+-profile slurm,singularity \
+-resume \
+--input=${samplesheet} \
+--stage=${stage}
