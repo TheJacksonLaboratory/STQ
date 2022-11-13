@@ -18,32 +18,4 @@ apt-get install -y procps
 
 /opt/conda/bin/gdown 1SbSArI3KOOWHxRlxnjchO7_MbWzB4lNR
 
-git clone https://github.com/vqdang/hover_net.git
-cd /hover_net/
-git reset --hard 842964dc5d26ffe196d236d16fad16643a103850
-
-f=/hover_net/misc/wsi_handler.py
-sed -i '119 i \ \ \ \ \ \ \ \ wsi_properties = {'openslide.PROPERTY_NAME_OBJECTIVE_POWER': "0", 'openslide.PROPERTY_NAME_MPP_X': "0", 'openslide.PROPERTY_NAME_MPP_Y': "0", 'openslide.PROPERTY_NAME_VENDOR': "generic-tiff"}' $f
-sed -i '120 i \ \ \ \ \ \ \ \ for key in wsi_properties.keys():' $f
-sed -i '121 i \ \ \ \ \ \ \ \ \ \ \ \ try:' $f
-sed -i '122 i \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ wsi_properties.update({key: self.file_ptr.properties[key]})' $f
-sed -i '123 i \ \ \ \ \ \ \ \ \ \ \ \ except Exception as exception:' $f
-sed -i '124 i \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ print("wsi_properties:", exception)' $f
-sed -i '125 i \ \ \ \ \ \ \ \ try:' $f
-sed -i '126 i \ \ \ \ \ \ \ \ \ \ \ \ wsi_properties.update({openslide.PROPERTY_NAME_OBJECTIVE_POWER: float(self.file_ptr.properties["tiff.DocumentName"])})' $f
-sed -i '127 i \ \ \ \ \ \ \ \ except:' $f
-sed -i '128 i \ \ \ \ \ \ \ \ \ \ \ \ pass' $f
-sed -i '129 i \ \ \ \ \ \ \ \ try:' $f
-sed -i '130 i \ \ \ \ \ \ \ \ \ \ \ \ wsi_properties.update({openslide.PROPERTY_NAME_MPP_X: float(self.file_ptr.properties["tiff.Make"])})' $f
-sed -i '131 i \ \ \ \ \ \ \ \ except:' $f
-sed -i '132 i \ \ \ \ \ \ \ \ \ \ \ \ pass' $f
-sed -i '133 i \ \ \ \ \ \ \ \ try:' $f
-sed -i '134 i \ \ \ \ \ \ \ \ \ \ \ \ wsi_properties.update({openslide.PROPERTY_NAME_MPP_Y: float(self.file_ptr.properties["tiff.Model"])})' $f
-sed -i '135 i \ \ \ \ \ \ \ \ except:' $f
-sed -i '136 i \ \ \ \ \ \ \ \ \ \ \ \ pass' $f
-sed -i '137 i \ \ \ \ \ \ \ \ try:' $f
-sed -i '138 i \ \ \ \ \ \ \ \ \ \ \ \ wsi_properties.update({openslide.PROPERTY_NAME_VENDOR: self.file_ptr.properties["tiff.Software"]})' $f
-sed -i '139 i \ \ \ \ \ \ \ \ except:' $f
-sed -i '140 i \ \ \ \ \ \ \ \ \ \ \ \ pass' $f
-
-sed -i '188 i \ \ \ \ exit(0)' /hover_net/run_infer.py
+git clone https://github.com/sdomanskyi/hover_net.git
