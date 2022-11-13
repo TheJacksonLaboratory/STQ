@@ -1,0 +1,13 @@
+#!/bin/bash --login
+#SBATCH -t 02:00:00
+#SBATCH -N 1
+#SBATCH -n 1
+#SBATCH --mem=12GB
+#SBATCH -q batch
+#SBATCH -p compute
+
+builder=http://s3-far.jax.org/builder/builder
+
+singularity run ${builder} $1 $2
+
+scontrol show job $SLURM_JOB_ID
