@@ -1,0 +1,13 @@
+#!/bin/bash --login
+#SBATCH -p gpu
+#SBATCH -q inference
+#SBATCH -t 6:00:00
+#SBATCH --gres=gpu:1
+#SBATCH --mem-per-gpu=2GB
+#SBATCH --export=ALL
+
+echo Allocated device on head node: $CUDA_VISIBLE_DEVICES
+
+nextflow run test.nf \
+-w /fastscratch/domans/twork \
+-profile slurm,singularity

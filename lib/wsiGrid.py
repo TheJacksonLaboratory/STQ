@@ -47,7 +47,7 @@ from matplotlib.patches import Circle, Rectangle
 from matplotlib.collections import PatchCollection
 
 def getGrid(x: int, y: int, grid_type: str = 'hex', factor: float = 64/39, magnification: float = 40.0,
-               resolution: float = 294/55, spot_diamter: float = 55, spot_horizontal_spacing: float = 85,
+               resolution: float = 294/65, spot_diamter: float = 65, spot_horizontal_spacing: float = 100,
                aspect_correction: float = 0.95, savepath: str = None, sname: str = ''):
     
     """Generate grid of tile centers

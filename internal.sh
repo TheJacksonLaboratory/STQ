@@ -17,7 +17,7 @@ then
     if [ $CLUSTER_NAME == $required ];
     then
         echo "Submitting stage ${stage}"
-        sbatch submit_${CLUSTER_NAME}.sb ${stage} ${samplesheet} ${workdir}
+        sbatch job_${CLUSTER_NAME}.sb ${stage} ${samplesheet} ${workdir}
     else
         echo "ERORR: To run stage ${stage} ssh to $USER@login.${required}.jax.org"
     fi
@@ -29,7 +29,7 @@ then
     if [ $CLUSTER_NAME == $required ];
     then
         echo "Submitting stage ${stage}"
-        sbatch submit_${CLUSTER_NAME}.sb ${stage} ${samplesheet} ${workdir}
+        ./job_${CLUSTER_NAME}.sh ${stage} ${samplesheet} ${workdir}
     else
         echo "ERORR: To run stage ${stage} ssh to $USER@login.${required}.jax.org"
     fi
@@ -41,7 +41,7 @@ then
     if [ $CLUSTER_NAME == $required ];
     then
         echo "Submitting stage ${stage}"
-        sbatch submit_${CLUSTER_NAME}.sb ${stage} ${samplesheet} ${workdir}
+        sbatch job_${CLUSTER_NAME}.sb ${stage} ${samplesheet} ${workdir}
     else
         echo "ERORR: To run stage ${stage} ssh to $USER@login.${required}.jax.org"
     fi

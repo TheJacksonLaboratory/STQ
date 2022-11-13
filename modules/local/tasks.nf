@@ -235,20 +235,26 @@ process INFER_HOVERNET {
     
     python -c 'import os; import tifftools; from tifftools.constants import Tag; \
     tifftools.tiff_set(os.getcwd() + "/data/outfile.tiff", overwrite=True, setlist=[(Tag[269], "40")]);'
+    
+    echo $sample_id --gpu=$CUDA_VISIBLE_DEVICES
       
     python /hover_net/run_infer.py \
-    --gpu=0 \
+    --gpu=$CUDA_VISIBLE_DEVICES \
     --model_mode=fast \
     --nr_types=6 \
     --type_info_path=/hover_net/type_info.json \
     --model_path=/hovernet_fast_pannuke_type_tf2pytorch.tar \
+    --batch_size=${params.hovernet_batch_size} \
     wsi \
     --input_dir="./data/" \
     --output_dir=hovernet/ \
     --proc_mag=${params.magnification} \
+    --chunk_shape=${params.hovernet_chunk_size} \
+    --tile_shape=${params.hovernet_tile_size} \
     --save_thumb \
-    --save_mask \
-    > /dev/null 2>&1
+    --save_mask
+    
+    rm data/"${image}"
     """ 
 }
 
