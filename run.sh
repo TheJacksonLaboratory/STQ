@@ -1,1 +1,1 @@
-./internal.sh 2 "./assets/samplesheet_WM4237_ST.csv" "/fastscratch/domans/work"
+./internal.sh 2 "./assets/samplesheet_WM4237_ST_6.csv" "/fastscratch/domans/work"
