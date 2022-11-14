@@ -6,16 +6,16 @@ include { LOAD_SAMPLE_INFO;
           TILE_WSI;
           GET_TILE_MASK;
           GET_INCEPTION_FEATURES;
-        } from '../../modules/local/tasks'
+        } from '../modules/local/tasks'
 
 include { GET_HOVERNET_MASK;
           INFER_HOVERNET;
           COMPUTE_HOVERNET_DATA;
           GENERATE_PERSPOT_HOVERNET_DATA;
-        } from '../../modules/local/hovernet'
+        } from '../modules/local/hovernet'
         
 include { MERGE_IMAGING_DATA
-        } from '../../modules/local/merge'
+        } from '../modules/local/merge'
         
 workflow MAIN {
 

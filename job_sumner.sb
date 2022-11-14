@@ -5,9 +5,8 @@
 #SBATCH --mem=2G
 #SBATCH --ntasks=1
 
-stage=$1
-samplesheet=$2
-workdir=$3
+samplesheet=$1
+workdir=$2
 
 cd $SLURM_SUBMIT_DIR
 

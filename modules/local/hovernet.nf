@@ -26,7 +26,7 @@ process GET_HOVERNET_MASK {
     --model_path=/hovernet_fast_pannuke_type_tf2pytorch.tar \
     --batch_size=1 \
     wsi \
-    --input_dir="./data/${image}" \
+    --input_dir="./${image}" \
     --output_dir=hovernet/ \
     --proc_mag=${params.magnification} \
     --chunk_shape=${params.hovernet_chunk_size} \
@@ -62,7 +62,7 @@ process INFER_HOVERNET {
     --model_path=/hovernet_fast_pannuke_type_tf2pytorch.tar \
     --batch_size=${params.hovernet_batch_size} \
     wsi \
-    --input_dir="./data/${image}" \
+    --input_dir="./${image}" \
     --output_dir=hovernet/ \
     --input_mask_dir=${mask} \
     --proc_mag=${params.magnification} \
