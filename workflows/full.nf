@@ -6,12 +6,17 @@ include { LOAD_SAMPLE_INFO;
           TILE_WSI;
           GET_TILE_MASK;
           GET_INCEPTION_FEATURES;
+        } from '../../modules/local/tasks'
+
+include { GET_HOVERNET_MASK;
           INFER_HOVERNET;
           COMPUTE_HOVERNET_DATA;
           GENERATE_PERSPOT_HOVERNET_DATA;
-          MERGE_IMAGING_DATA;
-        } from '../../modules/local/tasks'
-
+        } from '../../modules/local/hovernet'
+        
+include { MERGE_IMAGING_DATA
+        } from '../../modules/local/merge'
+        
 workflow MAIN {
 
     take:
@@ -38,7 +43,10 @@ workflow MAIN {
                                  .join(TILE_WSI.out.grid)
                                  .join(LOAD_SAMPLE_INFO.out.grid) )
                                  
-        INFER_HOVERNET ( CONVERT_TO_TILED_TIFF.out )
+        GET_HOVERNET_MASK ( CONVERT_TO_TILED_TIFF.out )
+                                 
+        INFER_HOVERNET ( CONVERT_TO_TILED_TIFF.out
+                         .join(GET_HOVERNET_MASK.out.mask) )
         
         COMPUTE_HOVERNET_DATA ( INFER_HOVERNET.out.json )
         

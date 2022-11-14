@@ -242,8 +242,11 @@ def calculateAggregateValues(df_hovernet_cells, min_cell_type_prob: float = 0.75
 
         df_q = df_filtered[q].groupby(level=0).mean().to_frame()
         df_q.columns = ['average_%s' % q]
+        
+        df_sdq = df_filtered[q].groupby(level=0).std().to_frame()
+        df_sdq.columns = ['std_%s' % q]
 
-        df = pd.concat([df, df_q_classes, df_q], axis=1)
+        df = pd.concat([df, df_q_classes, df_q, df_sdq], axis=1)
 
     if not savepath is None:
         if not os.path.exists(savepath):
