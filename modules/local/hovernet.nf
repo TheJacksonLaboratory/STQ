@@ -46,7 +46,7 @@ process INFER_HOVERNET {
     tuple val(sample_id), path(image), path(mask)
     
     output:
-    tuple val(sample_id), file("hovernet/json/outfile.json"), emit: json
+    tuple val(sample_id), file("hovernet/outfile.json"), emit: json
     
     script:
     """      
