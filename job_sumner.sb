@@ -1,7 +1,7 @@
 #!/bin/bash --login
 #SBATCH -p compute
 #SBATCH -q batch
-#SBATCH -t 6:00:00
+#SBATCH -t 24:00:00
 #SBATCH --mem=2G
 #SBATCH --ntasks=1
 
