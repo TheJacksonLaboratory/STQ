@@ -1,0 +1,18 @@
+bootstrap: shub
+from: jaxreg.jax.org/rit-ci/samtools:1.5
+
+%post
+apk add --update-cache
+apk add build-base
+apk add g++
+apk add git
+apk add bash
+apk add procps
+
+git clone https://github.com/akdess/BAFExtract.git
+
+cd BAFExtract
+
+make
+
+

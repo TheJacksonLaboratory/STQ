@@ -1,0 +1,14 @@
+bootstrap: docker
+from: continuumio/miniconda3:4.12.0
+
+%post
+apt-get update
+apt-get install -y gcc
+apt-get install -y g++
+apt-get install -y bash
+apt-get install -y procps
+
+/opt/conda/bin/conda install --quiet -y pip
+
+/opt/conda/bin/pip install numpy scipy numba matplotlib scikit-learn h5py loompy pysam Click pandas Cython
+/opt/conda/bin/pip install velocyto

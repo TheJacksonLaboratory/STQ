@@ -1,0 +1,1 @@
+sbatch run_build.sb container-singularity-vips.def /projects/chuang-lab/USERS/domans/containers/container-singularity-vips.sif

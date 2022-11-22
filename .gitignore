@@ -6,6 +6,11 @@ __pycache__/
 # C extensions
 *.so
 
+slurm-*.out
+
+results*/
+.nextflow.log*
+
 # Distribution / packaging
 .Python
 build/
@@ -14,7 +19,7 @@ dist/
 downloads/
 eggs/
 .eggs/
-lib/
+# lib/
 lib64/
 parts/
 sdist/

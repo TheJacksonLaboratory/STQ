@@ -1,0 +1,21 @@
+bootstrap: shub
+from: jaxreg.jax.org/singlecell/python:3.8
+
+%post
+apt-get update
+apt-get install -y gcc
+apt-get install -y git
+apt-get install -y g++
+apt-get install -y openslide-tools
+apt-get install -y python-openslide
+apt-get install -y libsm6 libxext6
+apt-get install -y libxrender-dev
+apt-get install -y procps
+
+/opt/conda/bin/conda install --quiet -y python=3.6.12 pip=20.3.1
+/opt/conda/bin/conda install --quiet -y -c conda-forge pandas tifftools
+/opt/conda/bin/pip install gdown openslide-python==1.1.2 docopt==0.6.2 future==0.18.2 imgaug==0.4.0 matplotlib==3.3.0 numpy==1.19.1 opencv-python==4.3.0.36 pandas==1.1.0 pillow==7.2.0 psutil==5.7.3 scikit-image==0.17.2 scikit-learn==0.23.1 scipy==1.5.2 tensorboard==2.3.0 tensorboardx==2.1 termcolor==1.1.0 tqdm==4.48.0 torch==1.6.0 torchvision==0.7.0
+
+/opt/conda/bin/gdown 1SbSArI3KOOWHxRlxnjchO7_MbWzB4lNR
+
+git clone https://github.com/sdomanskyi/hover_net.git

@@ -1,0 +1,7 @@
+bootstrap: docker
+from: codechimpio/vips-alpine
+
+%post
+apt-get update
+apt-get install -y bash
+apt-get install -y procps
