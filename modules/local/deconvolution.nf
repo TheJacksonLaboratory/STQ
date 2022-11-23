@@ -2,6 +2,7 @@
 process DECONVOLUTION {
 
     tag "$sample_id"
+    publishDir "${params.outdir}/${sample_id}", pattern: '.command.out', saveAs: { filename -> "xenome.summary.txt" }, mode: 'copy', overwrite: true
 
     input:
     tuple val(sample_id), path(fastq)

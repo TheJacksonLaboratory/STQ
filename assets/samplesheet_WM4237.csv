@@ -1,0 +1,17 @@
+sample,fastq,image
+WM4237_T0_S1_ST,/projects/chuang-lab/rubinstein/ST_melanomaPDX/data/SC2200319_WM4237-T0-Day0-197/fastq/,/projects/chuang-lab/rubinstein/ST_melanomaPDX/data/SC2200319_WM4237-T0-Day0-197/img/SC2200319.tiff
+WM4237_T0_S2_ST,/projects/chuang-lab/rubinstein/ST_melanomaPDX/data/SC2200320_WM4237-T0-Day0-197/fastq/,/projects/chuang-lab/rubinstein/ST_melanomaPDX/data/SC2200320_WM4237-T0-Day0-197/img/SC2200320.tiff
+WM4237_T1_S1_ST,/projects/chuang-lab/rubinstein/ST_melanomaPDX/data/SC2200323_WM4237-T1-Day14-229/fastq/,/projects/chuang-lab/rubinstein/ST_melanomaPDX/data/SC2200323_WM4237-T1-Day14-229/img/SC2200323.tiff
+WM4237_T1_S2_ST,/projects/chuang-lab/rubinstein/ST_melanomaPDX/data/SC2200324_WM4237-T1-Day14-229/fastq/,/projects/chuang-lab/rubinstein/ST_melanomaPDX/data/SC2200324_WM4237-T1-Day14-229/img/SC2200324.tiff
+WM4237_T2_S1_ST,/projects/chuang-lab/rubinstein/ST_melanomaPDX/data/SC2200325_WM4237-T2-Day42-211/fastq/,/projects/chuang-lab/rubinstein/ST_melanomaPDX/data/SC2200325_WM4237-T2-Day42-211/img/SC2200325.tiff
+WM4237_T2_S2_ST,/projects/chuang-lab/rubinstein/ST_melanomaPDX/data/SC2200326_WM4237-T2-Day42-211/fastq/,/projects/chuang-lab/rubinstein/ST_melanomaPDX/data/SC2200326_WM4237-T2-Day42-211/img/SC2200326.tiff
+WM4237_T3_S1_ST,/projects/chuang-lab/rubinstein/ST_melanomaPDX/data/SC2200327_WM4237-T3-Day70-221/fastq/,/projects/chuang-lab/rubinstein/ST_melanomaPDX/data/SC2200327_WM4237-T3-Day70-221/img/SC2200327.tiff
+WM4237_T3_S2_ST,/projects/chuang-lab/rubinstein/ST_melanomaPDX/data/SC2200328_WM4237-T3-Day70-221/fastq/,/projects/chuang-lab/rubinstein/ST_melanomaPDX/data/SC2200328_WM4237-T3-Day70-221/img/SC2200328.tiff
+WM4237_T4_S1_ST,/projects/chuang-lab/rubinstein/ST_melanomaPDX/data/SC2200329_WM4237-T4-Day94-214/fastq/,/projects/chuang-lab/rubinstein/ST_melanomaPDX/data/SC2200329_WM4237-T4-Day94-214/img/SC2200329.tiff
+WM4237_T4_S2_ST,/projects/chuang-lab/rubinstein/ST_melanomaPDX/data/SC2200330_WM4237-T4-Day94-214/fastq/,/projects/chuang-lab/rubinstein/ST_melanomaPDX/data/SC2200330_WM4237-T4-Day94-214/img/SC2200330.tiff
+WM4237_TC_S1_ST,/projects/chuang-lab/rubinstein/ST_melanomaPDX/data/SC2200321_WM4237-CTRL-Day42-207/fastq/,/projects/chuang-lab/rubinstein/ST_melanomaPDX/data/SC2200321_WM4237-CTRL-Day42-207/img/SC2200321.tiff
+WM4237_TC_S2_ST,/projects/chuang-lab/rubinstein/ST_melanomaPDX/data/SC2200322_WM4237-CTRL-Day42-207/fastq/,/projects/chuang-lab/rubinstein/ST_melanomaPDX/data/SC2200322_WM4237-CTRL-Day42-207/img/SC2200322.tiff
+WM4237_TE_S1_ST,/projects/chuang-lab/rubinstein/ST_melanomaPDX/data/SC2200092_WM4237-1-1337/fastq/,/projects/chuang-lab/rubinstein/ST_melanomaPDX/data/SC2200092_WM4237-1-1337/img/SC2200092.tiff
+WM4237_TE_S2_ST,/projects/chuang-lab/rubinstein/ST_melanomaPDX/data/SC2200093_WM4237-1-1337/fastq/,/projects/chuang-lab/rubinstein/ST_melanomaPDX/data/SC2200093_WM4237-1-1337/img/SC2200093.tiff
+WM4237_TE_S3_ST,/projects/chuang-lab/rubinstein/ST_melanomaPDX/data/SC2200094_WM4237-1-1337/fastq/,/projects/chuang-lab/rubinstein/ST_melanomaPDX/data/SC2200094_WM4237-1-1337/img/SC2200094.tiff
+WM4237_TE_S4_ST,/projects/chuang-lab/rubinstein/ST_melanomaPDX/data/SC2200095_WM4237-1-1337/fastq/,/projects/chuang-lab/rubinstein/ST_melanomaPDX/data/SC2200095_WM4237-1-1337/img/SC2200095.tiff
