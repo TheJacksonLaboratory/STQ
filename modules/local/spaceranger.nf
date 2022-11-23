@@ -42,13 +42,15 @@ process RETURN_SPACERANGER_ALIGNMENT {
     publishDir "${params.outdir}/${sample_id}", mode: 'copy', overwrite: true
 
     input:
-    tuple val(sample_id), file("mouse/*"), file("human/*"), file("spatial/*")
+    tuple val(sample_id), file("in_mouse/*"), file("in_human/*"), file("in_spatial/*")
     
     output:
-    tuple val(sample_id), path("spatial/*", includeInputs: true), emit: spatial
-    tuple val(sample_id), path("mouse/*", includeInputs: true), path("human/*", includeInputs: true), emit: metrics
+    tuple val(sample_id), path("mouse/*"), path("human/*"), path("spatial/*")
     
     script:
     """
+    cp -R in_mouse/ mouse/
+    cp -R in_human/ human/
+    cp -R in_spatial/ spatial/
     """
 }
