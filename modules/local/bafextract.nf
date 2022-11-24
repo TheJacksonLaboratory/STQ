@@ -43,7 +43,7 @@ process GET_PILEUP_OF_BAM {
         bbam=${bam[0]}
     fi
 
-    samtools view \${bbam} | /BAFExtract/bin/BAFExtract -generate_compressed_pileup_per_SAM stdin ${sizes} bam_pileup 50 0
+    samtools view \${bbam} | /BAFExtract/bin/BAFExtract -generate_compressed_pileup_per_SAM stdin ${sizes} bam_pileup ${params.bafextract_minimum_mapping_quality} ${params.bafextract_minimum_base_quality}
     """
 }
 
@@ -82,7 +82,7 @@ process GET_SNV_FROM_PILEUP {
     
     mkdir "${species}"
     
-    /BAFExtract/bin/BAFExtract -get_SNVs_per_pileup ${sizes} bam_pileup ref_pileup 20 4 0.1 "${species}/extracted.baf"
+    /BAFExtract/bin/BAFExtract -get_SNVs_per_pileup ${sizes} bam_pileup ref_pileup ${params.bafextract_min_coverage_per_SNV} ${params.bafextract_min_MAF_covg_per_SNV} ${params.bafextract_min_MAF} "${species}/extracted.baf"
     
     rm -R ref_pileup
     rm -R bam_pileup
