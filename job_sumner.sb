@@ -19,5 +19,4 @@ nextflow run main.nf \
 -profile slurm,singularity \
 -resume \
 --input=${samplesheet} \
---stage=${stage} \
 --outdir=${outdir}
