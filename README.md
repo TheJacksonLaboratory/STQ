@@ -134,16 +134,16 @@ and unpacked to create two directories `refdata-gex-GRCh38-2020-A` and `refdata-
 
 The Xenome-classified mouse reads alignment to the reference transcriptome is done using mouse reference, and the Xenome-classified human reads alignment to the reference transcriptome is done using human reference. The output mouse and human gene count matrices in the MTX format are merged into one and generated as output in the sample folder under `raw_feature_bc_matrix`. The "raw" means that all 4992 ST spots are present in the matrix. Summaries of the human and mouse read quantification are generated in the `human` and `mouse` directories of the sample output directory.
  
-3. **`velocyto run10x`** (http://velocyto.org/velocyto.py/index.html)
+4. **`velocyto run10x`** (http://velocyto.org/velocyto.py/index.html)
 
 Velocyto is run for all 4992 spots using the human or mouse genome reference and barcode-sorted BAM file. The latter is generated from a possorted BAM file which is the output from `spaceranger count`. The output is a `human/velocyto.loom` and `mouse/velocyto.loom` in the sample output directory. The `*.loom` files can be loaded with `velocyto.py` or `scvelo` (https://scvelo.readthedocs.io/) or other compatible toolsets for analysis of RNA-velocity.
 
-> To learn more about RNA velocity see: La Manno, G., Soldatov, R., Zeisel, A. et al. RNA velocity of single cells. Nature 560, 494–498 (2018). https://doi.org/10.1038/s41586-018-0414-6
+> To learn more about RNA velocity see: La Manno, G., Soldatov, R., Zeisel, A. et al. RNA velocity of single cells. Nature 560, 494-498 (2018). https://doi.org/10.1038/s41586-018-0414-6
 
 > ***Note*** Analysis of the spliced/unspliced RNA counts generated in our pipeline is outside the scope of this pipeline and is carried out in the downstream steps.
 
 
-4. **`BAFextract`** (https://github.com/akdess/CaSpER)
+5. **`BAFextract`** (https://github.com/akdess/CaSpER)
 
 BAFextract is a tool designed by the authors of CaSpER, and is intended to extract B-allele frequencies (BAF) from BAM files in order to estimate CNV events in the downstream steps with CaSpER.
 
@@ -187,4 +187,4 @@ Example of CPU usage by various processes in the pipeline. A screenshot from the
 + ST - Spatial Transcriptomics;
 + Full-resolution image - capture area image supplied to SpaceRanger, e.g. 30000 x 30000 pixels;
 + Low-resolution image - downsampled full-resolution capture area image, e.g. 600 x 600 pixels;
-+ High-resolution image - downsampled full-resolution capture area image, roughly 2000 x 2000 pixels;
++ High-resolution image - downsampled full-resolution capture area image, e.g. 2000 x 2000 pixels;
