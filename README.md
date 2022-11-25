@@ -86,14 +86,14 @@ The command above submits the pipeline to the HPC slurm system, which creates a 
 
 > ***Tip*** Submitting via srun interactive session will show beautifully updated progress of the pipeline run. We do not recommend using srun for our pipeline, since network interruption will cause the ssh connection to drop and the pipeline to fail. In such an unfortunate case user can run the pipeline again, however, any previously unfinished processes will restart, while all finished processes resume from cached data.
 
-## Tools used in the pipeline
+## External tools used in the pipeline
 
 1. **`Inception v3`** (https://keras.io/api/applications/inceptionv3/)
 
 **Need a citation to the inception script**
 
 <p>
-    <img src="docs/mones-per-tile.png" width="600"/>
+    <img src="docs/mones-per-tile.png" width="450"/>
 </p>
 
 2. **`HoVer-Net`** (https://github.com/vqdang/hover_net)
