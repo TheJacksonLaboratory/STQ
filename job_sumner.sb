@@ -7,6 +7,7 @@
 
 samplesheet=$1
 workdir=$2
+outdir=$3
 
 cd $SLURM_SUBMIT_DIR
 
@@ -18,4 +19,5 @@ nextflow run main.nf \
 -profile slurm,singularity \
 -resume \
 --input=${samplesheet} \
---stage=${stage}
+--stage=${stage} \
+--outdir=${outdir}
