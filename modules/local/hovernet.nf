@@ -49,7 +49,10 @@ process INFER_HOVERNET {
     tuple val(sample_id), file("hovernet/outfile.json"), emit: json
     
     script:
-    """      
+    """
+    mkdir mask
+    cp ${mask} mask/
+     
     python /hover_net/run_infer.py \
     --gpu="" \
     --device_mode="cpu" \
@@ -64,7 +67,7 @@ process INFER_HOVERNET {
     wsi \
     --input_dir="./${image}" \
     --output_dir=hovernet/ \
-    --input_mask_dir=${mask} \
+    --input_mask_dir=mask/ \
     --proc_mag=${params.magnification} \
     --chunk_shape=${params.hovernet_chunk_size} \
     --tile_shape=${params.hovernet_tile_size}
