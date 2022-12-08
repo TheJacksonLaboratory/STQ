@@ -4,11 +4,12 @@ process LOAD_SAMPLE_INFO {
     tag "$sample_id"
 
     input:
-    tuple val(sample_id), path(image), val(meta_grid)
+    tuple val(sample_id), path(image), val(meta_grid), val(mag)
     
     output:
     tuple val(sample_id), file(image), emit: main
     tuple val(sample_id), file("tissue_positions_list.csv"), file("scalefactors_json.json"), emit: grid
+    tuple val(sample_id), val(mag), emit: mag
     
     script:
     """

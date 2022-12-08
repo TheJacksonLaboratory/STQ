@@ -229,24 +229,39 @@ def calculateAggregateValues(df_hovernet_cells, min_cell_type_prob: float = 0.75
     df = pd.concat([df_class_densities, df_class_counts, df_total_counts], axis=1)
     
     for q in ['perimeter_length', 'area', 'orientation', 'eccentricity', 'cell_type_prob']:
+        # Average per class
         df_q_classes = []
         for barcode in df_filtered.index.unique():
             df_temp = df_filtered.loc[barcode]
             if type(df_temp) is pd.Series:
                 df_temp = df_temp.to_frame().T
             df_q_classes.append(df_temp.set_index('cell_type')[q].astype(float).groupby(level=0).mean().rename(barcode))
-                
+        
         df_q_classes = pd.concat(df_q_classes, axis=1).T
         df_q_classes.columns = 'average_%s_' % q + df_q_classes.columns
         df_q_classes.index.name = 'barcode'
-
+        
+        # Standard deviation per class
+        df_sdq_classes = []
+        for barcode in df_filtered.index.unique():
+            df_temp = df_filtered.loc[barcode]
+            if type(df_temp) is pd.Series:
+                df_temp = df_temp.to_frame().T
+            df_sdq_classes.append(df_temp.set_index('cell_type')[q].astype(float).groupby(level=0).std().rename(barcode))
+        
+        df_sdq_classes = pd.concat(df_sdq_classes, axis=1).T
+        df_sdq_classes.columns = 'std_%s_' % q + df_sdq_classes.columns
+        df_sdq_classes.index.name = 'barcode'                
+                
+        # Average overall
         df_q = df_filtered[q].groupby(level=0).mean().to_frame()
         df_q.columns = ['average_%s' % q]
         
+        # Standard deviation overall
         df_sdq = df_filtered[q].groupby(level=0).std().to_frame()
         df_sdq.columns = ['std_%s' % q]
 
-        df = pd.concat([df, df_q_classes, df_q, df_sdq], axis=1)
+        df = pd.concat([df, df_q_classes, df_sdq_classes, df_q, df_sdq], axis=1)
 
     if not savepath is None:
         if not os.path.exists(savepath):

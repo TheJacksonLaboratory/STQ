@@ -1,15 +1,15 @@
-sample,image,grid
-WM4237_T0_S1_AD,/projects/chuang-lab/USERS/domans/melanoma_PDX_ST/additionalHandE/tiff/WM4237/WM4237 #197_TO__20220520_082852_cut_level_0_oid_2.tiff,
-WM4237_T0_S2_AD,/projects/chuang-lab/USERS/domans/melanoma_PDX_ST/additionalHandE/tiff/WM4237/WM4237 197_T0__20220520_091543_cut_level_0_oid_0.tiff,
-WM4237_T1_S1_AD,/projects/chuang-lab/USERS/domans/melanoma_PDX_ST/additionalHandE/tiff/WM4237/WM4237 #229_T1_Day_14__20220520_083037_cut_level_0_oid_1.tiff,
-WM4237_T1_S2_AD,/projects/chuang-lab/USERS/domans/melanoma_PDX_ST/additionalHandE/tiff/WM4237/WM4237 #229_T1__20220520_091746_cut_level_0_oid_0.tiff,
-WM4237_T2_S1_AD,/projects/chuang-lab/USERS/domans/melanoma_PDX_ST/additionalHandE/tiff/WM4237/WM4237 #211_T2_Day_42__20220520_083124_cut_level_0_oid_0.tiff,
-WM4237_T2_S2_AD,/projects/chuang-lab/USERS/domans/melanoma_PDX_ST/additionalHandE/tiff/WM4237/WM4237 #211_T2__20220520_085201_cut_level_0_oid_1.tiff,
-WM4237_T3_S1_AD,/projects/chuang-lab/USERS/domans/melanoma_PDX_ST/additionalHandE/tiff/WM4237/WM4237 #221_T3_Day_70__20220520_083633_cut_level_0_oid_0.tiff,
-WM4237_T3_S2_AD,/projects/chuang-lab/USERS/domans/melanoma_PDX_ST/additionalHandE/tiff/WM4237/WM4237 #221_T3__20220520_085259_cut_level_0_oid_0.tiff,
-WM4237_T4_S1_AD,/projects/chuang-lab/USERS/domans/melanoma_PDX_ST/additionalHandE/tiff/WM4237/WM4237 #214_T4_Day_94__20220520_084017_cut_level_0_oid_0.tiff,
-WM4237_T4_S2_AD,/projects/chuang-lab/USERS/domans/melanoma_PDX_ST/additionalHandE/tiff/WM4237/WM4237 #214_T4__20220520_085414_cut_level_0_oid_0.tiff,
-WM4237_TC_S1_AD,/projects/chuang-lab/USERS/domans/melanoma_PDX_ST/additionalHandE/tiff/WM4237/WM4237 CTRL_207_DAY_42__20220520_084211_cut_level_0_oid_0.tiff,
-WM4237_TC_S2_AD,/projects/chuang-lab/USERS/domans/melanoma_PDX_ST/additionalHandE/tiff/WM4237/WM4237 CTRL_207__20220520_085512_cut_level_0_oid_0.tiff,
-WM4237_TE_S1_AD,/projects/chuang-lab/USERS/domans/melanoma_PDX_ST/additionalHandE/tiff/WM4237/WM4237 CTRL_200__20220520_084527_cut_level_0_oid_1.tiff,
-WM4237_TE_S2_AD,/projects/chuang-lab/USERS/domans/melanoma_PDX_ST/additionalHandE/tiff/WM4237/WM4237 CTRL_#200__20220520_084919_cut_level_0_oid_1.tiff,
+sample,image,grid,magnification
+WM4237_T0_S1_AD,/projects/chuang-lab/USERS/domans/melanoma_PDX_ST/additionalHandE/tiff/WM4237/WM4237 #197_TO__20220520_082852_cut_level_0_oid_2.tiff,,40
+WM4237_T0_S2_AD,/projects/chuang-lab/USERS/domans/melanoma_PDX_ST/additionalHandE/tiff/WM4237/WM4237 197_T0__20220520_091543_cut_level_0_oid_0.tiff,,40
+WM4237_T1_S1_AD,/projects/chuang-lab/USERS/domans/melanoma_PDX_ST/additionalHandE/tiff/WM4237/WM4237 #229_T1_Day_14__20220520_083037_cut_level_0_oid_1.tiff,,40
+WM4237_T1_S2_AD,/projects/chuang-lab/USERS/domans/melanoma_PDX_ST/additionalHandE/tiff/WM4237/WM4237 #229_T1__20220520_091746_cut_level_0_oid_0.tiff,,40
+WM4237_T2_S1_AD,/projects/chuang-lab/USERS/domans/melanoma_PDX_ST/additionalHandE/tiff/WM4237/WM4237 #211_T2_Day_42__20220520_083124_cut_level_0_oid_0.tiff,,40
+WM4237_T2_S2_AD,/projects/chuang-lab/USERS/domans/melanoma_PDX_ST/additionalHandE/tiff/WM4237/WM4237 #211_T2__20220520_085201_cut_level_0_oid_1.tiff,,40
+WM4237_T3_S1_AD,/projects/chuang-lab/USERS/domans/melanoma_PDX_ST/additionalHandE/tiff/WM4237/WM4237 #221_T3_Day_70__20220520_083633_cut_level_0_oid_0.tiff,,40
+WM4237_T3_S2_AD,/projects/chuang-lab/USERS/domans/melanoma_PDX_ST/additionalHandE/tiff/WM4237/WM4237 #221_T3__20220520_085259_cut_level_0_oid_0.tiff,,40
+WM4237_T4_S1_AD,/projects/chuang-lab/USERS/domans/melanoma_PDX_ST/additionalHandE/tiff/WM4237/WM4237 #214_T4_Day_94__20220520_084017_cut_level_0_oid_0.tiff,,40
+WM4237_T4_S2_AD,/projects/chuang-lab/USERS/domans/melanoma_PDX_ST/additionalHandE/tiff/WM4237/WM4237 #214_T4__20220520_085414_cut_level_0_oid_0.tiff,,40
+WM4237_TC_S1_AD,/projects/chuang-lab/USERS/domans/melanoma_PDX_ST/additionalHandE/tiff/WM4237/WM4237 CTRL_207_DAY_42__20220520_084211_cut_level_0_oid_0.tiff,,40
+WM4237_TC_S2_AD,/projects/chuang-lab/USERS/domans/melanoma_PDX_ST/additionalHandE/tiff/WM4237/WM4237 CTRL_207__20220520_085512_cut_level_0_oid_0.tiff,,40
+WM4237_TE_S1_AD,/projects/chuang-lab/USERS/domans/melanoma_PDX_ST/additionalHandE/tiff/WM4237/WM4237 CTRL_200__20220520_084527_cut_level_0_oid_1.tiff,,40
+WM4237_TE_S2_AD,/projects/chuang-lab/USERS/domans/melanoma_PDX_ST/additionalHandE/tiff/WM4237/WM4237 CTRL_#200__20220520_084919_cut_level_0_oid_1.tiff,,40

@@ -6,13 +6,13 @@ process GET_HOVERNET_MASK {
     publishDir "${params.outdir}/${sample_id}", mode: 'copy', overwrite: true
     
     input:
-    tuple val(sample_id), path(image)
+    tuple val(sample_id), path(image), val(mag)
     
     output:
     tuple val(sample_id), file("hovernet/mask/outfile.png"), emit: mask
     
     script:
-    """   
+    """
     python /hover_net/run_infer.py \
     --gpu="" \
     --device_mode="cpu" \
@@ -28,7 +28,8 @@ process GET_HOVERNET_MASK {
     wsi \
     --input_dir="./${image}" \
     --output_dir=hovernet/ \
-    --proc_mag=${params.magnification} \
+    --slide_mag=${mag} \
+    --proc_mag=40 \
     --chunk_shape=${params.hovernet_chunk_size} \
     --tile_shape=${params.hovernet_tile_size} \
     --save_mask
@@ -43,7 +44,7 @@ process INFER_HOVERNET {
     publishDir "${params.outdir}/${sample_id}", mode: 'copy', overwrite: true
     
     input:
-    tuple val(sample_id), path(image), path(mask)
+    tuple val(sample_id), path(image), path(mask), val(mag)
     
     output:
     tuple val(sample_id), file("hovernet/outfile.json"), emit: json
@@ -68,7 +69,8 @@ process INFER_HOVERNET {
     --input_dir="./${image}" \
     --output_dir=hovernet/ \
     --input_mask_dir=mask/ \
-    --proc_mag=${params.magnification} \
+    --slide_mag=${mag} \
+    --proc_mag=40 \
     --chunk_shape=${params.hovernet_chunk_size} \
     --tile_shape=${params.hovernet_tile_size}
     """ 
