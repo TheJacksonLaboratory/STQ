@@ -43,12 +43,10 @@ workflow MAIN {
                                  .join(TILE_WSI.out.grid)
                                  .join(LOAD_SAMPLE_INFO.out.grid) )
                                  
-        GET_HOVERNET_MASK ( CONVERT_TO_TILED_TIFF.out
-                            .join(LOAD_SAMPLE_INFO.out.mag) )
+        GET_HOVERNET_MASK ( CONVERT_TO_TILED_TIFF.out )
                                  
         INFER_HOVERNET ( CONVERT_TO_TILED_TIFF.out
-                         .join(GET_HOVERNET_MASK.out.mask)
-                         .join(LOAD_SAMPLE_INFO.out.mag) )
+                         .join(GET_HOVERNET_MASK.out.mask) )
         
         COMPUTE_HOVERNET_DATA ( INFER_HOVERNET.out.json )
         

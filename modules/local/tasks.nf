@@ -7,9 +7,8 @@ process LOAD_SAMPLE_INFO {
     tuple val(sample_id), path(image), val(meta_grid), val(mag)
     
     output:
-    tuple val(sample_id), file(image), emit: main
+    tuple val(sample_id), file(image), val(mag), emit: main
     tuple val(sample_id), file("tissue_positions_list.csv"), file("scalefactors_json.json"), emit: grid
-    tuple val(sample_id), val(mag), emit: mag
     
     script:
     """
@@ -31,14 +30,18 @@ process CONVERT_TO_TILED_TIFF {
     label 'vips_process'
 
     input:
-    tuple val(sample_id), path(image)
+    tuple val(sample_id), path(image), val(mag)
     
     output:
     tuple val(sample_id), file("outfile.tiff")
 
-    script:
+    script:    
     """
-    vips tiffsave ${image} ./outfile.tiff --compression none --tile --tile-width ${params.tiled_tiff_tile_size} --tile-height ${params.tiled_tiff_tile_size}
+    f=`echo ${params.target_magnification} / ${mag} | bc -l`
+    echo vips resize ${image} tempfile.tiff \$f
+    vips resize ${image} tempfile.tiff \$f
+    
+    vips tiffsave tempfile.tiff outfile.tiff --compression none --tile --tile-width ${params.tiled_tiff_tile_size} --tile-height ${params.tiled_tiff_tile_size}
     """
 }
 

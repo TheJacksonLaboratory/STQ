@@ -6,7 +6,7 @@ process GET_HOVERNET_MASK {
     publishDir "${params.outdir}/${sample_id}", mode: 'copy', overwrite: true
     
     input:
-    tuple val(sample_id), path(image), val(mag)
+    tuple val(sample_id), path(image)
     
     output:
     tuple val(sample_id), file("hovernet/mask/outfile.png"), emit: mask
@@ -28,7 +28,7 @@ process GET_HOVERNET_MASK {
     wsi \
     --input_dir="./${image}" \
     --output_dir=hovernet/ \
-    --slide_mag=${mag} \
+    --slide_mag=${params.target_magnification} \
     --proc_mag=40 \
     --chunk_shape=${params.hovernet_chunk_size} \
     --tile_shape=${params.hovernet_tile_size} \
@@ -44,7 +44,7 @@ process INFER_HOVERNET {
     publishDir "${params.outdir}/${sample_id}", mode: 'copy', overwrite: true
     
     input:
-    tuple val(sample_id), path(image), path(mask), val(mag)
+    tuple val(sample_id), path(image), path(mask)
     
     output:
     tuple val(sample_id), file("hovernet/outfile.json"), emit: json
@@ -69,7 +69,7 @@ process INFER_HOVERNET {
     --input_dir="./${image}" \
     --output_dir=hovernet/ \
     --input_mask_dir=mask/ \
-    --slide_mag=${mag} \
+    --slide_mag=${params.target_magnification} \
     --proc_mag=40 \
     --chunk_shape=${params.hovernet_chunk_size} \
     --tile_shape=${params.hovernet_tile_size}
@@ -97,7 +97,10 @@ process COMPUTE_HOVERNET_DATA {
     sys.path.append("${projectDir}/lib")
     from hovernetConv import loadNuclei
     
-    loadNuclei("${hovernet_json}", savepath='hovernet/', sname='per_nucleus_data')   
+    loadNuclei("${hovernet_json}",
+              savepath='hovernet/',
+              sname='per_nucleus_data',
+              original_magnification=${params.target_magnification})   
     """
 }
 

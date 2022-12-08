@@ -61,7 +61,7 @@ def computeContourQuantities(c, na_filler: float = np.nan):
     return results
 
 
-def loadNuclei(json_file_path: str = '', savepath: str = None, sname: str = ''):
+def loadNuclei(json_file_path: str = '', savepath: str = None, sname: str = '', original_magnification: float = 40):
     
     """Load JSON file produced by HoVer-Net inference.
     
@@ -79,17 +79,20 @@ def loadNuclei(json_file_path: str = '', savepath: str = None, sname: str = ''):
     with open(json_file_path, 'r') as temp_file:
         json_data = json.loads(temp_file.read())
     
+    hovernet_magnification = float(json_data['mag'])
+    scale_factor = original_magnification / hovernet_magnification
+    
     df = pd.DataFrame({id: [json_data['nuc'][id]['centroid'],
                             json_data['nuc'][id]['type'],
                             json_data['nuc'][id]['type_prob']] for id in json_data['nuc'].keys()}).T.rename_axis('ids')
-    df[['centroid_x', 'centroid_y']] = df[0].apply(pd.Series)
+    df[['centroid_x', 'centroid_y']] = df[0].apply(pd.Series) * scale_factor
     df['cell_type'] = df[1]
     df['cell_type_prob'] = df[2]
     df = df.drop([0, 1, 2], axis=1)
    
     contours = {id: json_data['nuc'][id]['contour'] for id in df.index}
     
-    df_info = pd.DataFrame({id: computeContourQuantities(np.array(contours[id])) for id in list(contours)}).T.rename_axis('ids')
+    df_info = pd.DataFrame({id: computeContourQuantities(np.array(contours[id]) * scale_factor) for id in list(contours)}).T.rename_axis('ids')
     
     df = pd.concat([df, df_info], axis=1)
     
