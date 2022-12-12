@@ -3,10 +3,11 @@ import json
 import pandas as pd
 import numpy as np
 import cv2
-from skimage.transform import resize
-import matplotlib.pyplot as plt
 
 def checkMask(thumbPath, maskPath, savePath, bc = 210.):
+
+    import matplotlib.pyplot as plt
+    from skimage.transform import resize
 
     thumb = plt.imread(thumbPath)
     original_mask = plt.imread(maskPath)
