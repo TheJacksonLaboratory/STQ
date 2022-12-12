@@ -8,7 +8,8 @@ include { LOAD_SAMPLE_INFO;
           GET_INCEPTION_FEATURES;
         } from '../modules/local/tasks'
 
-include { GET_HOVERNET_MASK;
+include { GET_HOVERNET_MASK;  
+          CHECK_MASK;
           INFER_HOVERNET;
           COMPUTE_HOVERNET_DATA;
           GENERATE_PERSPOT_HOVERNET_DATA;
@@ -44,9 +45,12 @@ workflow MAIN {
                                  .join(LOAD_SAMPLE_INFO.out.grid) )
                                  
         GET_HOVERNET_MASK ( CONVERT_TO_TILED_TIFF.out )
+        
+        CHECK_MASK ( GET_HOVERNET_MASK.out
+                     .join(CREATE_THUMBNAIL_TIFF.out) )
                                  
         INFER_HOVERNET ( CONVERT_TO_TILED_TIFF.out
-                         .join(GET_HOVERNET_MASK.out.mask) )
+                         .join(CHECK_MASK.out) )
         
         COMPUTE_HOVERNET_DATA ( INFER_HOVERNET.out.json )
         

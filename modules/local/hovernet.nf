@@ -3,7 +3,6 @@ process GET_HOVERNET_MASK {
 
     tag "$sample_id"
     label 'process_hovernet_low'
-    publishDir "${params.outdir}/${sample_id}", mode: 'copy', overwrite: true
     
     input:
     tuple val(sample_id), path(image)
@@ -34,6 +33,31 @@ process GET_HOVERNET_MASK {
     --tile_shape=${params.hovernet_tile_size} \
     --save_mask
     """ 
+}
+
+
+process CHECK_MASK {
+
+    tag "$sample_id"
+    label 'process_hovernet_low'
+    publishDir "${params.outdir}/${sample_id}", mode: 'copy', overwrite: true
+    
+    input:
+    tuple val(sample_id), path(mask), path(thumbnail)
+    
+    output:
+    tuple val(sample_id), file("hovernet/mask/outfile.png")
+    
+    script:
+    """
+    #!/usr/bin/env python
+    
+    import sys
+    sys.path.append("${projectDir}/lib")
+    from hovernetConv import checkMask
+    
+    checkMask("${thumbnail}", "${mask}", "hovernet/mask/", bc=${params.mask_background_cutoff}) 
+    """
 }
 
 

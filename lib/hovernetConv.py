@@ -3,8 +3,32 @@ import json
 import pandas as pd
 import numpy as np
 import cv2
+from skimage.transform import resize
+import matplotlib.pyplot as plt
 
-def computeContourQuantities(c, na_filler: float = np.nan):
+def checkMask(thumbPath, maskPath, savePath, bc = 210.):
+
+    thumb = plt.imread(thumbPath)
+    original_mask = plt.imread(maskPath)
+
+    mask = resize(original_mask, (thumb.shape[0], thumb.shape[1]), order=3)
+    mask[mask>=0.5] = 1.
+    mask[mask<0.5] = 0.
+
+    b = thumb.mean(axis=2)[mask==0].mean()
+    print('Average background:', b)
+
+    if b < bc:       
+        original_mask[:] = 1.
+    
+    if not os.path.exists(savePath):
+        os.makedirs(savePath)
+    
+    cv2.imwrite(savePath + os.path.basename(maskPath), original_mask * 255)
+
+    return
+
+def computeContourQuantities(c, na_filler: float = np.nan, scale_factor: float = 1.0):
     
     """Compute area and perimeter length, derive orientation and eccentricity for a contour
     
@@ -24,13 +48,13 @@ def computeContourQuantities(c, na_filler: float = np.nan):
     except:
         _length = na_filler
         
-    results['perimeter_length'] = _length
+    results['perimeter_length'] = _length * scale_factor
     
     # https://en.wikipedia.org/wiki/Image_moment
     # https://docs.opencv.org/3.4/d8/d23/classcv_1_1Moments.html
     moments = cv2.moments(c)
     
-    results['area'] = moments['m00']
+    results['area'] = moments['m00'] * (scale_factor**2)
     
     try:
         mu20p = moments['mu20'] / moments['m00']
@@ -85,14 +109,14 @@ def loadNuclei(json_file_path: str = '', savepath: str = None, sname: str = '', 
     df = pd.DataFrame({id: [json_data['nuc'][id]['centroid'],
                             json_data['nuc'][id]['type'],
                             json_data['nuc'][id]['type_prob']] for id in json_data['nuc'].keys()}).T.rename_axis('ids')
-    df[['centroid_x', 'centroid_y']] = df[0].apply(pd.Series) * scale_factor
+    df[['centroid_x', 'centroid_y']] = (df[0].apply(pd.Series) * scale_factor).astype(int)
     df['cell_type'] = df[1]
     df['cell_type_prob'] = df[2]
     df = df.drop([0, 1, 2], axis=1)
    
     contours = {id: json_data['nuc'][id]['contour'] for id in df.index}
     
-    df_info = pd.DataFrame({id: computeContourQuantities(np.array(contours[id]) * scale_factor) for id in list(contours)}).T.rename_axis('ids')
+    df_info = pd.DataFrame({id: computeContourQuantities(np.array(contours[id]), scale_factor=scale_factor) for id in list(contours)}).T.rename_axis('ids')
     
     df = pd.concat([df, df_info], axis=1)
     
