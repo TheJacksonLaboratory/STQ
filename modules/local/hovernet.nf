@@ -65,7 +65,6 @@ process INFER_HOVERNET {
 
     tag "$sample_id"
     label 'process_hovernet'
-    publishDir "${params.outdir}/${sample_id}", mode: 'copy', overwrite: true
     
     input:
     tuple val(sample_id), path(image), path(mask)
@@ -101,7 +100,79 @@ process INFER_HOVERNET {
 }
 
 
-process COMPUTE_HOVERNET_DATA {
+process INFER_STARDIST {
+
+    tag "$sample_id"
+    label 'process_stardist'
+    
+    input:
+    tuple val(sample_id), path(image)
+    
+    output:
+    tuple val(sample_id), file("outfile.json"), emit: json
+    
+    script:
+    """
+    #!/usr/bin/env python
+    import sys
+    import json
+    sys.path.append("${projectDir}/lib")
+    from hovernetConv import makeJSONoutput
+    import tifffile
+    import numpy as np
+    from csbdeep.utils import normalize
+    from stardist.data import test_image_nuclei_2d
+    from stardist.models import StarDist2D
+    model = StarDist2D.from_pretrained('2D_versatile_he')
+    
+    img = tifffile.imread("${image}")[..., :3]
+    print(img.shape)
+    
+    from csbdeep.data import Normalizer, normalize_mi_ma
+    class MyNormalizer(Normalizer):
+        def __init__(self, mi, ma):
+                self.mi, self.ma = mi, ma
+        def before(self, x, axes):
+            return normalize_mi_ma(x, self.mi, self.ma, dtype=np.float32)
+        def after(*args, **kwargs):
+            assert False
+        @property
+        def do_after(self):
+            return False
+    
+    normalizer = MyNormalizer(0, 255)
+    
+    labels, details = model.predict_instances_big(img, axes='YXC', block_size=4096, min_overlap=128, context=128, normalizer=normalizer, n_tiles=(4,4,1))
+    
+    data = makeJSONoutput(details)
+    
+    with open('outfile.json', 'w') as f:
+        f.write(json.dumps(data))
+    """ 
+}
+
+
+process COMPRESS_JSON_FILE {
+
+    tag "$sample_id"
+    label 'vips_process'
+    publishDir "${params.outdir}/${sample_id}", mode: 'copy', overwrite: true
+    
+    input:
+    tuple val(sample_id), path(json_file)
+    
+    output:
+    tuple val(sample_id), file("hovernet/outfile.json.gz")
+    
+    script:
+    """
+    mkdir hovernet
+    gzip -c ${json_file} > hovernet/outfile.json.gz
+    """ 
+}
+
+
+process COMPUTE_SEGMENTATION_DATA {
 
     tag "$sample_id"
     label 'python_process_low'
@@ -129,7 +200,7 @@ process COMPUTE_HOVERNET_DATA {
 }
 
 
-process GENERATE_PERSPOT_HOVERNET_DATA {
+process GENERATE_PERSPOT_SEGMENTATION_DATA {
 
     tag "$sample_id"
     label 'python_process_low'

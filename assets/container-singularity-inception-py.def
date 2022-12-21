@@ -11,4 +11,4 @@ apt-get install -y procps
 
 /opt/conda/bin/conda install --quiet -y -c conda-forge pandas
 /opt/conda/bin/conda install --quiet -y pip
-/opt/conda/bin/pip install matplotlib scikit-learn scipy datatable openslide-python "tensorflow==2.*" "h5py<3.0.0" opencv-python-headless 
+/opt/conda/bin/pip install tifffile stardist matplotlib scikit-learn scipy datatable openslide-python "tensorflow==2.*" "h5py<3.0.0" opencv-python-headless 

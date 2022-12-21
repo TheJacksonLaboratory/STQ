@@ -4,6 +4,55 @@ import pandas as pd
 import numpy as np
 import cv2
 
+def close_contour(c):
+
+    def lfunc(s):
+        l = np.abs(np.diff(s)).max()
+        s = np.vstack([np.linspace(s[0, 0], s[0, 1], l+1, dtype=s.dtype),
+                       np.linspace(s[1, 0], s[1, 1], l+1, dtype=s.dtype)])
+        return s
+        
+    c = np.array(c)  
+     
+    return np.concatenate([lfunc(c[i:i+2].T).T[1:] for i in range(len(c)-1)] + [lfunc(np.vstack([c[-1], c[0]]).T).T])
+
+def minimize_contour(c):
+
+    cc = np.vstack([c, c[:2]])
+    
+    toKeep = []
+    for i in range(len(c)):
+        x_prev, y_prev = cc[i]
+        x_curr, y_curr = cc[i+1]
+        x_next, y_next = cc[i+2]
+        
+        keep = True
+        if np.abs(x_prev-x_next)==np.abs(y_prev-y_next) and np.abs(x_prev-x_next)>=2:
+            keep=False
+        elif np.abs(x_prev-x_next)>=2 and y_prev==y_next and y_prev==y_curr:
+            keep = False
+        elif x_prev==x_next and x_prev==x_curr and np.abs(y_prev-y_next)>=2:
+            keep = False   
+                    
+        toKeep.append(keep)
+        
+    return c[np.roll(toKeep, 1)]
+
+def makeJSONoutput(stardist_details):
+
+    """ {'mag': 40, 'nuc': {'1': {'centroid': [x_float, y_float], 'contour': [[x_int, y_int], ...], 'type_prob': 0.995, 'type': 0}, '2': ...}}
+    """
+
+    data = {'mag': 40, 'nuc': dict()}
+    for i in range(len(stardist_details['prob'])):
+        data['nuc'].update({str(i): dict()})
+        data['nuc'][str(i)].update({'centroid': stardist_details['points'][i].astype(int)[::-1].tolist()})
+        data['nuc'][str(i)].update({'contour':  minimize_contour(close_contour(stardist_details['coord'][i].T.astype(int)))[:,::-1].tolist()})
+        data['nuc'][str(i)].update({'type_prob': np.float64(stardist_details['prob'][i])})
+        data['nuc'][str(i)].update({'type': 0})
+        
+    return data
+
 def checkMask(thumbPath, maskPath, savePath, bc = 210.):
 
     import matplotlib.pyplot as plt

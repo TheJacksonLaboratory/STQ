@@ -24,6 +24,29 @@ process LOAD_SAMPLE_INFO {
 }
 
 
+process STAIN_NORMALIZATION {
+
+    tag "$sample_id"
+    label 'stain_normalization_process'
+
+    input:
+    tuple val(sample_id), path("outfile.tiff"), val(mag)
+    
+    output:
+    tuple val(sample_id), file("output_images/outfile.tiff"), val(mag)
+
+    script:    
+    """
+    mkdir output_images
+    
+    python -u "${projectDir}/bin/StainNetNorm.py" \
+    --source_dir "." \
+    --save_dir "output_images/" \
+    --model_path ${params.stainnet}
+    """
+}
+
+
 process CONVERT_TO_TILED_TIFF {
 
     tag "$sample_id"
@@ -33,15 +56,16 @@ process CONVERT_TO_TILED_TIFF {
     tuple val(sample_id), path(image), val(mag)
     
     output:
-    tuple val(sample_id), file("outfile.tiff")
+    tuple val(sample_id), file("converted/outfile.tiff")
 
     script:    
     """
     f=`echo ${params.target_magnification} / ${mag} | bc -l`
     echo vips resize ${image} tempfile.tiff \$f
     vips resize ${image} tempfile.tiff \$f
+    mkdir converted
     
-    vips tiffsave tempfile.tiff outfile.tiff --compression none --tile --tile-width ${params.tiled_tiff_tile_size} --tile-height ${params.tiled_tiff_tile_size}
+    vips tiffsave tempfile.tiff converted/outfile.tiff --compression none --tile --tile-width ${params.tiled_tiff_tile_size} --tile-height ${params.tiled_tiff_tile_size}
     """
 }
 

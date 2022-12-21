@@ -1,0 +1,13 @@
+bootstrap: shub
+from: jaxreg.jax.org/singlecell/python:3.8
+
+%post
+apt-get update
+apt-get install -y procps
+
+/opt/conda/bin/conda install --quiet -y pip=20.3.1
+/opt/conda/bin/pip install imageio numpy pillow tqdm torch
+
+wget https://github.com/khtao/StainNet/blob/master/checkpoints/aligned_histopathology_dataset/StainNet-Public_layer3_ch32.pth
+wget https://github.com/khtao/StainNet/blob/master/checkpoints/aligned_cytopathology_dataset/StainNet-3x0_best_psnr_layer3_ch32.pth
+wget https://github.com/khtao/StainNet/blob/master/checkpoints/camelyon16_dataset/StainNet-Public-centerUni_layer3_ch32.pth
