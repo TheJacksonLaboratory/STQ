@@ -167,6 +167,11 @@ process TILE_WSI {
             outfile.write(json.dumps(info_dict))
     else:
         grid, tile_size = getGrid(*slide_dimensions,
+                                  grid_type="${params.grid_type}",
+                                  spot_diamter=${params.grid_spot_diamter},
+                                  spot_horizontal_spacing=${params.grid_spot_horizontal_spacing},
+                                  magnification=40,
+                                  aspect_correction=${params.grid_aspect_correction},
                                   savepath=savepath, sname='grid')
     
     plotGrid(grid, *slide_dimensions,
