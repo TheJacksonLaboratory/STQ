@@ -104,6 +104,8 @@ process INFER_STARDIST {
 
     tag "$sample_id"
     label 'process_stardist'
+    errorStrategy 'retry'
+    maxRetries 10
     
     input:
     tuple val(sample_id), path(image)
@@ -116,6 +118,7 @@ process INFER_STARDIST {
     #!/usr/bin/env python
     import sys
     import json
+    import shutil
     sys.path.append("${projectDir}/lib")
     from hovernetConv import makeJSONoutput
     import tifffile
@@ -123,7 +126,9 @@ process INFER_STARDIST {
     from csbdeep.utils import normalize
     from stardist.data import test_image_nuclei_2d
     from stardist.models import StarDist2D
-    model = StarDist2D.from_pretrained('2D_versatile_he')
+    
+    shutil.copytree("${params.stardist_model}", "custom_model/")
+    model = StarDist2D(None, name="custom_model/")
     
     img = tifffile.imread("${image}")[..., :3]
     print(img.shape)
