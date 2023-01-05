@@ -68,7 +68,46 @@ print('sample,image,grid')
 for id in sorted(ids_WM4007_add.keys()):
     print('%s,/projects/chuang-lab/USERS/domans/melanoma_PDX_ST/additionalHandE/tiff/WM4007/%s.tiff,' % (id, ids_WM4007_add[id]))
 
+ids_WM4007_2_add = {
+ 'WM4007_T0_S1_AD': 'WM4007_#484_T0_6_28_22__20221214_123115_cut_level_0_oid_0.tiff',
+ 'WM4007_T0_S2_AD': 'WM4007_#484_T0_8_18_22__20221214_122521_cut_level_0_oid_0.tiff',
+ 'WM4007_T1_S1_AD': 'WM4007_#426_T1_6_28_22__20221214_123154_cut_level_0_oid_0.tiff',
+ 'WM4007_T1_S2_AD': 'WM4007_#426_T1_8_18_22__20221214_122630_cut_level_0_oid_0.tiff',
+ 'WM4007_T2_S1_AD': 'WM4007_#437_T2_6_28_22__20221214_123428_cut_level_0_oid_0.tiff',
+ 'WM4007_T2_S2_AD': 'WM4007_#437_T2_8_18_22__20221214_122824_cut_level_0_oid_0.tiff',
+ 'WM4007_T3_S1_AD': 'WM4007_#17_T3_6_28_22__20221214_123549_cut_level_0_oid_0.tiff',
+ 'WM4007_T3_S2_AD': 'WM4007_#17_T3_8_18_22__20221214_122920_cut_level_0_oid_0.tiff',
+ 'WM4007_T4_S1_AD': 'WM4007_#006_T4_6_28_22__20221214_123639_cut_level_0_oid_0.tiff',
+ 'WM4007_T4_S2_AD': 'WM4007_#6_T4_8_18_22__20221214_123030_cut_level_0_oid_0.tiff',
+ 'WM4007_TC_S1_AD': 'WM4007_#439_CTRL_6_28_22__20221214_123302_cut_level_0_oid_0.tiff',
+ 'WM4007_TC_S2_AD': 'WM4007_#439_CTRL_8_18_22__20221214_122424_cut_level_0_oid_0.tiff',
+}
 
+print('sample,image,grid,magnification')
+for id in sorted(ids_WM4007_2_add.keys()):
+    print('%s,/projects/chuang-lab/USERS/domans/melanoma_PDX_ST/additionalHandE/tiff/WM4007_2/%s,,40' % (id, ids_WM4007_2_add[id]))
+    
+    
+ids_WM4237_2_add = {
+ 'WM4237_T0_S1_AD': 'WM4237_#197_TO_4_5_22__20221214_115936_cut_level_0_oid_2.tiff',
+ 'WM4237_T0_S2_AD': 'WM4237_#197_T0_4_21_22__20221214_122004_cut_level_0_oid_0.tiff',
+ 'WM4237_T1_S1_AD': 'WM4237_#229_T1_4_21_22__20221214_121626_cut_level_0_oid_0.tiff',
+ 'WM4237_T1_S2_AD': 'WM4237_#229_T1_Day_14_4_7_22__20221214_120033_cut_level_0_oid_0.tiff',
+ 'WM4237_T2_S1_AD': 'WM4237_#211_T2_4_21_22__20221214_122025_cut_level_0_oid_0.tiff',
+ 'WM4237_T2_S2_AD': 'WM4237_#211_T2_Day_42_4_7_22__20221214_120136_cut_level_0_oid_0.tiff',
+ 'WM4237_T3_S1_AD': 'WM4237_#221_T3_4_21_22__20221214_122137_cut_level_0_oid_0.tiff',
+ 'WM4237_T3_S2_AD': 'WM4237_#221_T3_Day_70_4_7_22__20221214_120507_cut_level_0_oid_0.tiff',
+ 'WM4237_T4_S1_AD': 'WM4237_#214_T4_4_21_22__20221214_122218_cut_level_0_oid_0.tiff',
+ 'WM4237_T4_S2_AD': 'WM4237_#214_T4_Day_94_4_7_22__20221214_120929_cut_level_0_oid_0.tiff',
+ 'WM4237_TC_S1_AD': 'WM4237_#207_CTRL_4_21_22__20221214_122333_cut_level_0_oid_0.tiff',
+ 'WM4237_TC_S2_AD': 'WM4237_#207_CTRL_Day_42_4_7_22__20221215_085145_cut_level_0_oid_0.tiff',
+ 'WM4237_TE_S1_AD': 'WM4237_#200_CTRL_4_7_22__20221214_121604_cut_level_0_oid_0.tiff',
+ 'WM4237_TE_S2_AD': 'WM4237_#200_CTRL_4_7_22__20221215_085453_cut_level_0_oid_0.tiff',
+ }
+
+print('sample,image,grid,magnification')
+for id in sorted(ids_WM4237_2_add.keys()):
+    print('%s,/projects/chuang-lab/USERS/domans/melanoma_PDX_ST/additionalHandE/tiff/WM4237_2/%s,,40' % (id, ids_WM4237_2_add[id]))
 
 
  

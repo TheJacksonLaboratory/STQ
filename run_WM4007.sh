@@ -1,4 +1,4 @@
-samplesheet="./assets/samplesheet_WM4007_ADD.csv"
+samplesheet="./assets/samplesheet_WM4007_2_ADD.csv"
 workdir="/fastscratch/domans/work_WM4007_ADD"
 outdir="./results_WM4007_AD"
 
