@@ -11,6 +11,7 @@ import itertools
 import PIL
 import json
 from scipy.ndimage import gaussian_filter
+from tqdm import tqdm
 
 import PIL.Image
 PIL.Image.MAX_IMAGE_PIXELS = None
@@ -83,46 +84,44 @@ if __name__ == '__main__':
     xi = tf.keras.layers.GlobalAveragePooling2D(data_format=None)(xi)
     model = tf.keras.models.Model(inputs=base_modeli.input, outputs=xi)
     
-    # Assemble and store all tiles in an array
     num_images = len(pos)
-    images = np.zeros((num_images, num_rows, num_cols, num_dimensions), dtype=np.float32)
-    print('Assembling tiles')
-    slide = openslide.open_slide(wsi_file)
-    for indx in range(num_images):
-        cy = pos.loc[indx, 'pxl_row_in_wsi']
-        cx = pos.loc[indx, 'pxl_col_in_wsi']
-        w = num_cols
-        h = num_rows
-        lvl = 0
-        img_RGB = np.array(slide.read_region((int(cx - w / 2), int(cy - h / 2)), lvl, (int(w), int(h))).convert('RGB'))
-        images[indx, :, :, :] = img_RGB
-        if indx % 100 == 0:
-            print('Indx = ' + str(indx) + '; Center x = ' + str(cx) + ', y = ' + str(cy))
+    batch_size = int(10**8 / (num_cols * num_rows))
+    num_batches = int(np.ceil(num_images / batch_size))
     
-    if sigma > 0:       
-        # Blur each of the color channels separately and subtract blurred tile from original. Reset background level to a constant
-        print('Correcting images background')
-        background=[200, 160, 185]
-        for indx in range(num_images):
-            image_blurred = np.dstack([gaussian_filter(images[indx, :, :, k], sigma=sigma) for k in range(3)])
-            image_corrected = (images[indx, :, :, :] - image_blurred + np.array(background)).astype(int)
-            image_corrected[image_corrected>255] = 255
-            image_corrected[image_corrected<0] = 0
-            images[indx, :, :, :] = image_corrected
-            
-    # Pass images through the network
-    print('Calling inception')
-    features = np.zeros((len(images), 2048))
-    print(pos.shape, (pos['in_tissue']==1).sum())
-    print(features[pos['in_tissue']==1].shape, images[pos['in_tissue']==1, :, :, :].shape)
-
-    features[pos['in_tissue']==1] = model.predict(tf.keras.applications.inception_v3.preprocess_input(images[pos['in_tissue']==1, :, :, :]), verbose=0) 
+    print('Reading and pocessing tiles:', num_images)
+    print('Batch size:', batch_size)
+    print('Number of batches:', num_batches)
+    
+    slide = openslide.open_slide(wsi_file)
+    
+    w = num_cols
+    h = num_rows
+    lvl = 0
+    features = []
+    for ibatch in tqdm(range(num_batches)):
+        images = []
+        for indx in range(batch_size):
+            try:
+                cy = pos.loc[indx + ibatch*batch_size, 'pxl_row_in_wsi']
+                cx = pos.loc[indx + ibatch*batch_size, 'pxl_col_in_wsi']
+                if pos.loc[indx + ibatch*batch_size, 'in_tissue']:
+                    images.append(np.array(slide.read_region((int(cx - w / 2), int(cy - h / 2)), lvl, (int(w), int(h))).convert('RGB')))
+            except:
+                pass
+ 
+        if len(images)>0:
+            features.append(model.predict(tf.keras.applications.inception_v3.preprocess_input(np.stack(images)), verbose=0))
+    features = np.vstack(features)
     
     # Convert the dictionary of features to a dataframe and name its columns featXXX
-    features_df = pd.DataFrame.from_dict(features)
-    features_df.columns = ['feat' + str(i) for i in range(features_df.shape[1])]
+    df_features = pd.DataFrame(features)
+    df_features.columns = ['feat' + str(i) for i in range(df_features.shape[1])]
+    df_features.index = pos.loc[pos['in_tissue']==1].index
+    
     # Append the spot position information to each row
-    tbl = pd.concat([pos, features_df], axis=1)
+    tbl = pd.concat([pos.loc[pos['in_tissue']==1], df_features], axis=1)
+    print(tbl)   
+    
     # Output the features with spot information
     DT = dt.Frame(tbl)
     ## This will automatically compress if the file suffix is .gz   
