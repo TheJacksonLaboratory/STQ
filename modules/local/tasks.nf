@@ -246,3 +246,70 @@ process GET_INCEPTION_FEATURES {
     --overlap-scale-factor=${params.overlap_scale_factor} 
     """   
 }
+
+
+process SELECT_SAVE_TILES {
+
+    tag "$sample_id"
+    label 'python_process_low'
+    publishDir "${params.outdir}/${sample_id}", pattern: 'tiles/*.csv', mode: 'copy', overwrite: true
+    
+    input:
+    tuple val(sample_id), path(image), path(grid_csv), path(grid_json), path(tile_mask)
+    
+    output:
+    tuple val(sample_id), file("tiles/*.tif"), emit: tiles
+    
+    script:
+    """
+    #!/usr/bin/env python
+    
+    import os
+    import pandas as pd
+    import numpy as np
+    import json
+    import openslide
+    import PIL
+    import PIL.Image
+    PIL.Image.MAX_IMAGE_PIXELS = None
+    
+    os.makedirs('tiles')
+     
+    se_mask = pd.read_csv("${tile_mask}", index_col=1, header=None)[0].xs(1)
+    np.random.seed(0)
+    sel_tiles = se_mask.sample(min(${params.tiles_per_slide}, se_mask.shape[0]))
+    sel_tiles.to_csv('tiles/tiles.csv', index=False, header=False)
+    
+    df_grid = pd.read_csv("${grid_csv}", index_col=0, header=None)[[4, 5]].loc[sel_tiles.values]
+    
+    with open("${grid_json}", 'r') as tempfile:
+        s = int(json.loads(tempfile.read())['spot_diameter_fullres'])
+    
+    slide = openslide.open_slide("${image}")  
+    for id in df_grid.index:
+        cx, cy = df_grid.loc[id]
+        print(id, s, cx, cy)
+        slide.read_region((int(cx - s / 2), int(cy - s / 2)), 0, (int(s), int(s))).convert('RGB').save('tiles/%s.tif' % id)
+    """
+}
+
+
+process GET_INCEPTION_FEATURES_TILES {
+
+    tag "$sample_id"
+    label 'process_inception'
+    publishDir "${params.outdir}/${sample_id}", pattern: 'tiles/*.csv.gz', mode: 'copy', overwrite: true
+    
+    input:
+    tuple val(sample_id), path("tiles/")
+    
+    output:
+    tuple val(sample_id), file("tiles/features.csv.gz")
+    
+    script:
+    """
+    python -u ${projectDir}/bin/run-inception-v3-tiles.py \
+    --input-path="tiles/" \
+    --output-path="tiles/features.csv.gz"
+    """   
+}

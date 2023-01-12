@@ -99,6 +99,87 @@ process INFER_HOVERNET {
     """ 
 }
 
+process INFER_HOVERNET_TILES {
+
+    tag "$sample_id"
+    label 'process_hovernet'
+    
+    input:
+    tuple val(sample_id), path("tiles/")
+    
+    output:
+    tuple val(sample_id), file("temp/json/*.json"), emit: json
+    
+    script:
+    """    
+    python /hover_net/run_infer.py \
+    --gpu="" \
+    --device_mode="cpu" \
+    --cpu_count=${task.cpus} \
+    --model_mode=fast \
+    --nr_inference_workers=${params.hovernet_num_inference_workers} \
+    --nr_post_proc_workers=${task.cpus} \
+    --nr_types=6 \
+    --type_info_path=/hover_net/type_info.json \
+    --model_path=/hovernet_fast_pannuke_type_tf2pytorch.tar \
+    --batch_size=${params.hovernet_batch_size} \
+    tile \
+    --input_dir="tiles/" \
+    --output_dir="temp/" \
+    --mem_usage=0.2
+    
+    rm -R temp/mat/
+    """ 
+}
+
+
+process GET_NUCLEI_TYPE_COUNTS {
+
+    tag "$sample_id"
+    label 'process_hovernet_low'
+    publishDir "${params.outdir}/${sample_id}", mode: 'copy', overwrite: true
+    
+    input:
+    tuple val(sample_id), path("json/")
+    
+    output:
+    tuple val(sample_id), file("tiles/classes.csv.gz")
+    
+    script:
+    """
+    #!/usr/bin/env python
+    
+    import os
+    import json
+    import pandas as pd
+    
+    fnames = [fname for fname in os.listdir("json/") if fname[-len('.json'):]=='.json']
+    num_images = len(fnames)
+    print("Number of json files:", num_images)
+    
+    ses = []
+    sen = []
+    for fname in fnames:
+        with open("json/" + fname, 'r') as tempfile:
+            s = json.loads(tempfile.read())
+        if len(s['nuc'].keys()) > 0:
+            df = pd.DataFrame([(i, s['nuc'][i]['type'], s['nuc'][i]['type_prob']) for i in s['nuc'].keys()])
+            se = df.loc[df[2]>=0.75][1].value_counts()
+            ses.append(se)
+            sen.append(fname[:-len('.json')])
+    
+    ses = pd.concat(ses, axis=1)
+    ses.columns = sen
+    ses = ses.fillna(0).sort_index()
+    print(ses)
+    
+    os.makedirs("tiles/")
+    
+    ses.T.to_csv('tiles/classes.csv.gz')
+    """
+
+}
+
 
 process INFER_STARDIST {
 
