@@ -1,5 +1,5 @@
-samplesheet="./assets/samplesheet_demo.csv"
-workdir="/fastscratch/domans/work_demo"
-outdir="./results_demo"
+samplesheet="./assets/samplesheet_test_aperio.csv"
+workdir="/fastscratch/domans/work_test_aperio"
+outdir="./results_test_aperio"
 
 sbatch job_sumner.sb "${samplesheet}" "${workdir}" "${outdir}"

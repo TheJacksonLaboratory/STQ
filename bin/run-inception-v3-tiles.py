@@ -53,7 +53,7 @@ if __name__ == '__main__':
         features.append(model.predict(tf.keras.applications.inception_v3.preprocess_input(np.stack(images)), verbose=0))
     features = np.vstack(features)
     
-    df_features = pd.DataFrame(data=features, index=fnames, columns=['feat' + str(i) for i in range(features.shape[1])])
+    df_features = pd.DataFrame(data=features, index=[fname[:-len('.tif')] for fname in fnames], columns=['feat' + str(i) for i in range(features.shape[1])])
     print(df_features)
     
     if not os.path.exists(os.path.dirname(output_path)):

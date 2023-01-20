@@ -28,6 +28,8 @@ process STAIN_NORMALIZATION {
 
     tag "$sample_id"
     label 'stain_normalization_process'
+    errorStrategy 'retry'
+    maxRetries 3
 
     input:
     tuple val(sample_id), path("outfile.tiff"), val(mag)
