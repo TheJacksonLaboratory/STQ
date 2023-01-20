@@ -33,6 +33,11 @@ import matplotlib.patheffects as path_effects
 from matplotlib.patches import Circle, Rectangle
 from matplotlib.collections import PatchCollection
 
+import cv2
+from skimage.transform import resize
+from scipy.ndimage import binary_fill_holes
+from skimage.draw import disk
+
 def plotMask(df, width: int = None, height: int = None, size: float = None, 
              image = None, figdim = 10, object_shape: str = 'spot', spot_alpha: float = 0.4,
              savepath: str = None, sname: str = '', show: bool = True):
@@ -99,8 +104,7 @@ def plotMask(df, width: int = None, height: int = None, size: float = None,
         plt.close(fig)
     
     return
-    
-    
+        
 def getInTissuePixelMask(low_res_image: str, low: float = 100, high: float = 200, savepath: str = None, sname: str = ''):
 
     """Plot mask as square tiles or disks/spots
@@ -199,3 +203,57 @@ def getInTissueTileMask(pixel_mask_csv: str, grid_csv: str, grid_json: str, low_
         df_grid['in_tissue'].to_csv(savepath + '%s.csv' % sname, header=False)
         
     return df_grid
+
+def makeTissueMaskFromTileMask(gridFile, gridInfoFile, tileMaskFile, squarePatch=False, upSizeFactor=1.5, 
+                               downSizeChunkPx=1000, kernelSize=20, savePath='tissue_mask.png'):
+
+    with open(gridInfoFile, 'r') as tempfile:
+        info = json.loads(tempfile.read())
+    s, x, y = int(info['spot_diameter_fullres']), info['x'], info['y']
+    print(s, x, y)
+
+    se_mask = pd.read_csv(tileMaskFile, index_col=0, header=None)[1].rename(None)
+
+    df_grid = pd.read_csv(gridFile, index_col=0, header=None)[[4, 5]]
+    df_grid.columns = ['x', 'y']
+    df_grid.index.name = None
+
+    df_grid = df_grid.loc[se_mask[se_mask==1].index.values]
+
+    downsampleFactor = int(np.ceil(max(x, y) / downSizeChunkPx))
+    
+    m = np.zeros((x, y), dtype=np.int8)[::downsampleFactor, ::downsampleFactor]
+    print(m.shape)
+
+    maxxd = int(x / downsampleFactor) 
+    maxyd = int(y / downsampleFactor) 
+
+    for ty, tx in df_grid.values:
+        xd = int(tx / downsampleFactor)
+        yd = int(ty / downsampleFactor)
+        radius = int(s * upSizeFactor / downsampleFactor)
+        if squarePatch:
+            m[xd-radius: xd+radius, yd-radius: yd+radius] = 1
+        else:
+            cc, rr = disk((xd, yd), radius)
+            cc[cc<0] = 0
+            cc[cc>maxxd] = maxxd-1
+            rr[rr<0] = 0
+            rr[rr>maxyd] = maxyd-1
+            m[cc, rr] = 1
+
+    m = m.T * 255
+    m = resize(m, (int(np.round(y/downsampleFactor, 0)), int(np.round(x/downsampleFactor, 0))), order=3)
+    m[m>=m.max()/2] = 255
+    m[m<m.max()/2] = 0
+
+    kernel = np.ones((kernelSize, kernelSize), dtype=np.uint8)
+    m = cv2.dilate(m, kernel, iterations=1)
+    m = binary_fill_holes(m).astype(np.uint8)
+    m = cv2.erode(m, kernel, iterations=1)
+
+    print(m.T.shape)
+    
+    cv2.imwrite(savePath, m * 255)
+    
+    return savePath

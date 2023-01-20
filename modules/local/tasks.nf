@@ -119,6 +119,34 @@ process GET_PIXEL_MASK {
 }
 
 
+process GET_TISSUE_MASK {
+
+    tag "$sample_id"
+    label 'python_process_low'
+    publishDir "${params.outdir}/${sample_id}", mode: 'copy', overwrite: true
+    
+    input:
+    tuple val(sample_id), path(meta_grid_csv), path(meta_grid_json), path(tile_mask)
+    
+    output:
+    tuple val(sample_id), file('mask/tissue_mask.png')
+    
+    script:
+    """
+    #!/usr/bin/env python
+    
+    import sys
+    sys.path.append("${projectDir}/lib")
+    from wsiMask import makeTissueMaskFromTileMask
+
+    makeTissueMaskFromTileMask(meta_grid_csv,
+                               meta_grid_json,
+                               tile_mask,
+                               savePath='mask/outfile.png')
+    """
+}
+
+
 process TILE_WSI {
 
     tag "$sample_id"

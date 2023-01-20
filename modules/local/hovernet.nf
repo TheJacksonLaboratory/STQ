@@ -75,7 +75,7 @@ process INFER_HOVERNET {
     script:
     """
     mkdir mask
-    cp ${mask} mask/
+    cp ${mask} mask/outfile.png
      
     python /hover_net/run_infer.py \
     --gpu="" \

@@ -4,13 +4,13 @@ include { LOAD_SAMPLE_INFO;
           CONVERT_TO_TILED_TIFF;
           CREATE_THUMBNAIL_TIFF;
           GET_PIXEL_MASK;
+          GET_TISSUE_MASK;
           TILE_WSI;
           GET_TILE_MASK;
           GET_INCEPTION_FEATURES;
         } from '../modules/local/tasks'
 
 include { GET_HOVERNET_MASK;  
-          CHECK_MASK;
           INFER_HOVERNET;
           INFER_STARDIST;
           COMPRESS_JSON_FILE;
@@ -57,13 +57,13 @@ workflow MAIN {
         
         if ( params.hovernet_segmentation ) {
             GET_HOVERNET_MASK ( CONVERT_TO_TILED_TIFF.out )
-        
-            CHECK_MASK ( GET_HOVERNET_MASK.out
-                         .join(CREATE_THUMBNAIL_TIFF.out) )
-                                     
+
+            GET_TISSUE_MASK ( TILE_WSI.out.grid
+                              .join(GET_TILE_MASK.out.mask) )
+
             INFER_HOVERNET ( CONVERT_TO_TILED_TIFF.out
-                             .join(CHECK_MASK.out) )
-                             
+                             .join(GET_TISSUE_MASK.out) )
+            
             jsonout = INFER_HOVERNET.out.json
         }
         else {
