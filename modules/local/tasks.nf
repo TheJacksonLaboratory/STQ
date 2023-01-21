@@ -39,7 +39,7 @@ process STAIN_NORMALIZATION {
 
     script:    
     """
-    mkdir output_images
+    [ ! -d "output_images" ] && mkdir "output_images"
     
     python -u "${projectDir}/bin/StainNetNorm.py" \
     --source_dir "." \
@@ -65,7 +65,7 @@ process CONVERT_TO_TILED_TIFF {
     f=`echo ${params.target_magnification} / ${mag} | bc -l`
     echo vips resize ${image} tempfile.tiff \$f
     vips resize ${image} tempfile.tiff \$f
-    mkdir converted
+    [ ! -d "converted" ] && mkdir "converted"
     
     vips tiffsave tempfile.tiff converted/outfile.tiff --compression none --tile --tile-width ${params.tiled_tiff_tile_size} --tile-height ${params.tiled_tiff_tile_size}
     """
@@ -135,14 +135,18 @@ process GET_TISSUE_MASK {
     """
     #!/usr/bin/env python
     
+    import os
     import sys
     sys.path.append("${projectDir}/lib")
     from wsiMask import makeTissueMaskFromTileMask
 
-    makeTissueMaskFromTileMask(meta_grid_csv,
-                               meta_grid_json,
-                               tile_mask,
-                               savePath='mask/outfile.png')
+    if not os.path.exists("mask/"):
+        os.makedirs("mask/")
+    
+    makeTissueMaskFromTileMask("${meta_grid_csv}",
+                               "${meta_grid_json}",
+                               "${tile_mask}",
+                               savePath='mask/tissue_mask.png')
     """
 }
 
@@ -265,7 +269,7 @@ process GET_INCEPTION_FEATURES {
         vtilemask="${tile_mask}"
     fi
     
-    mkdir inception
+    [ ! -d "inception" ] && mkdir "inception"
 
     python -u ${projectDir}/bin/run-inception-v3.py \
     --wsi-file="${image}" \
@@ -303,7 +307,8 @@ process SELECT_SAVE_TILES {
     import PIL.Image
     PIL.Image.MAX_IMAGE_PIXELS = None
     
-    os.makedirs('tiles')
+    if not os.path.exists('tiles/'):
+        os.makedirs('tiles/')
      
     se_mask = pd.read_csv("${tile_mask}", index_col=1, header=None)[0].xs(1)
     np.random.seed(0)

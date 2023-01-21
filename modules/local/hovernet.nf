@@ -74,7 +74,7 @@ process INFER_HOVERNET {
     
     script:
     """
-    mkdir mask
+    [ ! -d "mask" ] && mkdir "mask"
     cp ${mask} mask/outfile.png
      
     python /hover_net/run_infer.py \
@@ -173,7 +173,8 @@ process GET_NUCLEI_TYPE_COUNTS {
     ses = ses.fillna(0).sort_index()
     print(ses)
     
-    os.makedirs("tiles/")
+    if not os.path.exists("tiles/"):
+        os.makedirs("tiles/")
     
     ses.T.to_csv('tiles/classes.csv.gz')
     """
@@ -252,7 +253,7 @@ process COMPRESS_JSON_FILE {
     
     script:
     """
-    mkdir hovernet
+    [ ! -d "hovernet" ] && mkdir "hovernet"
     gzip -c ${json_file} > hovernet/outfile.json.gz
     """ 
 }
