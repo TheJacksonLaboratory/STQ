@@ -240,7 +240,10 @@ def makeTissueMaskFromTileMask(gridFile, gridInfoFile, tileMaskFile, squarePatch
             cc[cc>maxxd] = maxxd-1
             rr[rr<0] = 0
             rr[rr>maxyd] = maxyd-1
-            m[cc, rr] = 1
+            try:
+                m[cc, rr] = 1
+            except:
+                pass
 
     m = m.T * 255
     m = resize(m, (int(np.round(y/downsampleFactor, 0)), int(np.round(x/downsampleFactor, 0))), order=3)

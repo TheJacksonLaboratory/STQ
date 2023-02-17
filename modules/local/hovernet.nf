@@ -103,12 +103,14 @@ process INFER_HOVERNET_TILES {
 
     tag "$sample_id"
     label 'process_hovernet'
+    publishDir "${params.outdir}/${sample_id}/tiles", pattern: 'temp/overlay/*.png', saveAs: { filename -> "${filename.split("/")[filename.split("/").length - 1]}" }, mode: 'copy', overwrite: true
     
     input:
     tuple val(sample_id), path("tiles/")
     
     output:
     tuple val(sample_id), file("temp/json/*.json"), emit: json
+    tuple val(sample_id), file("temp/overlay/*.png"), emit: png
     
     script:
     """    

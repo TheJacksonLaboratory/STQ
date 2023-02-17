@@ -12,8 +12,8 @@ workflow {
     .splitCsv(header:true, sep:',')
     .set{ slides }
 
-    //SAMPLE_TILES ( slides )
+    SAMPLE_TILES ( slides )
     
-    MAIN ( slides )
+    //MAIN ( slides )
 
 }

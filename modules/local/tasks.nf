@@ -322,7 +322,7 @@ process SELECT_SAVE_TILES {
     
     slide = openslide.open_slide("${image}")  
     for id in df_grid.index:
-        cx, cy = df_grid.loc[id]
+        cy, cx = df_grid.loc[id]
         print(id, s, cx, cy)
         slide.read_region((int(cx - s / 2), int(cy - s / 2)), 0, (int(s), int(s))).convert('RGB').save('tiles/%s.tif' % id)
     """
