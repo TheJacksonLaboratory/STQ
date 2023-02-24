@@ -93,12 +93,14 @@ process CONVERT_TO_TILED_TIFF {
     label 'vips_process'
     errorStrategy 'retry'
     maxRetries 3
+    publishDir "${params.outdir}/${sample_id}", pattern: 'thumbnail.tiff', mode: 'copy', overwrite: true
     
     input:
     tuple val(sample_id), path(image), val(mpp)
     
     output:
-    tuple val(sample_id), file("converted/outfile.tiff")
+    tuple val(sample_id), file("converted/outfile.tiff"), emit: full
+    tuple val(sample_id), file("thumbnail.tiff"), emit: thumb
 
     script:    
     """
@@ -107,27 +109,9 @@ process CONVERT_TO_TILED_TIFF {
     vips resize ${image} tempfile.tiff \$f
     [ ! -d "converted" ] && mkdir "converted"
     
-    vips tiffsave tempfile.tiff converted/outfile.tiff --compression none --tile --tile-width ${params.tiled_tiff_tile_size} --tile-height ${params.tiled_tiff_tile_size}
-    """
-}
-
-
-process CREATE_THUMBNAIL_TIFF {
-
-    tag "$sample_id"
-    label 'vips_process'
-    errorStrategy 'ignore'
-    publishDir "${params.outdir}/${sample_id}", mode: 'copy', overwrite: true
-
-    input:
-    tuple val(sample_id), path(image)
-    
-    output:
-    tuple val(sample_id), file("thumbnail.tiff")
-
-    script:
-    """
     vips resize ${image} thumbnail.tiff ${params.thumbnail_downsample_factor}
+    vips tiffsave tempfile.tiff converted/outfile.tiff --compression none --tile --tile-width ${params.tiled_tiff_tile_size} --tile-height ${params.tiled_tiff_tile_size}
+    rm tempfile.tiff
     """
 }
 

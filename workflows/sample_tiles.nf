@@ -3,7 +3,6 @@ include { LOAD_SAMPLE_INFO;
           EXTRACT_ROI;
           STAIN_NORMALIZATION;
           CONVERT_TO_TILED_TIFF;
-          CREATE_THUMBNAIL_TIFF;
           GET_PIXEL_MASK;
           TILE_WSI;
           GET_TILE_MASK;
@@ -45,21 +44,19 @@ workflow WTILES {
             CONVERT_TO_TILED_TIFF ( EXTRACT_ROI.main )
         
         
-        CREATE_THUMBNAIL_TIFF ( CONVERT_TO_TILED_TIFF.out )
+        GET_PIXEL_MASK ( CONVERT_TO_TILED_TIFF.out.thumb )
         
-        GET_PIXEL_MASK ( CREATE_THUMBNAIL_TIFF.out )
-        
-        TILE_WSI ( CONVERT_TO_TILED_TIFF.out
+        TILE_WSI ( CONVERT_TO_TILED_TIFF.out.full
                   .join(LOAD_SAMPLE_INFO.out.grid) )
         
-        GET_TILE_MASK ( CREATE_THUMBNAIL_TIFF.out
+        GET_TILE_MASK ( CONVERT_TO_TILED_TIFF.out.thumb
                         .join(GET_PIXEL_MASK.out)
                         .join(TILE_WSI.out.grid) )
                         
                         
         // Tilitng sub-worflow for a small number of tiles        
         
-        SELECT_SAVE_TILES ( CONVERT_TO_TILED_TIFF.out
+        SELECT_SAVE_TILES ( CONVERT_TO_TILED_TIFF.out.full
                             .join(TILE_WSI.out.grid)
                             .join(GET_TILE_MASK.out.mask) )
         
@@ -72,25 +69,25 @@ workflow WTILES {
         
         // Feature extraction for all tiles
         
-        GET_INCEPTION_FEATURES ( CONVERT_TO_TILED_TIFF.out
+        GET_INCEPTION_FEATURES ( CONVERT_TO_TILED_TIFF.out.full
                                  .join(GET_TILE_MASK.out.mask)
                                  .join(TILE_WSI.out.grid)
                                  .join(LOAD_SAMPLE_INFO.out.grid) )
         
         
         if ( params.hovernet_segmentation ) {
-            GET_HOVERNET_MASK ( CONVERT_TO_TILED_TIFF.out )
+            GET_HOVERNET_MASK ( CONVERT_TO_TILED_TIFF.out.full )
 
             GET_TISSUE_MASK ( TILE_WSI.out.grid
                               .join(GET_TILE_MASK.out.mask) )
 
-            INFER_HOVERNET ( CONVERT_TO_TILED_TIFF.out
+            INFER_HOVERNET ( CONVERT_TO_TILED_TIFF.out.full
                              .join(GET_TISSUE_MASK.out) )
             
             jsonout = INFER_HOVERNET.out.json
         }
         else {
-            INFER_STARDIST ( CONVERT_TO_TILED_TIFF.out )
+            INFER_STARDIST ( CONVERT_TO_TILED_TIFF.out.full )
             
             jsonout = INFER_STARDIST.out.json
         }

@@ -2,7 +2,6 @@
 include { LOAD_SAMPLE_INFO;
           STAIN_NORMALIZATION;
           CONVERT_TO_TILED_TIFF;
-          CREATE_THUMBNAIL_TIFF;
           GET_PIXEL_MASK;
           GET_TISSUE_MASK;
           TILE_WSI;
