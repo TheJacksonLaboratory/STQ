@@ -2,7 +2,7 @@
 
 nextflow.enable.dsl = 2
 
-include { SAMPLE_TILES } from './workflows/sample_tiles'
+include { WTILES } from './workflows/sample_tiles'
 include { MAIN } from './workflows/full'
         
 workflow {
@@ -12,7 +12,7 @@ workflow {
     .splitCsv(header:true, sep:',')
     .set{ slides }
 
-    SAMPLE_TILES ( slides )
+    WTILES ( slides )
     
     //MAIN ( slides )
 

@@ -135,7 +135,7 @@ def computeContourQuantities(c, na_filler: float = np.nan, scale_factor: float =
     return results
 
 
-def loadNuclei(json_file_path: str = '', savepath: str = None, sname: str = '', original_magnification: float = 40):
+def loadNuclei(json_file_path: str = '', savepath: str = None, sname: str = '', original_mpp: float = 0.25):
     
     """Load JSON file produced by HoVer-Net inference.
     
@@ -153,8 +153,9 @@ def loadNuclei(json_file_path: str = '', savepath: str = None, sname: str = '', 
     with open(json_file_path, 'r') as temp_file:
         json_data = json.loads(temp_file.read())
     
-    hovernet_magnification = float(json_data['mag'])
-    scale_factor = original_magnification / hovernet_magnification
+    #hovernet_magnification = float(json_data['mag'])
+    #scale_factor = original_mpp / hovernet_mpp
+    scale_factor = 1.
     
     df = pd.DataFrame({id: [json_data['nuc'][id]['centroid'],
                             json_data['nuc'][id]['type'],
@@ -307,28 +308,30 @@ def calculateAggregateValues(df_hovernet_cells, min_cell_type_prob: float = 0.75
     
     for q in ['perimeter_length', 'area', 'orientation', 'eccentricity', 'cell_type_prob']:
         # Average per class
-        df_q_classes = []
-        for barcode in df_filtered.index.unique():
-            df_temp = df_filtered.loc[barcode]
-            if type(df_temp) is pd.Series:
-                df_temp = df_temp.to_frame().T
-            df_q_classes.append(df_temp.set_index('cell_type')[q].astype(float).groupby(level=0).mean().rename(barcode))
-        
-        df_q_classes = pd.concat(df_q_classes, axis=1).T
+        #df_q_classes = []
+        #for barcode in df_filtered.index.unique():
+        #    df_temp = df_filtered.loc[barcode]
+        #    if type(df_temp) is pd.Series:
+        #        df_temp = df_temp.to_frame().T
+        #    df_q_classes.append(df_temp.set_index('cell_type')[q].astype(float).groupby(level=0).mean().rename(barcode))
+        #
+        #df_q_classes = pd.concat(df_q_classes, axis=1).T
+        df_q_classes = df_filtered.set_index('cell_type', append=True)[q].astype(float).groupby(level=[0, 1]).mean().unstack('cell_type').reindex(df_filtered.index.unique())
         df_q_classes.columns = 'average_%s_' % q + df_q_classes.columns
         df_q_classes.index.name = 'barcode'
         
         # Standard deviation per class
-        df_sdq_classes = []
-        for barcode in df_filtered.index.unique():
-            df_temp = df_filtered.loc[barcode]
-            if type(df_temp) is pd.Series:
-                df_temp = df_temp.to_frame().T
-            df_sdq_classes.append(df_temp.set_index('cell_type')[q].astype(float).groupby(level=0).std().rename(barcode))
-        
-        df_sdq_classes = pd.concat(df_sdq_classes, axis=1).T
+        #df_sdq_classes = []
+        #for barcode in df_filtered.index.unique():
+        #    df_temp = df_filtered.loc[barcode]
+        #    if type(df_temp) is pd.Series:
+        #        df_temp = df_temp.to_frame().T
+        #    df_sdq_classes.append(df_temp.set_index('cell_type')[q].astype(float).groupby(level=0).std().rename(barcode))
+        #
+        #df_sdq_classes = pd.concat(df_sdq_classes, axis=1).T
+        df_sdq_classes = df_filtered.set_index('cell_type', append=True)[q].astype(float).groupby(level=[0, 1]).std().unstack('cell_type').reindex(df_filtered.index.unique())
         df_sdq_classes.columns = 'std_%s_' % q + df_sdq_classes.columns
-        df_sdq_classes.index.name = 'barcode'                
+        df_sdq_classes.index.name = 'barcode'                 
                 
         # Average overall
         df_q = df_filtered[q].groupby(level=0).mean().to_frame()

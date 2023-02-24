@@ -18,5 +18,6 @@ nextflow run main.nf \
 -w "${workdir}" \
 -profile slurm,singularity \
 -resume \
+-ansi-log true \
 --input="${samplesheet}" \
 --outdir="${outdir}"

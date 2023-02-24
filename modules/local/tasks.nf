@@ -4,10 +4,10 @@ process LOAD_SAMPLE_INFO {
     tag "$sample_id"
 
     input:
-    tuple val(sample_id), path(image), val(meta_grid), val(mag)
+    tuple val(sample_id), path(image), val(meta_grid), path(roifile), val(mpp)
     
     output:
-    tuple val(sample_id), file(image), val(mag), emit: main
+    tuple val(sample_id), file(image), file(roifile), val(mpp), emit: main
     tuple val(sample_id), file("tissue_positions_list.csv"), file("scalefactors_json.json"), emit: grid
     
     script:
@@ -24,6 +24,44 @@ process LOAD_SAMPLE_INFO {
 }
 
 
+process EXTRACT_ROI {
+
+    tag "$sample_id"
+    label 'process_extract'
+    errorStrategy 'retry'
+    maxRetries 3
+
+    input:
+    tuple val(sample_id), path(fileslide), path(roifile), val(mpp)
+    
+    output:
+    tuple val(sample_id), file("outfile.tiff"), val(mpp)
+    
+    script:
+    """
+    #!/usr/bin/env python
+
+    import openslide
+    import json
+    import tifffile
+    import numpy as np
+    
+    slide = openslide.open_slide("${fileslide}")
+    
+    with open("${roifile}", 'r') as tempfile:
+        info = json.load(tempfile)
+    
+    icoords = int(slide.dimensions[0] * info['0']['location']), int(slide.dimensions[1] * info['1']['location'])
+    size = int(slide.dimensions[0] * info['0']['size']), int(slide.dimensions[1] * info['1']['size'])
+    print(slide.dimensions, '\t', icoords, '\t', size)
+    
+    img = slide.read_region(location=icoords, level=0, size=size).convert('RGB')
+    tifffile.imwrite("outfile.tiff", np.array(img), bigtiff=True)
+    img.close()
+    """
+}
+
+
 process STAIN_NORMALIZATION {
 
     tag "$sample_id"
@@ -32,10 +70,10 @@ process STAIN_NORMALIZATION {
     maxRetries 3
 
     input:
-    tuple val(sample_id), path("outfile.tiff"), val(mag)
+    tuple val(sample_id), path("outfile.tiff"), val(mpp)
     
     output:
-    tuple val(sample_id), file("output_images/outfile.tiff"), val(mag)
+    tuple val(sample_id), file("output_images/outfile.tiff"), val(mpp)
 
     script:    
     """
@@ -53,16 +91,18 @@ process CONVERT_TO_TILED_TIFF {
 
     tag "$sample_id"
     label 'vips_process'
-
+    errorStrategy 'retry'
+    maxRetries 3
+    
     input:
-    tuple val(sample_id), path(image), val(mag)
+    tuple val(sample_id), path(image), val(mpp)
     
     output:
     tuple val(sample_id), file("converted/outfile.tiff")
 
     script:    
     """
-    f=`echo ${params.target_magnification} / ${mag} | bc -l`
+    f=`echo ${mpp} / ${params.target_mpp} | bc -l`
     echo vips resize ${image} tempfile.tiff \$f
     vips resize ${image} tempfile.tiff \$f
     [ ! -d "converted" ] && mkdir "converted"
@@ -76,6 +116,7 @@ process CREATE_THUMBNAIL_TIFF {
 
     tag "$sample_id"
     label 'vips_process'
+    errorStrategy 'ignore'
     publishDir "${params.outdir}/${sample_id}", mode: 'copy', overwrite: true
 
     input:
@@ -95,6 +136,8 @@ process GET_PIXEL_MASK {
 
     tag "$sample_id"
     label 'python_process_low'
+    errorStrategy 'retry'
+    maxRetries 3
     publishDir "${params.outdir}/${sample_id}", mode: 'copy', overwrite: true
     
     input:
@@ -123,6 +166,8 @@ process GET_TISSUE_MASK {
 
     tag "$sample_id"
     label 'python_process_low'
+    errorStrategy 'retry'
+    maxRetries 3
     publishDir "${params.outdir}/${sample_id}", mode: 'copy', overwrite: true
     
     input:
@@ -155,6 +200,8 @@ process TILE_WSI {
 
     tag "$sample_id"
     label 'python_process_low'
+    errorStrategy 'retry'
+    maxRetries 3
     publishDir "${params.outdir}/${sample_id}", mode: 'copy', overwrite: true
     
     input:
@@ -220,6 +267,8 @@ process GET_TILE_MASK {
 
     tag "$sample_id"
     label 'python_process_low'
+    errorStrategy 'retry'
+    maxRetries 3
     publishDir "${params.outdir}/${sample_id}", mode: 'copy', overwrite: true
     
     input:
@@ -250,6 +299,8 @@ process GET_INCEPTION_FEATURES {
 
     tag "$sample_id"
     label 'process_inception'
+    errorStrategy 'retry'
+    maxRetries 3
     publishDir "${params.outdir}/${sample_id}", mode: 'copy', overwrite: true
         
     input:
@@ -286,6 +337,8 @@ process SELECT_SAVE_TILES {
 
     tag "$sample_id"
     label 'python_process_low'
+    errorStrategy 'retry'
+    maxRetries 3
     publishDir "${params.outdir}/${sample_id}", pattern: 'tiles/*.csv', mode: 'copy', overwrite: true
     
     input:
@@ -333,6 +386,8 @@ process GET_INCEPTION_FEATURES_TILES {
 
     tag "$sample_id"
     label 'process_inception'
+    errorStrategy 'retry'
+    maxRetries 3
     publishDir "${params.outdir}/${sample_id}", pattern: 'tiles/*.csv.gz', mode: 'copy', overwrite: true
     
     input:

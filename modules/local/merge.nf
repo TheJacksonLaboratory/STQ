@@ -3,6 +3,8 @@ process MERGE_IMAGING_DATA {
 
     tag "$sample_id"
     label 'python_process_low'
+    errorStrategy 'retry'
+    maxRetries 3
     publishDir "${params.outdir}/${sample_id}", mode: 'copy', overwrite: true
     
     input:

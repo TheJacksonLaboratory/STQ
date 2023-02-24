@@ -5,6 +5,7 @@
 import os
 import argparse
 import imageio
+import tifffile
 import numpy as np
 import torch
 import torch.nn as nn
@@ -76,12 +77,14 @@ def process_images(opt, model, s = 4096):
 
         for i, j in tqdm(coords):
             imgs_temp = imgs[:, :, r[0][i]:r[0][i+1], r[1][j]:r[1][j+1]]
-            with torch.no_grad():
-                imgs_temp = imgs_temp.cpu()
-                imgs_temp = (imgs_temp - 0.5) * 2
-                outputs = (model(imgs_temp) * 0.5 + 0.5).clamp(0, 1).detach().cpu().numpy()
+            print(imgs_temp.shape)
+            if (imgs_temp.shape[2]!=0) and (imgs_temp.shape[3]!=0):
+                with torch.no_grad():
+                    imgs_temp = imgs_temp.cpu()
+                    imgs_temp = (imgs_temp - 0.5) * 2
+                    outputs = (model(imgs_temp) * 0.5 + 0.5).clamp(0, 1).detach().cpu().numpy()
         
-            imgs_corrected[:, :, r[0][i]:r[0][i+1], r[1][j]:r[1][j+1]] = outputs
+                imgs_corrected[:, :, r[0][i]:r[0][i+1], r[1][j]:r[1][j+1]] = outputs
 
         for out in imgs_corrected:
             file_path = file_list[num]
@@ -89,8 +92,9 @@ def process_images(opt, model, s = 4096):
             os.makedirs(os.path.split(file_path)[0], exist_ok=True)
             print('\n', file_path)
             ext = os.path.splitext(file_path)[1]
-            Image.fromarray((out * 255).astype(np.uint8).transpose((1, 2, 0))).save(file_path[:-len(ext)] + ".tiff", compression='raw')
-            #imageio.imwrite(file_path[:-len(ext)] + ".tiff", (out * 255).astype(np.uint8).transpose((1, 2, 0)))
+            tifffile.imwrite(file_path[:-len(ext)] + ".tiff", np.array(np.array(Image.fromarray((out * 255).astype(np.uint8).transpose((1, 2, 0))))), bigtiff=True) # v2            
+            #Image.fromarray((out * 255).astype(np.uint8).transpose((1, 2, 0))).save(file_path[:-len(ext)] + ".tiff", compression='raw') # v1
+            #imageio.imwrite(file_path[:-len(ext)] + ".tiff", (out * 255).astype(np.uint8).transpose((1, 2, 0))) # v0
             num += 1
 
     return
