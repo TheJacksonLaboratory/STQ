@@ -109,7 +109,7 @@ process CONVERT_TO_TILED_TIFF {
     vips resize ${image} tempfile.tiff \$f
     [ ! -d "converted" ] && mkdir "converted"
     
-    vips resize ${image} thumbnail.tiff ${params.thumbnail_downsample_factor}
+    vips resize tempfile.tiff thumbnail.tiff ${params.thumbnail_downsample_factor}
     vips tiffsave tempfile.tiff converted/outfile.tiff --compression none --tile --tile-width ${params.tiled_tiff_tile_size} --tile-height ${params.tiled_tiff_tile_size}
     rm tempfile.tiff
     """
