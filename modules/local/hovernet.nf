@@ -65,9 +65,10 @@ process INFER_HOVERNET {
 
     tag "$sample_id"
     label 'process_hovernet'
+    memory { (Float.valueOf(size) / 1000.0).round(2) * params.memory_scale_factor * 2.GB }
     
     input:
-    tuple val(sample_id), path(image), path(mask)
+    tuple val(sample_id), path(image), path(mask), val(size)
     
     output:
     tuple val(sample_id), file("hovernet/outfile.json"), emit: json
@@ -106,6 +107,7 @@ process INFER_HOVERNET_TILES {
     errorStrategy 'retry'
     maxRetries 5
     publishDir "${params.outdir}/${sample_id}/tiles", pattern: 'temp/overlay/*.png', saveAs: { filename -> "${filename.split("/")[filename.split("/").length - 1]}" }, mode: 'copy', overwrite: true
+    memory { 2.GB }
     
     input:
     tuple val(sample_id), path("tiles/")
@@ -193,9 +195,10 @@ process INFER_STARDIST {
     label 'process_stardist'
     errorStrategy 'retry'
     maxRetries 5
+    memory { (Float.valueOf(size) / 1000.0).round(2) * params.memory_scale_factor * 10.GB }
     
     input:
-    tuple val(sample_id), path(image)
+    tuple val(sample_id), path(image), val(size)
     
     output:
     tuple val(sample_id), file("outfile.json"), emit: json
@@ -273,9 +276,10 @@ process COMPUTE_SEGMENTATION_DATA {
     errorStrategy 'retry'
     maxRetries 3
     publishDir "${params.outdir}/${sample_id}", mode: 'copy', overwrite: true
+    memory { (Float.valueOf(size) / 1000.0).round(2) * params.memory_scale_factor * 3.GB }
     
     input:
-    tuple val(sample_id), path(hovernet_json)
+    tuple val(sample_id), path(hovernet_json), val(size)
     
     output:
     tuple val(sample_id), file("hovernet/per_nucleus_data.csv.gz")
@@ -304,9 +308,10 @@ process GENERATE_PERSPOT_SEGMENTATION_DATA {
     errorStrategy 'retry'
     maxRetries 3
     publishDir "${params.outdir}/${sample_id}", mode: 'copy', overwrite: true
+    memory { (Float.valueOf(size) / 1000.0).round(2) * params.memory_scale_factor * 3.GB }
     
     input:
-    tuple val(sample_id), path(grid_csv), path(grid_json), path(hovernet_csv)
+    tuple val(sample_id), path(grid_csv), path(grid_json), path(hovernet_csv), val(size)
     
     output:
     tuple val(sample_id), file("hovernet/per_nucleus_data.csv.gz.csv"), emit: assignment

@@ -13,7 +13,5 @@ workflow {
     .set{ slides }
 
     WTILES ( slides )
-    
-    //MAIN ( slides )
 
 }

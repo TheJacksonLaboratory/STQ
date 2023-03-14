@@ -4,22 +4,50 @@ process LOAD_SAMPLE_INFO {
     tag "$sample_id"
 
     input:
-    tuple val(sample_id), path(image), val(meta_grid), path(roifile), val(mpp)
+    tuple val(sample_id), path(image), val(meta_grid), val(roifile), val(mpp)
     
     output:
-    tuple val(sample_id), file(image), file(roifile), val(mpp), emit: main
+    tuple val(sample_id), file(image), file("roifile.json"), val(mpp), emit: main
     tuple val(sample_id), file("tissue_positions_list.csv"), file("scalefactors_json.json"), emit: grid
     
     script:
     """
-    if [ ! "${meta_grid}" = "" ];
+    if [ "${meta_grid}" = "" -o $params.use_provided_grid == false ];
     then
-        cp "${meta_grid}"/scalefactors_json.json .
-        cp "${meta_grid}"/tissue_positions_list.csv .
-    else
         echo "" >  "tissue_positions_list.csv"
         echo "" >  "scalefactors_json.json"
+    else
+        cp "${meta_grid}"/scalefactors_json.json .
+        cp "${meta_grid}"/tissue_positions_list.csv .
     fi
+       
+    if [ ! "${roifile}" = "" ];
+    then
+        cp "${roifile}" "roifile.json"
+    else
+        echo '{"0": {"location": 0, "size": 1}, "1": {"location": 0, "size": 1}}' > "roifile.json"
+    fi
+    """
+}
+
+
+process GET_IMAGE_SIZE {
+
+    tag "$sample_id"
+    label 'process_estimate_size'
+    errorStrategy 'retry'
+    maxRetries 3
+
+    input:
+    tuple val(sample_id), path(fileslide), path(roifile), val(mpp)
+    
+    output:
+    tuple val(sample_id), env(size)
+    
+    script:
+    """  
+    python -u ${projectDir}/bin/extractROI.py --fileslide="${fileslide}" --roifile="${roifile}" --sizefile="size.txt"
+    size=`cat size.txt`
     """
 }
 
@@ -29,35 +57,19 @@ process EXTRACT_ROI {
     tag "$sample_id"
     label 'process_extract'
     errorStrategy 'retry'
-    maxRetries 3
+    maxRetries 1
+    memory { (Float.valueOf(size) / 1000.0).round(2) * params.memory_scale_factor * 13.GB }
 
     input:
-    tuple val(sample_id), path(fileslide), path(roifile), val(mpp)
+    tuple val(sample_id), path(fileslide), path(roifile), val(mpp), val(size)
     
     output:
-    tuple val(sample_id), file("outfile.tiff"), val(mpp)
+    tuple val(sample_id), file("outfile.tiff"), val(mpp), emit: image
     
     script:
     """
-    #!/usr/bin/env python
-
-    import openslide
-    import json
-    import tifffile
-    import numpy as np
-    
-    slide = openslide.open_slide("${fileslide}")
-    
-    with open("${roifile}", 'r') as tempfile:
-        info = json.load(tempfile)
-    
-    icoords = int(slide.dimensions[0] * info['0']['location']), int(slide.dimensions[1] * info['1']['location'])
-    size = int(slide.dimensions[0] * info['0']['size']), int(slide.dimensions[1] * info['1']['size'])
-    print(slide.dimensions, '\t', icoords, '\t', size)
-    
-    img = slide.read_region(location=icoords, level=0, size=size).convert('RGB')
-    tifffile.imwrite("outfile.tiff", np.array(img), bigtiff=True)
-    img.close()
+    echo $size
+    python -u ${projectDir}/bin/extractROI.py --fileslide="${fileslide}" --roifile="${roifile}" --outfile="outfile.tiff" --extract=True
     """
 }
 
@@ -68,9 +80,10 @@ process STAIN_NORMALIZATION {
     label 'stain_normalization_process'
     errorStrategy 'retry'
     maxRetries 3
+    memory { (Float.valueOf(size) / 1000.0).round(2) * params.memory_scale_factor * 30.GB }
 
     input:
-    tuple val(sample_id), path("outfile.tiff"), val(mpp)
+    tuple val(sample_id), path("outfile.tiff"), val(mpp), val(size)
     
     output:
     tuple val(sample_id), file("output_images/outfile.tiff"), val(mpp)
@@ -101,6 +114,7 @@ process CONVERT_TO_TILED_TIFF {
     output:
     tuple val(sample_id), file("converted/outfile.tiff"), emit: full
     tuple val(sample_id), file("thumbnail.tiff"), emit: thumb
+    tuple val(sample_id), env(size), emit: size
 
     script:    
     """
@@ -112,6 +126,12 @@ process CONVERT_TO_TILED_TIFF {
     vips resize tempfile.tiff thumbnail.tiff ${params.thumbnail_downsample_factor}
     vips tiffsave tempfile.tiff converted/outfile.tiff --compression none --tile --tile-width ${params.tiled_tiff_tile_size} --tile-height ${params.tiled_tiff_tile_size}
     rm tempfile.tiff
+    
+    w=`vipsheader -f width converted/outfile.tiff`
+    h=`vipsheader -f height converted/outfile.tiff`
+    
+    size=`echo "\$w * \$h / 1000000" | bc -l`
+    size=`echo "\$size/1" | bc`
     """
 }
 
@@ -123,9 +143,10 @@ process GET_PIXEL_MASK {
     errorStrategy 'retry'
     maxRetries 3
     publishDir "${params.outdir}/${sample_id}", mode: 'copy', overwrite: true
+    memory { (Float.valueOf(size) / 1000.0).round(2) * params.memory_scale_factor * 3.GB }
     
     input:
-    tuple val(sample_id), path(image)
+    tuple val(sample_id), path(image), val(size)
     
     output:
     tuple val(sample_id), file("mask/pixel_mask.csv")
@@ -153,9 +174,10 @@ process GET_TISSUE_MASK {
     errorStrategy 'retry'
     maxRetries 3
     publishDir "${params.outdir}/${sample_id}", mode: 'copy', overwrite: true
+    memory { (Float.valueOf(size) / 1000.0).round(2) * params.memory_scale_factor * 3.GB }
     
     input:
-    tuple val(sample_id), path(meta_grid_csv), path(meta_grid_json), path(tile_mask)
+    tuple val(sample_id), path(meta_grid_csv), path(meta_grid_json), path(tile_mask), val(size)
     
     output:
     tuple val(sample_id), file('mask/tissue_mask.png')
@@ -187,9 +209,10 @@ process TILE_WSI {
     errorStrategy 'retry'
     maxRetries 3
     publishDir "${params.outdir}/${sample_id}", mode: 'copy', overwrite: true
+    memory { (Float.valueOf(size) / 1000.0).round(2) * params.memory_scale_factor * 3.GB }
     
     input:
-    tuple val(sample_id), path(image), path(meta_grid_csv), path(meta_grid_json)
+    tuple val(sample_id), path(image), path(meta_grid_csv), path(meta_grid_json), val(size)
     
     output:
     tuple val(sample_id), file("grid/grid.csv"), file("grid/grid.json"), emit: grid
@@ -254,9 +277,10 @@ process GET_TILE_MASK {
     errorStrategy 'retry'
     maxRetries 3
     publishDir "${params.outdir}/${sample_id}", mode: 'copy', overwrite: true
+    memory { (Float.valueOf(size) / 1000.0).round(2) * params.memory_scale_factor * 3.GB }
     
     input:
-    tuple val(sample_id), path(low_res_image), path(pixel_mask_csv), path(grid_csv), path(grid_json)
+    tuple val(sample_id), path(low_res_image), path(pixel_mask_csv), path(grid_csv), path(grid_json), val(size)
     
     output:
     tuple val(sample_id), file("mask/tile_mask.csv"), emit: mask
@@ -285,10 +309,10 @@ process GET_INCEPTION_FEATURES {
     label 'process_inception'
     errorStrategy 'retry'
     maxRetries 3
-    publishDir "${params.outdir}/${sample_id}", mode: 'copy', overwrite: true
+    memory { (Float.valueOf(size) / 1000.0).round(2) * params.memory_scale_factor * 4.GB }
         
     input:
-    tuple val(sample_id), path(image), path(tile_mask), path(grid_csv), path(grid_json), path(meta_grid_csv), path(meta_grid_json)
+    tuple val(sample_id), path(image), path(tile_mask), path(grid_csv), path(grid_json), path(meta_grid_csv), path(meta_grid_json), val(size)
     
     output:
     tuple val(sample_id), file("inception/inception_features.tsv.gz"), optional: true
@@ -324,6 +348,7 @@ process SELECT_SAVE_TILES {
     errorStrategy 'retry'
     maxRetries 3
     publishDir "${params.outdir}/${sample_id}", pattern: 'tiles/*.csv', mode: 'copy', overwrite: true
+    memory { 2.GB }
     
     input:
     tuple val(sample_id), path(image), path(grid_csv), path(grid_json), path(tile_mask)
@@ -373,6 +398,7 @@ process GET_INCEPTION_FEATURES_TILES {
     errorStrategy 'retry'
     maxRetries 3
     publishDir "${params.outdir}/${sample_id}", pattern: 'tiles/*.csv.gz', mode: 'copy', overwrite: true
+    memory { 2.GB }
     
     input:
     tuple val(sample_id), path("tiles/")

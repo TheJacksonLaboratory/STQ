@@ -1,2 +1,2 @@
 sample,image,grid,roifile,mpp
-TCGA-A6-3808-01Z-00-DX1.0,/projects/chuang-lab/TCGA-COAD/WSI/TCGA-A6-3808-01Z-00-DX1.2b5a7ba3-133c-48be-87c6-199c4af208a0.svs-23.svs,,/projects/rubinstein-lab/USERS/domans/COAD/tcga_coad_svs_thumbs/TCGA-A6-3808-01Z-00-DX1.2b5a7ba3-133c-48be-87c6-199c4af208a0.svs-23.oid0.json,0.252
+WM4237_T1_S2_ST,/projects/chuang-lab/rubinstein/ST_melanomaPDX/data/SC2200324_WM4237-T1-Day14-229/img/SC2200324.tiff,/projects/chuang-lab/rubinstein/ST_melanomaPDX/data/SC2200324_WM4237-T1-Day14-229/spaceranger/spatial/,,0.22075
