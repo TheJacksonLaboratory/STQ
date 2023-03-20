@@ -36,7 +36,7 @@ process GET_IMAGE_SIZE {
     tag "$sample_id"
     label 'process_estimate_size'
     errorStrategy 'retry'
-    maxRetries 3
+    maxRetries 1
 
     input:
     tuple val(sample_id), path(fileslide), path(roifile), val(mpp)
@@ -216,7 +216,7 @@ process TILE_WSI {
     
     output:
     tuple val(sample_id), file("grid/grid.csv"), file("grid/grid.json"), emit: grid
-    tuple val(sample_id), file("grid/grid.png"), emit: plot
+    tuple val(sample_id), file("grid/grid.png"), emit: plot, optional: true
     
     script:
     """
@@ -261,11 +261,11 @@ process TILE_WSI {
                                   magnification=40,
                                   aspect_correction=${params.grid_aspect_correction},
                                   savepath=savepath, sname='grid')
-    
-    plotGrid(grid, *slide_dimensions,
-             size=tile_size, show_spot_labels=False,
-             show=False, object_shape='square',
-             savepath=savepath, sname='grid')
+    if False:
+        plotGrid(grid, *slide_dimensions,
+                 size=tile_size, show_spot_labels=False,
+                 show=False, object_shape='square',
+                 savepath=savepath, sname='grid')
     """
 }
 
@@ -309,7 +309,7 @@ process GET_INCEPTION_FEATURES {
     label 'process_inception'
     errorStrategy 'retry'
     maxRetries 3
-    memory { (Float.valueOf(size) / 1000.0).round(2) * params.memory_scale_factor * 4.GB }
+    memory { (Float.valueOf(size) / 1000.0).round(2) * params.memory_scale_factor * 14.GB }
         
     input:
     tuple val(sample_id), path(image), path(tile_mask), path(grid_csv), path(grid_json), path(meta_grid_csv), path(meta_grid_json), val(size)

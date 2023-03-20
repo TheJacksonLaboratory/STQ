@@ -12,6 +12,7 @@ import PIL
 import json
 from scipy.ndimage import gaussian_filter
 from tqdm import tqdm
+import time
 
 import PIL.Image
 PIL.Image.MAX_IMAGE_PIXELS = None
@@ -85,7 +86,7 @@ if __name__ == '__main__':
     model = tf.keras.models.Model(inputs=base_modeli.input, outputs=xi)
     
     num_images = len(pos)
-    batch_size = int(10**8 / (num_cols * num_rows))
+    batch_size = int(10**9 / (num_cols * num_rows))
     num_batches = int(np.ceil(num_images / batch_size))
     
     print('Reading and pocessing tiles:', num_images)
@@ -99,6 +100,7 @@ if __name__ == '__main__':
     lvl = 0
     features = []
     for ibatch in tqdm(range(num_batches)):
+        sT = time.time()
         images = []
         for indx in range(batch_size):
             try:
@@ -108,9 +110,14 @@ if __name__ == '__main__':
                     images.append(np.array(slide.read_region((int(cx - w / 2), int(cy - h / 2)), lvl, (int(w), int(h))).convert('RGB')))
             except:
                 pass
- 
+        print('Block 1:', time.time() - sT)       
+        print('Number of tiles:', len(images)) 
+        
+        sT = time.time()
         if len(images)>0:
             features.append(model.predict(tf.keras.applications.inception_v3.preprocess_input(np.stack(images)), verbose=0))
+        print('Block 2:', time.time() - sT)
+        
     features = np.vstack(features)
     
     # Convert the dictionary of features to a dataframe and name its columns featXXX

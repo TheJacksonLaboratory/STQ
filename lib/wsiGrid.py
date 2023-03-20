@@ -201,7 +201,7 @@ def perturbGrid(x, y, grid, tile_size_pixels, n_iterations: int = 5, delta: floa
                 
     return grid, tile_size_pixels
 
-def plotGrid(grid: pd.DataFrame, x: int, y: int, f: float = 300, object_shape: str = 'spot', size: int = 294, show_spot_labels: bool = True, show: bool = True, savepath: str = None, sname: str = '', verbose: int = 1):
+def plotGrid(grid: pd.DataFrame, x: int, y: int, f: float = 3000, object_shape: str = 'spot', size: int = 294, show_spot_labels: bool = True, show: bool = True, savepath: str = None, sname: str = '', verbose: int = 1):
 
     
     """Plot grid of tiles or spots
