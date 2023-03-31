@@ -3,6 +3,7 @@ process GET_HOVERNET_MASK {
 
     tag "$sample_id"
     label 'process_hovernet_low'
+    errorStrategy 'finish'
     
     input:
     tuple val(sample_id), path(image)
@@ -27,7 +28,7 @@ process GET_HOVERNET_MASK {
     wsi \
     --input_dir="./${image}" \
     --output_dir=hovernet/ \
-    --slide_mag=${params.target_magnification} \
+    --slide_mag=40 \
     --proc_mag=40 \
     --chunk_shape=${params.hovernet_chunk_size} \
     --tile_shape=${params.hovernet_tile_size} \
@@ -41,6 +42,7 @@ process CHECK_MASK {
     tag "$sample_id"
     label 'process_hovernet_low'
     publishDir "${params.outdir}/${sample_id}", mode: 'copy', overwrite: true
+    errorStrategy 'finish'
     
     input:
     tuple val(sample_id), path(mask), path(thumbnail)
@@ -65,7 +67,9 @@ process INFER_HOVERNET {
 
     tag "$sample_id"
     label 'process_hovernet'
-    memory { (Float.valueOf(size) / 1000.0).round(2) * params.memory_scale_factor * 2.GB }
+    memory { 6.GB + (Float.valueOf(size) / 1000.0).round(2) * params.memory_scale_factor * 2.GB }
+    maxRetries 3
+    errorStrategy  { task.attempt <= maxRetries  ? 'retry' : 'finish' }
     
     input:
     tuple val(sample_id), path(image), path(mask), val(size)
@@ -93,7 +97,7 @@ process INFER_HOVERNET {
     --input_dir="./${image}" \
     --output_dir=hovernet/ \
     --input_mask_dir=mask/ \
-    --slide_mag=${params.target_magnification} \
+    --slide_mag=40 \
     --proc_mag=40 \
     --chunk_shape=${params.hovernet_chunk_size} \
     --tile_shape=${params.hovernet_tile_size}
@@ -104,8 +108,8 @@ process INFER_HOVERNET_TILES {
 
     tag "$sample_id"
     label 'process_hovernet'
-    errorStrategy 'retry'
-    maxRetries 5
+    maxRetries 3
+    errorStrategy  { task.attempt <= maxRetries  ? 'retry' : 'finish' }
     publishDir "${params.outdir}/${sample_id}/tiles", pattern: 'temp/overlay/*.png', saveAs: { filename -> "${filename.split("/")[filename.split("/").length - 1]}" }, mode: 'copy', overwrite: true
     memory { 2.GB }
     
@@ -193,8 +197,8 @@ process INFER_STARDIST {
 
     tag "$sample_id"
     label 'process_stardist'
-    errorStrategy 'retry'
-    maxRetries 5
+    maxRetries 3
+    errorStrategy  { task.attempt <= maxRetries  ? 'retry' : 'finish' }
     memory { (Float.valueOf(size) / 1000.0).round(2) * params.memory_scale_factor * 10.GB }
     
     input:
@@ -251,8 +255,8 @@ process COMPRESS_JSON_FILE {
 
     tag "$sample_id"
     label 'vips_process'
-    errorStrategy 'retry'
     maxRetries 3
+    errorStrategy  { task.attempt <= maxRetries  ? 'retry' : 'finish' }
     publishDir "${params.outdir}/${sample_id}", mode: 'copy', overwrite: true
     
     input:
@@ -273,8 +277,8 @@ process COMPUTE_SEGMENTATION_DATA {
 
     tag "$sample_id"
     label 'python_process_low'
-    errorStrategy 'retry'
     maxRetries 3
+    errorStrategy  { task.attempt <= maxRetries  ? 'retry' : 'finish' }
     publishDir "${params.outdir}/${sample_id}", mode: 'copy', overwrite: true
     memory { (Float.valueOf(size) / 1000.0).round(2) * params.memory_scale_factor * 3.GB }
     
@@ -305,8 +309,8 @@ process GENERATE_PERSPOT_SEGMENTATION_DATA {
 
     tag "$sample_id"
     label 'python_process_low'
-    errorStrategy 'retry'
     maxRetries 3
+    errorStrategy  { task.attempt <= maxRetries  ? 'retry' : 'finish' }
     publishDir "${params.outdir}/${sample_id}", mode: 'copy', overwrite: true
     memory { (Float.valueOf(size) / 1000.0).round(2) * params.memory_scale_factor * 3.GB }
     

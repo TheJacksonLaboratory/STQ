@@ -2,11 +2,13 @@
 include { LOAD_SAMPLE_INFO;
           GET_IMAGE_SIZE;
           EXTRACT_ROI;
+          COLOR_NORMALIZATION;
           STAIN_NORMALIZATION;
           CONVERT_TO_TILED_TIFF;
           GET_PIXEL_MASK;
           TILE_WSI;
           GET_TILE_MASK;
+          GET_TISSUE_MASK;
           SELECT_SAVE_TILES;
           GET_INCEPTION_FEATURES_TILES;
           GET_INCEPTION_FEATURES;
@@ -40,10 +42,20 @@ workflow WTILES {
                       .join(GET_IMAGE_SIZE.out) )
 
         if ( params.stain_normalization ) {
-            STAIN_NORMALIZATION ( EXTRACT_ROI.out.image
-                                  .join(GET_IMAGE_SIZE.out) )
+            if ( params.macenko_normalization ) {
+                STAIN_NORMALIZATION ( EXTRACT_ROI.out.image
+                                      .join(GET_IMAGE_SIZE.out) )
+                
+                normimage = STAIN_NORMALIZATION.out
+                }
+            else {
+                COLOR_NORMALIZATION ( EXTRACT_ROI.out.image
+                                      .join(GET_IMAGE_SIZE.out) )
+                
+                normimage = COLOR_NORMALIZATION.out
+                }
             
-            CONVERT_TO_TILED_TIFF ( STAIN_NORMALIZATION.out )
+            CONVERT_TO_TILED_TIFF ( normimage )
             }
         else
             CONVERT_TO_TILED_TIFF ( EXTRACT_ROI.out.image )

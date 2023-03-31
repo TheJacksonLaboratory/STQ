@@ -35,8 +35,8 @@ process GET_IMAGE_SIZE {
 
     tag "$sample_id"
     label 'process_estimate_size'
-    errorStrategy 'retry'
     maxRetries 1
+    errorStrategy  { task.attempt <= maxRetries  ? 'retry' : 'finish' }
 
     input:
     tuple val(sample_id), path(fileslide), path(roifile), val(mpp)
@@ -56,9 +56,9 @@ process EXTRACT_ROI {
 
     tag "$sample_id"
     label 'process_extract'
-    errorStrategy 'retry'
     maxRetries 1
-    memory { (Float.valueOf(size) / 1000.0).round(2) * params.memory_scale_factor * 13.GB }
+    errorStrategy  { task.attempt <= maxRetries  ? 'retry' : 'finish' }
+    memory { 6.GB + (Float.valueOf(size) / 1000.0).round(2) * params.memory_scale_factor * 16.GB }
 
     input:
     tuple val(sample_id), path(fileslide), path(roifile), val(mpp), val(size)
@@ -74,13 +74,13 @@ process EXTRACT_ROI {
 }
 
 
-process STAIN_NORMALIZATION {
+process COLOR_NORMALIZATION {
 
     tag "$sample_id"
-    label 'stain_normalization_process'
-    errorStrategy 'retry'
+    label 'color_normalization_process'
     maxRetries 3
-    memory { (Float.valueOf(size) / 1000.0).round(2) * params.memory_scale_factor * 30.GB }
+    errorStrategy  { task.attempt <= maxRetries  ? 'retry' : 'finish' }
+    memory { 6.GB + (Float.valueOf(size) / 1000.0).round(2) * params.memory_scale_factor * 30.GB }
 
     input:
     tuple val(sample_id), path("outfile.tiff"), val(mpp), val(size)
@@ -100,12 +100,38 @@ process STAIN_NORMALIZATION {
 }
 
 
+process STAIN_NORMALIZATION {
+
+    tag "$sample_id"
+    label 'stain_normalization_process'
+    maxRetries 3
+    errorStrategy  { task.attempt <= maxRetries  ? 'retry' : 'finish' }
+    memory { 6.GB + (Float.valueOf(size) / 1000.0).round(2) * params.memory_scale_factor * 30.GB }
+
+    input:
+    tuple val(sample_id), path("outfile.tiff"), val(mpp), val(size)
+    
+    output:
+    tuple val(sample_id), file("output_images/outfile.tiff"), val(mpp)
+
+    script:    
+    """
+    [ ! -d "output_images" ] && mkdir "output_images"
+    
+    python -u "${projectDir}/bin/StainToolsNorm.py" \
+    --referenceImagePath "${params.stain_reference_image}" \
+    --inputImagePath "outfile.tiff" \
+    --outputImageName "output_images/outfile.tiff" \
+    --s ${params.stain_patch_size}
+    """
+}
+
 process CONVERT_TO_TILED_TIFF {
 
     tag "$sample_id"
     label 'vips_process'
-    errorStrategy 'retry'
     maxRetries 3
+    errorStrategy  { task.attempt <= maxRetries  ? 'retry' : 'finish' }
     publishDir "${params.outdir}/${sample_id}", pattern: 'thumbnail.tiff', mode: 'copy', overwrite: true
     
     input:
@@ -115,6 +141,7 @@ process CONVERT_TO_TILED_TIFF {
     tuple val(sample_id), file("converted/outfile.tiff"), emit: full
     tuple val(sample_id), file("thumbnail.tiff"), emit: thumb
     tuple val(sample_id), env(size), emit: size
+    tuple val(sample_id), val(mpp), emit: mpp
 
     script:    
     """
@@ -124,7 +151,7 @@ process CONVERT_TO_TILED_TIFF {
     [ ! -d "converted" ] && mkdir "converted"
     
     vips resize tempfile.tiff thumbnail.tiff ${params.thumbnail_downsample_factor}
-    vips tiffsave tempfile.tiff converted/outfile.tiff --compression none --tile --tile-width ${params.tiled_tiff_tile_size} --tile-height ${params.tiled_tiff_tile_size}
+    vips tiffsave tempfile.tiff converted/outfile.tiff --compression none --tile --tile-width ${params.tiled_tiff_tile_size} --tile-height ${params.tiled_tiff_tile_size} --bigtiff
     rm tempfile.tiff
     
     w=`vipsheader -f width converted/outfile.tiff`
@@ -140,10 +167,10 @@ process GET_PIXEL_MASK {
 
     tag "$sample_id"
     label 'python_process_low'
-    errorStrategy 'retry'
     maxRetries 3
+    errorStrategy  { task.attempt <= maxRetries  ? 'retry' : 'finish' }
     publishDir "${params.outdir}/${sample_id}", mode: 'copy', overwrite: true
-    memory { (Float.valueOf(size) / 1000.0).round(2) * params.memory_scale_factor * 3.GB }
+    memory { 3.GB + (Float.valueOf(size) / 1000.0).round(2) * params.memory_scale_factor * 3.GB }
     
     input:
     tuple val(sample_id), path(image), val(size)
@@ -171,10 +198,10 @@ process GET_TISSUE_MASK {
 
     tag "$sample_id"
     label 'python_process_low'
-    errorStrategy 'retry'
     maxRetries 3
+    errorStrategy  { task.attempt <= maxRetries  ? 'retry' : 'finish' }
     publishDir "${params.outdir}/${sample_id}", mode: 'copy', overwrite: true
-    memory { (Float.valueOf(size) / 1000.0).round(2) * params.memory_scale_factor * 3.GB }
+    memory { 3.GB + (Float.valueOf(size) / 1000.0).round(2) * params.memory_scale_factor * 3.GB }
     
     input:
     tuple val(sample_id), path(meta_grid_csv), path(meta_grid_json), path(tile_mask), val(size)
@@ -206,10 +233,10 @@ process TILE_WSI {
 
     tag "$sample_id"
     label 'python_process_low'
-    errorStrategy 'retry'
     maxRetries 3
+    errorStrategy  { task.attempt <= maxRetries  ? 'retry' : 'finish' }
     publishDir "${params.outdir}/${sample_id}", mode: 'copy', overwrite: true
-    memory { (Float.valueOf(size) / 1000.0).round(2) * params.memory_scale_factor * 3.GB }
+    memory { 3.GB + (Float.valueOf(size) / 1000.0).round(2) * params.memory_scale_factor * 3.GB }
     
     input:
     tuple val(sample_id), path(image), path(meta_grid_csv), path(meta_grid_json), val(size)
@@ -274,10 +301,10 @@ process GET_TILE_MASK {
 
     tag "$sample_id"
     label 'python_process_low'
-    errorStrategy 'retry'
     maxRetries 3
+    errorStrategy  { task.attempt <= maxRetries  ? 'retry' : 'finish' }
     publishDir "${params.outdir}/${sample_id}", mode: 'copy', overwrite: true
-    memory { (Float.valueOf(size) / 1000.0).round(2) * params.memory_scale_factor * 3.GB }
+    memory { 3.GB + (Float.valueOf(size) / 1000.0).round(2) * params.memory_scale_factor * 3.GB }
     
     input:
     tuple val(sample_id), path(low_res_image), path(pixel_mask_csv), path(grid_csv), path(grid_json), val(size)
@@ -307,9 +334,9 @@ process GET_INCEPTION_FEATURES {
 
     tag "$sample_id"
     label 'process_inception'
-    errorStrategy 'retry'
     maxRetries 3
-    memory { (Float.valueOf(size) / 1000.0).round(2) * params.memory_scale_factor * 14.GB }
+    errorStrategy  { task.attempt <= maxRetries  ? 'retry' : 'finish' }
+    memory { 6.GB + (Float.valueOf(size) / 1000.0).round(2) * params.memory_scale_factor * 14.GB }
         
     input:
     tuple val(sample_id), path(image), path(tile_mask), path(grid_csv), path(grid_json), path(meta_grid_csv), path(meta_grid_json), val(size)
@@ -345,8 +372,8 @@ process SELECT_SAVE_TILES {
 
     tag "$sample_id"
     label 'python_process_low'
-    errorStrategy 'retry'
     maxRetries 3
+    errorStrategy  { task.attempt <= maxRetries  ? 'retry' : 'finish' }
     publishDir "${params.outdir}/${sample_id}", pattern: 'tiles/*.csv', mode: 'copy', overwrite: true
     memory { 2.GB }
     
@@ -395,8 +422,8 @@ process GET_INCEPTION_FEATURES_TILES {
 
     tag "$sample_id"
     label 'process_inception'
-    errorStrategy 'retry'
     maxRetries 3
+    errorStrategy  { task.attempt <= maxRetries  ? 'retry' : 'finish' }
     publishDir "${params.outdir}/${sample_id}", pattern: 'tiles/*.csv.gz', mode: 'copy', overwrite: true
     memory { 2.GB }
     

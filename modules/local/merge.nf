@@ -3,8 +3,8 @@ process MERGE_IMAGING_DATA {
 
     tag "$sample_id"
     label 'python_process_low'
-    errorStrategy 'retry'
     maxRetries 3
+    errorStrategy  { task.attempt <= maxRetries  ? 'retry' : 'finish' }
     publishDir "${params.outdir}/${sample_id}", mode: 'copy', overwrite: true
     memory { (Float.valueOf(size) / 1000.0).round(2) * params.memory_scale_factor * 3.GB }
     
