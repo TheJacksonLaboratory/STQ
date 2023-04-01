@@ -111,7 +111,7 @@ process INFER_HOVERNET_TILES {
     maxRetries 3
     errorStrategy  { task.attempt <= maxRetries  ? 'retry' : 'finish' }
     publishDir "${params.outdir}/${sample_id}/tiles", pattern: 'temp/overlay/*.png', saveAs: { filename -> "${filename.split("/")[filename.split("/").length - 1]}" }, mode: 'copy', overwrite: true
-    memory { 2.GB }
+    memory { 8.GB }
     
     input:
     tuple val(sample_id), path("tiles/")
@@ -199,7 +199,7 @@ process INFER_STARDIST {
     label 'process_stardist'
     maxRetries 3
     errorStrategy  { task.attempt <= maxRetries  ? 'retry' : 'finish' }
-    memory { (Float.valueOf(size) / 1000.0).round(2) * params.memory_scale_factor * 10.GB }
+    memory { 6.GB + (Float.valueOf(size) / 1000.0).round(2) * params.memory_scale_factor * 16.GB }
     
     input:
     tuple val(sample_id), path(image), val(size)
@@ -280,7 +280,7 @@ process COMPUTE_SEGMENTATION_DATA {
     maxRetries 3
     errorStrategy  { task.attempt <= maxRetries  ? 'retry' : 'finish' }
     publishDir "${params.outdir}/${sample_id}", mode: 'copy', overwrite: true
-    memory { (Float.valueOf(size) / 1000.0).round(2) * params.memory_scale_factor * 3.GB }
+    memory { 3.GB + (Float.valueOf(size) / 1000.0).round(2) * params.memory_scale_factor * 3.GB }
     
     input:
     tuple val(sample_id), path(hovernet_json), val(size)
@@ -312,7 +312,7 @@ process GENERATE_PERSPOT_SEGMENTATION_DATA {
     maxRetries 3
     errorStrategy  { task.attempt <= maxRetries  ? 'retry' : 'finish' }
     publishDir "${params.outdir}/${sample_id}", mode: 'copy', overwrite: true
-    memory { (Float.valueOf(size) / 1000.0).round(2) * params.memory_scale_factor * 3.GB }
+    memory { 3.GB + (Float.valueOf(size) / 1000.0).round(2) * params.memory_scale_factor * 3.GB }
     
     input:
     tuple val(sample_id), path(grid_csv), path(grid_json), path(hovernet_csv), val(size)

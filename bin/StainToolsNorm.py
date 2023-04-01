@@ -56,7 +56,7 @@ if __name__ == '__main__':
     parser.add_argument('--s', type=int, default=4096, help='patch size')
     parser.add_argument('--low', type=int, default=100, help='low threshold')
     parser.add_argument('--high', type=int, default=200, help='high threshold')
-    parser.add_argument('--fraction', type=float, default=0.5, help='fraction for tissue')
+    parser.add_argument('--qfraction', type=float, default=0.75, help='quantile of fraction for tissue')
     args = parser.parse_args()
     
     print('s:', args.s)
@@ -72,19 +72,34 @@ if __name__ == '__main__':
     print(coords)
 
     # Determine representative patch
+    coordsf = []
+    fractions = []
+    for i, j in tqdm(coords):
+        try:
+            # Get in_tissue flags for patch
+            v = img[r[0][i]:r[0][i+1], r[1][j]:r[1][j+1], :].mean(axis=2)
+            vc = v.copy()
+            v[vc < args.low] = 0
+            v[vc > args.high] = 0
+            v[(vc >= args.low) & (vc <= args.high)] = 1
+            f = v.ravel().mean()
+            print(i, j, f)
+            if f==f:
+                coordsf.append((i, j, f))
+                fractions.append(f)
+        except Exception as exception:
+            print('Exception:', exception)
+        
+    fcutoff = np.quantile(fractions, args.qfraction)
+    fcutoff = min(fcutoff, 0.5)
+    print('fcutoff:', fcutoff)
+    
     ms = []
     cs = []
-    for i, j in tqdm(coords):
+    for i, j, f in tqdm(coordsf):
         # Get in_tissue flags for patch
-        v = img[r[0][i]:r[0][i+1], r[1][j]:r[1][j+1], :].mean(axis=2)
-        vc = v.copy()
-        v[vc < args.low] = 0
-        v[vc > args.high] = 0
-        v[(vc >= args.low) & (vc <= args.high)] = 1
-        temp = v.ravel().mean()
-        in_tissue = temp > args.fraction
-        print(i, j, in_tissue, temp)
-        
+        in_tissue = f >= fcutoff
+        print(i, j, in_tissue, f)
         if in_tissue:
             try:
                 m, c = normalizer.estimate(img[r[0][i]:r[0][i+1], r[1][j]:r[1][j+1], :])

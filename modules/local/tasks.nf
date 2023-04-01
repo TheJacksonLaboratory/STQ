@@ -58,7 +58,7 @@ process EXTRACT_ROI {
     label 'process_extract'
     maxRetries 1
     errorStrategy  { task.attempt <= maxRetries  ? 'retry' : 'finish' }
-    memory { 6.GB + (Float.valueOf(size) / 1000.0).round(2) * params.memory_scale_factor * 16.GB }
+    memory { 6.GB + (Float.valueOf(size) / 1000.0).round(2) * params.memory_scale_factor * 12.GB }
 
     input:
     tuple val(sample_id), path(fileslide), path(roifile), val(mpp), val(size)
@@ -104,9 +104,9 @@ process STAIN_NORMALIZATION {
 
     tag "$sample_id"
     label 'stain_normalization_process'
-    maxRetries 3
+    maxRetries 1
     errorStrategy  { task.attempt <= maxRetries  ? 'retry' : 'finish' }
-    memory { 6.GB + (Float.valueOf(size) / 1000.0).round(2) * params.memory_scale_factor * 30.GB }
+    memory { 6.GB + (Float.valueOf(size) / 1000.0).round(2) * params.memory_scale_factor * 12.GB }
 
     input:
     tuple val(sample_id), path("outfile.tiff"), val(mpp), val(size)
@@ -425,7 +425,7 @@ process GET_INCEPTION_FEATURES_TILES {
     maxRetries 3
     errorStrategy  { task.attempt <= maxRetries  ? 'retry' : 'finish' }
     publishDir "${params.outdir}/${sample_id}", pattern: 'tiles/*.csv.gz', mode: 'copy', overwrite: true
-    memory { 2.GB }
+    memory { 4.GB }
     
     input:
     tuple val(sample_id), path("tiles/")
