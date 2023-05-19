@@ -2,16 +2,16 @@
 
 nextflow.enable.dsl = 2
 
-include { WTILES } from './workflows/sample_tiles'
 include { MAIN } from './workflows/full'
-        
+include { WTILES } from './workflows/sample_tiles'
+
 workflow {
 
     Channel
     .from(file(params.input))
     .splitCsv(header:true, sep:',')
-    .set{ slides }
+    .set{ samples }
 
-    WTILES ( slides )
+    MAIN ( samples )
 
 }
