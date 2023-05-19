@@ -1,0 +1,16 @@
+bootstrap: shub
+from: jaxreg.jax.org/singlecell/python:3.8
+
+%post
+apt-get update
+apt-get install -y gcc
+apt-get install -y g++
+apt-get install -y openslide-tools
+apt-get install -y python-openslide
+apt-get install -y libgl1
+apt-get install -y procps
+
+/opt/conda/bin/conda install --quiet -y -c conda-forge pandas python-spams
+/opt/conda/bin/conda install --quiet -y -c numba numba==0.56.4
+/opt/conda/bin/conda install --quiet -y pip
+/opt/conda/bin/pip install tifffile imagecodecs openslide-python opencv-python-headless staintools
