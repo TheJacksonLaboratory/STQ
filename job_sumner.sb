@@ -5,9 +5,9 @@
 #SBATCH --mem=2G
 #SBATCH --ntasks=1
 
-samplesheet=$1
-workdir=$2
-outdir=$3
+samplesheet="./assets/samplesheet.csv"
+workdir="/fastscratch/domans/work_PDXq_test"
+outdir="./results_test"
 
 cd $SLURM_SUBMIT_DIR
 

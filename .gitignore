@@ -8,6 +8,8 @@ __pycache__/
 
 slurm-*.out
 
+dev/
+
 results*/
 .nextflow.log*
 
