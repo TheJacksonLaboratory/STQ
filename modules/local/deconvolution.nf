@@ -1,4 +1,29 @@
 
+process XENOME_GENERATE_INDEX {
+
+    tag "$sample_id"
+    publishDir "${params.xenome_indices_path}", pattern: "${params.xenome_indices_name}-*", mode: 'copy', overwrite: false
+
+    input:
+    tuple val(reference_one), path(reference_two), val(kmer_size)
+    
+    output:
+    path("${params.xenome_indices_path}/${params.xenome_indices_name}-*"), emit: indices_path
+    
+    script:    
+    """
+    /xenome-1.0.1-r/xenome classify \
+    --kmer-size ${kmer_size} \
+    --prefix ${params.xenome_indices_name} \
+    --max-memory ${task.memory} \
+    --num-threads ${task.cpus} \
+    --tmp-dir "tmp" \
+    --host ${reference_one} \
+    --graft ${reference_two} \
+    --verbose
+    """
+}
+
 process DECONVOLUTION {
 
     tag "$sample_id"
@@ -33,7 +58,6 @@ process DECONVOLUTION {
     """
 }
 
-
 process SORT_FASTQ {
 
     tag "$sample_id"
@@ -51,4 +75,3 @@ process SORT_FASTQ {
     fastq-sort --id ${fastq[1]} > "sorted_2.fastq"
     """
 }
-

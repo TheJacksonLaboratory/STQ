@@ -2,8 +2,9 @@
 
 nextflow.enable.dsl = 2
 
-include { MAIN } from './workflows/full'
-include { WTILES } from './workflows/sample_tiles'
+include { ARBITRARY_GRID } from './workflows/arbitrary_grid'
+include { ONE_REFERENCE } from './workflows/one_reference'
+include { TWO_REFERENCES } from './workflows/two_references'
 
 workflow {
 
@@ -12,6 +13,10 @@ workflow {
     .splitCsv(header:true, sep:',')
     .set{ samples }
 
-    MAIN ( samples )
+    // ARBITRARY_GRID ( samples )
+
+    // ONE_REFERENCE ( samples )
+
+    TWO_REFERENCES ( samples )
 
 }

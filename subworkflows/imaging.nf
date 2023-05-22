@@ -28,7 +28,7 @@ include { GET_HOVERNET_MASK;
 include { MERGE_IMAGING_DATA
         } from '../modules/local/merge'
         
-workflow WTILES {
+workflow IMAGING {
 
     take:
         dataset
@@ -71,21 +71,6 @@ workflow WTILES {
                         .join(GET_PIXEL_MASK.out)
                         .join(TILE_WSI.out.grid) 
                         .join(CONVERT_TO_TILED_TIFF.out.size))       
-        
-
-        // Tilitng sub-workflow for a small number of tiles        
-        
-        if ( params.sample_tiles_subworkflow ) {
-            SELECT_SAVE_TILES ( CONVERT_TO_TILED_TIFF.out.full
-                                .join(TILE_WSI.out.grid)
-                                .join(GET_TILE_MASK.out.mask) )
-            
-            GET_INCEPTION_FEATURES_TILES ( SELECT_SAVE_TILES.out.tiles )
-                                             
-            INFER_HOVERNET_TILES ( SELECT_SAVE_TILES.out.tiles )
-            
-            GET_NUCLEI_TYPE_COUNTS ( INFER_HOVERNET_TILES.out.json )
-        }
         
         
         // Feature extraction for all tiles
@@ -132,7 +117,5 @@ workflow WTILES {
         
                    
         // TODO: add processes CONVERT_TO_ANNDATA
-        
-        // TODO: add processes CALCULATE_THS (require prior tumor tiles filtering?)
 
 }
