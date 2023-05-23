@@ -2,9 +2,9 @@
 
 nextflow.enable.dsl = 2
 
-include { ARBITRARY_GRID } from './workflows/arbitrary_grid'
-include { ONE_REFERENCE } from './workflows/one_reference'
-include { TWO_REFERENCES } from './workflows/two_references'
+include { ARB } from './workflows/arbitrary_grid'
+include { ONE } from './workflows/one_reference'
+include { TWO } from './workflows/two_references'
 
 workflow {
 
@@ -14,10 +14,10 @@ workflow {
     .map( { it -> [ (it.sample), it ] } )
     .set{ samples }
 
-    // ARBITRARY_GRID ( samples )
+    // ARB ( samples )
 
-    // ONE_REFERENCE ( samples )
+    // ONE ( samples )
 
-    TWO_REFERENCES ( samples )
+    TWO ( samples )
 
 }
