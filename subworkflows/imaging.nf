@@ -25,7 +25,8 @@ include { GET_HOVERNET_MASK;
           GENERATE_PERSPOT_SEGMENTATION_DATA;
         } from '../modules/local/hovernet'
         
-include { MERGE_IMAGING_DATA
+include { MERGE_IMAGING_DATA;
+          CONVERT_CSV_TO_ANNDATA;
         } from '../modules/local/merge'
         
 workflow IMG {
@@ -85,41 +86,47 @@ workflow IMG {
                                  .join(CONVERT_TO_TILED_TIFF.out.size) )       
 
         
-        if ( params.hovernet_segmentation ) {
-            GET_HOVERNET_MASK ( CONVERT_TO_TILED_TIFF.out.full )
+        if ( params.do_nuclear_sementation ) {
+            if ( params.hovernet_segmentation ) {
+                GET_HOVERNET_MASK ( CONVERT_TO_TILED_TIFF.out.full )
 
-            GET_TISSUE_MASK ( TILE_WSI.out.grid
-                              .join(GET_TILE_MASK.out.mask)
-                              .join(CONVERT_TO_TILED_TIFF.out.size) )
+                GET_TISSUE_MASK ( TILE_WSI.out.grid
+                                  .join(GET_TILE_MASK.out.mask)
+                                  .join(CONVERT_TO_TILED_TIFF.out.size) )
 
-            INFER_HOVERNET ( CONVERT_TO_TILED_TIFF.out.full
-                             .join(GET_TISSUE_MASK.out)
-                             .join(CONVERT_TO_TILED_TIFF.out.size) )
+                INFER_HOVERNET ( CONVERT_TO_TILED_TIFF.out.full
+                                 .join(GET_TISSUE_MASK.out)
+                                 .join(CONVERT_TO_TILED_TIFF.out.size) )
             
-            jsonout = INFER_HOVERNET.out.json
+                jsonout = INFER_HOVERNET.out.json
+            }
+            else {
+                INFER_STARDIST ( CONVERT_TO_TILED_TIFF.out.full
+                                 .join(CONVERT_TO_TILED_TIFF.out.size) )
+            
+                jsonout = INFER_STARDIST.out.json
+            }
+
+            COMPRESS_JSON_FILE ( jsonout )
+        
+            COMPUTE_SEGMENTATION_DATA ( jsonout
+                                        .join(CONVERT_TO_TILED_TIFF.out.size) )
+
+            GENERATE_PERSPOT_SEGMENTATION_DATA ( TILE_WSI.out.grid
+                                             .join(COMPUTE_SEGMENTATION_DATA.out)
+                                             .join(CONVERT_TO_TILED_TIFF.out.size) )
+
+            MERGE_IMAGING_DATA ( GET_INCEPTION_FEATURES.out
+                                 .join(GENERATE_PERSPOT_SEGMENTATION_DATA.out.data)
+                                 .join(CONVERT_TO_TILED_TIFF.out.size) )
+
+            if ( params.do_imaging_anndata ) {
+                CONVERT_CSV_TO_ANNDATA ( MERGE_IMAGING_DATA.out )
+            }
         }
         else {
-            INFER_STARDIST ( CONVERT_TO_TILED_TIFF.out.full
-                             .join(CONVERT_TO_TILED_TIFF.out.size) )
-            
-            jsonout = INFER_STARDIST.out.json
+            if ( params.do_imaging_anndata ) {
+                CONVERT_CSV_TO_ANNDATA ( GET_INCEPTION_FEATURES.out )
+            }        
         }
-
-        COMPRESS_JSON_FILE ( jsonout )
-        
-        COMPUTE_SEGMENTATION_DATA ( jsonout
-                                    .join(CONVERT_TO_TILED_TIFF.out.size) )
-
-        GENERATE_PERSPOT_SEGMENTATION_DATA ( TILE_WSI.out.grid
-                                         .join(COMPUTE_SEGMENTATION_DATA.out)
-                                         .join(CONVERT_TO_TILED_TIFF.out.size) )
-        
-        MERGE_IMAGING_DATA ( GET_INCEPTION_FEATURES.out
-                             .join(GENERATE_PERSPOT_SEGMENTATION_DATA.out.data)
-                             .join(CONVERT_TO_TILED_TIFF.out.size) )
-        
-
-                   
-        // TODO: add processes CONVERT_TO_ANNDATA
-
 }

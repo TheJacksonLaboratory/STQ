@@ -36,7 +36,7 @@ process CONVERT_CSV_TO_ANNDATA {
     publishDir "${params.outdir}/${sample_id}", mode: 'copy', overwrite: true
 
     input:
-    tuple val(sample_id), path("data.csv.gz")
+    tuple val(sample_id), path(data_csv)
 
     output:
     tuple val(sample_id), file("img.data.h5ad")
@@ -49,7 +49,7 @@ process CONVERT_CSV_TO_ANNDATA {
     import pandas as pd
     import scanpy as sc
 
-    df_temp = pd.read_csv(preprocessedImAdDataPath + f'{sample}/data.csv.gz', index_col=[0,1]).xs(1, level='in_tissue')
+    df_temp = pd.read_csv("${data_csv}", index_col=[0,1]).xs(1, level='in_tissue')
     df_temp.insert(0, 'original_barcode', df_temp.index.values)
 
     ad = sc.AnnData(X=df_temp.loc[:, df_temp.columns.str.contains('feat')],
