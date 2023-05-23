@@ -14,10 +14,8 @@ workflow TWO {
         }
 
         SEQ ( samples )
-        
-        SEQ.out.view()
 
-        // IMG ( samples
-        //       .join(SEQ.out) )
+        IMG ( samples
+              .join(SEQ.out) )
 
 }

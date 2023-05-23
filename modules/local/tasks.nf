@@ -4,26 +4,35 @@ process LOAD_SAMPLE_INFO {
     tag "$sample_id"
 
     input:
-    tuple val(sample_id), path(image), val(meta_grid), val(roifile), val(mpp)
+    tuple val(sample_id), val(meta), path(srgrid), path(image)
     
     output:
-    tuple val(sample_id), file(image), file("roifile.json"), val(mpp), emit: main
+    tuple val(sample_id), file(image), file("roifile.json"), env(mpp), emit: main
     tuple val(sample_id), file("tissue_positions_list.csv"), file("scalefactors_json.json"), emit: grid
     
     script:
     """
-    if [ "${meta_grid}" = "" -o $params.use_provided_grid == false ];
+    mpp=${meta.mpp}
+    
+    if [ "${meta.grid}" = "" -o $params.use_provided_grid == false ];
     then
-        echo "" >  "tissue_positions_list.csv"
-        echo "" >  "scalefactors_json.json"
+        if [ ! "${srgrid}" = [] ];
+        then
+            echo "Using a spaceranger grid"
+        else
+            echo "Proceeding with a new grid"
+            echo "" >  "tissue_positions_list.csv"
+            echo "" >  "scalefactors_json.json"
+        fi
     else
-        cp "${meta_grid}"/scalefactors_json.json .
-        cp "${meta_grid}"/tissue_positions_list.csv .
+        echo "Using a grid from samplesheet"
+        cp "${meta.grid}"/scalefactors_json.json .
+        cp "${meta.grid}"/tissue_positions_list.csv .
     fi
-       
-    if [ ! "${roifile}" = "" ];
+    
+    if [ ! "${meta.roifile}" = "" ];
     then
-        cp "${roifile}" "roifile.json"
+        cp "${meta.roifile}" "roifile.json"
     else
         echo '{"0": {"location": 0, "size": 1}, "1": {"location": 0, "size": 1}}' > "roifile.json"
     fi

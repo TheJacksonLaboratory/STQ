@@ -31,11 +31,14 @@ include { MERGE_IMAGING_DATA
 workflow IMG {
 
     take:
-        dataset
+        samples
 
     main:
-        LOAD_SAMPLE_INFO ( dataset )
+        images = samples.map{[it[0], (it[1].image)]}
         
+        LOAD_SAMPLE_INFO ( samples
+                           .join(images) )
+         
         GET_IMAGE_SIZE ( LOAD_SAMPLE_INFO.out.main )
         
         EXTRACT_ROI ( LOAD_SAMPLE_INFO.out.main
@@ -115,6 +118,7 @@ workflow IMG {
                              .join(GENERATE_PERSPOT_SEGMENTATION_DATA.out.data)
                              .join(CONVERT_TO_TILED_TIFF.out.size) )
         
+
                    
         // TODO: add processes CONVERT_TO_ANNDATA
 
