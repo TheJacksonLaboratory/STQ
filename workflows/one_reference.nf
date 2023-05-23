@@ -1,6 +1,6 @@
 
-include { SEQUENCING } from './workflows/sequencing'
-include { IMAGING } from './workflows/imaging'
+include { SEQUENCING } from '../subworkflows/sequencing'
+include { IMAGING } from '../subworkflows/imaging'
 
 workflow ONE_REFERENCE {
 

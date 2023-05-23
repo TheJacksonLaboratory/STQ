@@ -1,25 +1,26 @@
 
 process XENOME_GENERATE_INDEX {
 
-    tag "$sample_id"
+    tag "${params.xenome_indices_name}"
     publishDir "${params.xenome_indices_path}", pattern: "${params.xenome_indices_name}-*", mode: 'copy', overwrite: false
 
     input:
-    tuple val(reference_one), path(reference_two), val(kmer_size)
+    path host_fasta
+    path graft_fasta
+    val kmer_size
     
     output:
-    path("${params.xenome_indices_path}/${params.xenome_indices_name}-*"), emit: indices_path
+    path("${params.xenome_indices_name}-*"), emit: indices_path
     
     script:    
     """
-    /xenome-1.0.1-r/xenome classify \
+    /xenome-1.0.1-r/xenome index \
     --kmer-size ${kmer_size} \
     --prefix ${params.xenome_indices_name} \
-    --max-memory ${task.memory} \
+    --max-memory 100 \
     --num-threads ${task.cpus} \
-    --tmp-dir "tmp" \
-    --host ${reference_one} \
-    --graft ${reference_two} \
+    --host "${host_fasta}" \
+    --graft "${graft_fasta}" \
     --verbose
     """
 }

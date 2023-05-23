@@ -32,10 +32,15 @@ include { MERGE_MTX;
 workflow SEQUENCING {
 
     take:
-        dataset
+        samples
 
-    main:
-        LOAD_SAMPLE_INFO ( dataset )
+    main:   
+        fastqs = samples.map{[it[0], (it[1].fastq)]}
+        images = samples.map{[it[0], (it[1].image)]}
+    
+        LOAD_SAMPLE_INFO ( samples
+                           .join(fastqs)
+                           .join(images) )
 
         UNPACK_FASTQ ( LOAD_SAMPLE_INFO.out.fastq )
         
@@ -102,5 +107,7 @@ workflow SEQUENCING {
 
         MERGE_MTX ( SPACERANGER_MOUSE.out.mtx
                     .join(SPACERANGER_HUMAN.out.mtx) )
-
+        
+    emit:
+        SPACERANGER_HUMAN.out.spatial
 }

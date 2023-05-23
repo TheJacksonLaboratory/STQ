@@ -1,7 +1,7 @@
 
-include { XENOME_INDEX } from './workflows/xenome_index'
-include { SEQUENCING } from './workflows/sequencing'
-include { IMAGING } from './workflows/imaging'
+include { XENOME_INDEX } from '../subworkflows/xenome_index'
+include { SEQUENCING } from '../subworkflows/sequencing'
+include { IMAGING } from '../subworkflows/imaging'
 
 workflow TWO_REFERENCES {
 
@@ -9,18 +9,16 @@ workflow TWO_REFERENCES {
         samples
 
     main:
-        if ( path("${params.xenome_indices_path}").exists() ) {
-            indices_path = params.xenome_indices_path
-        }
-        else {
-            XENOME_INDEX ( )
-            indices_path = XENOME_INDEX.out
+        if ( !file("${params.xenome_indices_path}/${params.xenome_indices_name}-both.kmers.low-bits.lwr").exists() ) {
+            // XENOME_INDEX ( )
+            println DDD
         }
 
-        println indices_path
+        SEQUENCING ( samples )
+        
+        SEQUENCING.out.view()
 
-        // SEQUENCING ( samples, indices_path )
-
-        // IMAGING ( SEQUENCING.out.grid )
+        // IMAGING ( samples
+        //           .join(SEQUENCING.out) )
 
 }

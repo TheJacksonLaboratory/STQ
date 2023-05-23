@@ -11,6 +11,7 @@ workflow {
     Channel
     .from(file(params.input))
     .splitCsv(header:true, sep:',')
+    .map( { it -> [ (it.sample), it ] } )
     .set{ samples }
 
     // ARBITRARY_GRID ( samples )

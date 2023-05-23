@@ -8,6 +8,6 @@ workflow XENOME_INDEX {
         XENOME_GENERATE_INDEX ( params.xenome_reference_host, params.xenome_reference_graft, params.xenome_kmer_size )
 
     emit:
-       XENOME_GENERATE_INDEX.indices_path
+       XENOME_GENERATE_INDEX.out.indices_path
 
 }

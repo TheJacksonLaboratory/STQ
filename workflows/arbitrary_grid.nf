@@ -1,5 +1,5 @@
 
-include { IMAGING } from './workflows/imaging'
+include { IMAGING } from '../subworkflows/imaging'
 
 workflow ARBITRARY_GRID {
 
