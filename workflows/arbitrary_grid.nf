@@ -7,6 +7,7 @@ workflow ARB {
         samples
 
     main:
-        IMG ( samples )
+        IMG ( samples
+              .join(samples.map{[it[0], []]}))
 
 }

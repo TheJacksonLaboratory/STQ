@@ -13,12 +13,20 @@ process LOAD_SAMPLE_INFO {
     script:
     """
     mpp=${meta.mpp}
+
+    if [ ! "${meta.roifile}" = "" ];
+    then
+        cp "${meta.roifile}" "roifile.json"
+    else
+        echo '{"0": {"location": 0, "size": 1}, "1": {"location": 0, "size": 1}}' > "roifile.json"
+    fi
     
     if [ "${meta.grid}" = "" -o $params.use_provided_grid == false ];
     then
         if [ ! "${srgrid}" = [] ];
         then
             echo "Using a spaceranger grid"
+            echo '{"0": {"location": 0, "size": 1}, "1": {"location": 0, "size": 1}}' > "roifile.json"
         else
             echo "Proceeding with a new grid"
             echo "" >  "tissue_positions_list.csv"
@@ -28,13 +36,6 @@ process LOAD_SAMPLE_INFO {
         echo "Using a grid from samplesheet"
         cp "${meta.grid}"/scalefactors_json.json .
         cp "${meta.grid}"/tissue_positions_list.csv .
-    fi
-    
-    if [ ! "${meta.roifile}" = "" ];
-    then
-        cp "${meta.roifile}" "roifile.json"
-    else
-        echo '{"0": {"location": 0, "size": 1}, "1": {"location": 0, "size": 1}}' > "roifile.json"
     fi
     """
 }

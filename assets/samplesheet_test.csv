@@ -1,2 +1,2 @@
 sample,fastq,image,grid,roifile,mpp
-WM4237_T1_S1_ST,/projects/chuang-lab/rubinstein/ST_melanomaPDX/data/SC2200323_WM4237-T1-Day14-229/fastq/,/projects/chuang-lab/rubinstein/ST_melanomaPDX/data/SC2200323_WM4237-T1-Day14-229/img/SC2200323.tiff,,,0.22075
+WM4237_T1_S1_ST,/projects/chuang-lab/rubinstein/ST_melanomaPDX/data/SC2200323_WM4237-T1-Day14-229/fastq/,/projects/chuang-lab/rubinstein/ST_melanomaPDX/data/SC2200323_WM4237-T1-Day14-229/img/SC2200323.tiff,,/projects/chuang-lab/USERS/domans/sample_roi.json,0.22075
