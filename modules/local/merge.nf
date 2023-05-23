@@ -29,6 +29,40 @@ process MERGE_IMAGING_DATA {
 }
 
 
+process CONVERT_CSV_TO_ANNDATA {
+
+    tag "$sample_id"
+    label "python_low_process"
+    publishDir "${params.outdir}/${sample_id}", mode: 'copy', overwrite: true
+
+    input:
+    tuple val(sample_id), path("data.csv.gz")
+
+    output:
+    tuple val(sample_id), file("img.data.h5ad")
+    
+    script:
+    """
+    #!/usr/bin/env python
+    
+    import gc
+    import pandas as pd
+    import scanpy as sc
+
+    df_temp = pd.read_csv(preprocessedImAdDataPath + f'{sample}/data.csv.gz', index_col=[0,1]).xs(1, level='in_tissue')
+    df_temp.insert(0, 'original_barcode', df_temp.index.values)
+
+    ad = sc.AnnData(X=df_temp.loc[:, df_temp.columns.str.contains('feat')],
+                    obs=df_temp.loc[:, ~df_temp.columns.str.contains('feat')])
+
+    df_temp = None
+    gc.collect()
+        
+    ad.write("img.data.h5ad")
+    """
+}
+
+
 process MERGE_MTX {
 
     tag "$sample_id"
