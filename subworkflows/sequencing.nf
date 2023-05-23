@@ -67,7 +67,7 @@ workflow SEQ {
                                        .join(SPACERANGER_HUMAN.out.metrics)
                                        .join(SPACERANGER_HUMAN.out.spatial) )
         
-        if ( do_snv_extract ) {
+        if ( params.do_snv_extract ) {
             GET_REFERENCE_PILEUP_MOUSE ( file("${params.mouse_reference_genome}") )
         
             GET_REFERENCE_PILEUP_HUMAN ( file("${params.human_reference_genome}") )
@@ -89,7 +89,7 @@ workflow SEQ {
                                         "human" )
         }
         
-        if ( do_splicing_quantification ) {
+        if ( params.do_splicing_quantification ) {
             CELLSORT_BAM_MOUSE ( SPACERANGER_MOUSE.out.bam )
         
             CELLSORT_BAM_HUMAN ( SPACERANGER_HUMAN.out.bam )
@@ -108,7 +108,7 @@ workflow SEQ {
                                             "human" )
         }
 
-        if ( do_merge_mtx ) {
+        if ( params.do_merge_mtx ) {
             MERGE_MTX ( SPACERANGER_MOUSE.out.mtx
                         .join(SPACERANGER_HUMAN.out.mtx) )
         }
