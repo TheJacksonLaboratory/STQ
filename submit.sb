@@ -5,6 +5,8 @@
 #SBATCH --mem=2G
 #SBATCH --ntasks=1
 
+workflow="two_references" ### "two_references" "one_reference" "arbitrary_grid"
+
 samplesheet="./assets/samplesheet_test.csv"
 workdir="/fastscratch/domans/work_test"
 outdir="./results_test"
@@ -19,4 +21,5 @@ nextflow run main.nf \
 -profile slurm,singularity \
 -resume \
 --input=${samplesheet} \
---outdir=${outdir}
+--outdir=${outdir} \
+--workflow=${workflow}

@@ -14,10 +14,16 @@ workflow {
     .map( { it -> [ (it.sample), it ] } )
     .set{ samples }
 
-    // ARB ( samples )
+    if ( params.workflow == "arbitrary_grid" ) {
+        ARB ( samples )
+    }
 
-    // ONE ( samples )
+    if ( params.workflow == "one_reference" ) {
+        ONE ( samples )
+    }
 
-    TWO ( samples )
+    if ( params.workflow == "two_references" ) {
+        TWO ( samples )
+    }
 
 }
