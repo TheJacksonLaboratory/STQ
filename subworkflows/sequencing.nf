@@ -26,6 +26,7 @@ include { CELLSORT_BAM as CELLSORT_BAM_MOUSE;
         } from '../modules/local/velocyto'
         
 include { MERGE_MTX;
+          RETURN_SEPARATE_MTX;
         } from '../modules/local/merge'        
 
 
@@ -66,48 +67,56 @@ workflow SEQ {
                                        .join(SPACERANGER_HUMAN.out.metrics)
                                        .join(SPACERANGER_HUMAN.out.spatial) )
         
+        if ( do_snv_extract ) {
+            GET_REFERENCE_PILEUP_MOUSE ( file("${params.mouse_reference_genome}") )
         
-        GET_REFERENCE_PILEUP_MOUSE ( file("${params.mouse_reference_genome}") )
-        
-        GET_REFERENCE_PILEUP_HUMAN ( file("${params.human_reference_genome}") )
-        
-        
-        GET_PILEUP_OF_BAM_MOUSE ( SPACERANGER_MOUSE.out.bam,
-                                  GET_REFERENCE_PILEUP_MOUSE.out )
-        
-        GET_PILEUP_OF_BAM_HUMAN ( SPACERANGER_HUMAN.out.bam,
-                                  GET_REFERENCE_PILEUP_HUMAN.out )
+            GET_REFERENCE_PILEUP_HUMAN ( file("${params.human_reference_genome}") )
         
         
-        GET_SNV_FROM_PILEUP_MOUSE ( GET_PILEUP_OF_BAM_MOUSE.out,
-                                    GET_REFERENCE_PILEUP_MOUSE.out,
-                                    "mouse" )
+            GET_PILEUP_OF_BAM_MOUSE ( SPACERANGER_MOUSE.out.bam,
+                                      GET_REFERENCE_PILEUP_MOUSE.out )
         
-        GET_SNV_FROM_PILEUP_HUMAN ( GET_PILEUP_OF_BAM_HUMAN.out,
-                                    GET_REFERENCE_PILEUP_HUMAN.out,
-                                    "human" )        
+            GET_PILEUP_OF_BAM_HUMAN ( SPACERANGER_HUMAN.out.bam,
+                                      GET_REFERENCE_PILEUP_HUMAN.out )
         
         
-        CELLSORT_BAM_MOUSE ( SPACERANGER_MOUSE.out.bam )
-        
-        CELLSORT_BAM_HUMAN ( SPACERANGER_HUMAN.out.bam )
-        
-        
-        SPLICING_QUANTIFICATION_MOUSE ( CELLSORT_BAM_MOUSE.out
-                                        .join(SPACERANGER_MOUSE.out.bam)
-                                        .join(SPACERANGER_MOUSE.out.mtx),
-                                        file("${params.mouse_reference_genome}"),
+            GET_SNV_FROM_PILEUP_MOUSE ( GET_PILEUP_OF_BAM_MOUSE.out,
+                                        GET_REFERENCE_PILEUP_MOUSE.out,
                                         "mouse" )
-       
-        SPLICING_QUANTIFICATION_HUMAN ( CELLSORT_BAM_HUMAN.out
-                                        .join(SPACERANGER_HUMAN.out.bam)
-                                        .join(SPACERANGER_HUMAN.out.mtx),
-                                        file("${params.human_reference_genome}"),
-                                        "human" )
-
-        MERGE_MTX ( SPACERANGER_MOUSE.out.mtx
-                    .join(SPACERANGER_HUMAN.out.mtx) )
         
+            GET_SNV_FROM_PILEUP_HUMAN ( GET_PILEUP_OF_BAM_HUMAN.out,
+                                        GET_REFERENCE_PILEUP_HUMAN.out,
+                                        "human" )
+        }
+        
+        if ( do_splicing_quantification ) {
+            CELLSORT_BAM_MOUSE ( SPACERANGER_MOUSE.out.bam )
+        
+            CELLSORT_BAM_HUMAN ( SPACERANGER_HUMAN.out.bam )
+        
+        
+            SPLICING_QUANTIFICATION_MOUSE ( CELLSORT_BAM_MOUSE.out
+                                            .join(SPACERANGER_MOUSE.out.bam)
+                                            .join(SPACERANGER_MOUSE.out.mtx),
+                                            file("${params.mouse_reference_genome}"),
+                                            "mouse" )
+       
+            SPLICING_QUANTIFICATION_HUMAN ( CELLSORT_BAM_HUMAN.out
+                                            .join(SPACERANGER_HUMAN.out.bam)
+                                            .join(SPACERANGER_HUMAN.out.mtx),
+                                            file("${params.human_reference_genome}"),
+                                            "human" )
+        }
+
+        if ( do_merge_mtx ) {
+            MERGE_MTX ( SPACERANGER_MOUSE.out.mtx
+                        .join(SPACERANGER_HUMAN.out.mtx) )
+        }
+        else {
+            RETURN_SEPARATE_MTX ( SPACERANGER_MOUSE.out.mtx
+                                  .join(SPACERANGER_HUMAN.out.mtx) )
+        }
+
     emit:
         SPACERANGER_HUMAN.out.spatial
 }
