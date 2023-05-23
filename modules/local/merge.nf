@@ -66,9 +66,14 @@ process RETURN_SEPARATE_MTX {
     tuple val(sample_id), path('mtx_mouse/*'), path('mtx_human/*')
 
     output:
-    tuple val(sample_id), file("mtx_mouse/*"), file("mtx_human/*")
+    tuple val(sample_id), file("raw_feature_bc_matrix_mouse/*"), file("raw_feature_bc_matrix_human/*")
     
     script:
     """
+    [ ! -d "raw_feature_bc_matrix_mouse" ] && mkdir raw_feature_bc_matrix_mouse
+    cp -R mtx_mouse/* raw_feature_bc_matrix_mouse/
+
+    [ ! -d "raw_feature_bc_matrix_human" ] && mkdir raw_feature_bc_matrix_human
+    cp -R mtx_human/* raw_feature_bc_matrix_human/
     """
 }
