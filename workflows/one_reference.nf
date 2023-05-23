@@ -1,15 +1,16 @@
 
-include { SEQUENCING } from '../subworkflows/sequencing'
-include { IMAGING } from '../subworkflows/imaging'
+include { SEQ } from '../subworkflows/sequencing'
+include { IMG } from '../subworkflows/imaging'
 
-workflow ONE_REFERENCE {
+workflow ONE {
 
     take:
         samples
 
     main:
-        SEQUENCING ( samples )
+        SEQ ( samples )
 
-        IMAGING ( SEQUENCING.out.grid )
+        IMG ( samples
+              .join(SEQ.out))
 
 }

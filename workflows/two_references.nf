@@ -1,24 +1,23 @@
 
-include { XENOME_INDEX } from '../subworkflows/xenome_index'
-include { SEQUENCING } from '../subworkflows/sequencing'
-include { IMAGING } from '../subworkflows/imaging'
+include { XINDEX } from '../subworkflows/xenome_index'
+include { SEQ } from '../subworkflows/sequencing'
+include { IMG } from '../subworkflows/imaging'
 
-workflow TWO_REFERENCES {
+workflow TWO {
 
     take:
         samples
 
     main:
         if ( !file("${params.xenome_indices_path}/${params.xenome_indices_name}-both.kmers.low-bits.lwr").exists() ) {
-            // XENOME_INDEX ( )
-            println DDD
+            XINDEX ( )
         }
 
-        SEQUENCING ( samples )
+        SEQ ( samples )
         
-        SEQUENCING.out.view()
+        SEQ.out.view()
 
-        // IMAGING ( samples
-        //           .join(SEQUENCING.out) )
+        // IMG ( samples
+        //       .join(SEQ.out) )
 
 }

@@ -1,12 +1,12 @@
 
-include { IMAGING } from '../subworkflows/imaging'
+include { IMG } from '../subworkflows/imaging'
 
-workflow ARBITRARY_GRID {
+workflow ARB {
 
     take:
         samples
 
     main:
-        IMAGING ( samples )
+        IMG ( samples )
 
 }

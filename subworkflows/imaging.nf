@@ -28,7 +28,7 @@ include { GET_HOVERNET_MASK;
 include { MERGE_IMAGING_DATA
         } from '../modules/local/merge'
         
-workflow IMAGING {
+workflow IMG {
 
     take:
         dataset

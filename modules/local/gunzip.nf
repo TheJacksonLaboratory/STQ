@@ -14,3 +14,20 @@ process GUNZIP {
     gzip -d -k ${fastq}
     """
 }
+
+
+process GUNZIP_FASTA {
+
+    tag "$sample_id"
+
+    input:
+    path(fasta)
+    
+    output:
+    file("*{.fa,.fna}")
+    
+    script:
+    """   
+    gzip -d -k ${fasta}
+    """
+}

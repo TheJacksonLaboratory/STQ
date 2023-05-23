@@ -29,7 +29,7 @@ include { MERGE_MTX;
         } from '../modules/local/merge'        
 
 
-workflow SEQUENCING {
+workflow SEQ {
 
     take:
         samples
