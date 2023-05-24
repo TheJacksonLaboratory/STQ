@@ -17,7 +17,7 @@ process XENOME_GENERATE_INDEX {
     /xenome-1.0.1-r/xenome index \
     --kmer-size ${kmer_size} \
     --prefix ${params.xenome_indices_name} \
-    --max-memory 200 \
+    --tmp-dir tempinwork
     --num-threads ${task.cpus} \
     --host "${host_fasta}" \
     --graft "${graft_fasta}" \

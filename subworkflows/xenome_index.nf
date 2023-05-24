@@ -25,9 +25,9 @@ workflow XINDEX {
             reference_graft =  params.xenome_reference_graft
         }
 
-    //    XENOME_GENERATE_INDEX ( reference_host, reference_graft, params.xenome_kmer_size )
-    //
-    //emit:
-    //   XENOME_GENERATE_INDEX.out.indices_path
+        XENOME_GENERATE_INDEX ( reference_host, reference_graft, params.xenome_kmer_size )
+    
+    emit:
+       XENOME_GENERATE_INDEX.out.indices_path
 
 }

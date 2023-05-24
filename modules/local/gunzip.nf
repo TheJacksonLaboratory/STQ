@@ -18,8 +18,6 @@ process GUNZIP {
 
 process GUNZIP_FASTA {
 
-    tag "$sample_id"
-
     input:
     path(fasta)
     
