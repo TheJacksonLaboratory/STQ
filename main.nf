@@ -5,6 +5,7 @@ nextflow.enable.dsl = 2
 include { ARB } from './workflows/arbitrary_grid'
 include { ONE } from './workflows/one_reference'
 include { TWO } from './workflows/two_references'
+include { XINDEX } from './subworkflows/xenome_index'
 
 workflow {
 
@@ -24,6 +25,12 @@ workflow {
 
     if ( params.workflow == "two_references" ) {
         TWO ( samples )
+    }
+
+    if ( params.workflow == "xenome_indices" ) {
+        if ( !file("${params.xenome_indices_path}/${params.xenome_indices_name}-both.kmers.low-bits.lwr").exists() ) {
+            XINDEX ( )
+        }
     }
 
 }
