@@ -111,3 +111,23 @@ process RETURN_SEPARATE_MTX {
     cp -R mtx_human/* raw_feature_bc_matrix_human/
     """
 }
+
+
+process RETURN_MTX {
+
+    tag "$sample_id"
+    label "python_low_process"
+    publishDir "${params.outdir}/${sample_id}", mode: 'copy', overwrite: true
+
+    input:
+    tuple val(sample_id), path('mtx/*')
+
+    output:
+    tuple val(sample_id), file("raw_feature_bc_matrix/*")
+    
+    script:
+    """
+    [ ! -d "raw_feature_bc_matrix" ] && mkdir raw_feature_bc_matrix
+    cp -R mtx/* raw_feature_bc_matrix/
+    """
+}

@@ -54,3 +54,22 @@ process RETURN_SPACERANGER_ALIGNMENT {
     cp -R in_spatial/ spatial/
     """
 }
+
+
+process RETURN_SPACERANGER_ALIGNMENT_SINGLE {
+
+    tag "$sample_id"
+    publishDir "${params.outdir}/${sample_id}", mode: 'copy', overwrite: true
+
+    input:
+    tuple val(sample_id), file("in_spacerangerqc/*"), file("in_spatial/*")
+    
+    output:
+    tuple val(sample_id), path("spacerangerqc/*"), path("spatial/*")
+    
+    script:
+    """
+    cp -R in_spacerangerqc/ spacerangerqc/
+    cp -R in_spatial/ spatial/
+    """
+}

@@ -14,10 +14,12 @@ process XENOME_GENERATE_INDEX {
     
     script:    
     """
+    mkdir tempw
+    
     /xenome-1.0.1-r/xenome index \
     --kmer-size ${kmer_size} \
     --prefix ${params.xenome_indices_name} \
-    --tmp-dir tempinwork
+    --tmp-dir tempw \
     --num-threads ${task.cpus} \
     --host "${host_fasta}" \
     --graft "${graft_fasta}" \

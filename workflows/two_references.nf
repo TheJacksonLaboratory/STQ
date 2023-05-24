@@ -15,7 +15,9 @@ workflow TWO {
 
         SEQ ( samples )
 
-        IMG ( samples
-              .join(SEQ.out) )
+        if ( params.do_img_subworkflow ) {
+            IMG ( samples
+                  .join(SEQ.out) )
+        }
 
 }

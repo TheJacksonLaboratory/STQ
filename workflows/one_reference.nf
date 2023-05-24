@@ -1,5 +1,5 @@
 
-include { SEQ } from '../subworkflows/sequencing'
+include { SEQ } from '../subworkflows/sequencing_single'
 include { IMG } from '../subworkflows/imaging'
 
 workflow ONE {
@@ -10,7 +10,9 @@ workflow ONE {
     main:
         SEQ ( samples )
 
-        IMG ( samples
-              .join(SEQ.out))
+        if ( params.do_img_subworkflow ) {
+            IMG ( samples
+                  .join(SEQ.out) )
+        }
 
 }
