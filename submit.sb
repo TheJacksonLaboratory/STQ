@@ -5,7 +5,7 @@
 #SBATCH --mem=2G
 #SBATCH --ntasks=1
 
-workflow="arbitrary_grid" ### "two_references" "one_reference" "arbitrary_grid"
+workflow="two_references" ### "two_references" "one_reference" "arbitrary_grid"
 
 samplesheet="./assets/samplesheet_test.csv"
 workdir="/fastscratch/domans/work_test"

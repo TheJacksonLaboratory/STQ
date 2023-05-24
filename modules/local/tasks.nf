@@ -23,7 +23,7 @@ process LOAD_SAMPLE_INFO {
     
     if [ "${meta.grid}" = "" -o $params.use_provided_grid == false ];
     then
-        if [ ! "${srgrid}" = [] ];
+        if [ ! "${srgrid}" = "" ];
         then
             echo "Using a spaceranger grid"
             echo '{"0": {"location": 0, "size": 1}, "1": {"location": 0, "size": 1}}' > "roifile.json"
