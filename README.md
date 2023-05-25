@@ -59,10 +59,10 @@ Processing 1 sample requires approximately 100+ CPU hours of computing time. Som
 
 + The pipeline source code <img src="https://github.githubassets.com/images/modules/logos_page/Octocat.png" height="30"/> (this repository)
 
-	  mkdir my-piepline-run
+      mkdir my-piepline-run
       cd my-piepline-run
-	  git clone https://github.com/TheJacksonLaboratory/STQ.git
-      cd PDX-st-quantification
+      git clone https://github.com/TheJacksonLaboratory/STQ.git
+      cd STQ
 
 + Singularity software containers used in this pipeline
 
@@ -70,7 +70,7 @@ The singularity containers used in our pipeline can be downloaded or built with 
 
 + Reference genomes for mouse and human (see tool `spaceranger count` below)
 
-+ Deconvolution indices (see tool `xenome classify` below)
++ Deconvolution indices (see tool `xenome classify` below) or graft and host reference FASTA files.
 
 
 
@@ -80,54 +80,68 @@ The singularity containers used in our pipeline can be downloaded or built with 
 
 The pipeline is designed to take one or more samples and process them in parallel. The sample sheet must have a `csv` format and must contain a header as shown below:
 
-| sample | fastq | image |
-|------|------|------|
-| sample_A   | path/to/sample1/fatqs/   | path/to/fullres/image1.tiff    |
-| sample_B   | path/to/sample2/fatqs/   | path/to/fullres/image2.tiff    |
-| sample_C   | path/to/sample3/fatqs/   | path/to/fullres/image3.tiff    |
-| ...  | ...  | ...  |
+| sample | fastq | image | grid | roifile | mpp |
+|------|------|------|------|------|
+| sample_A   | path/to/sample1/fatqs/   | path/to/fullres/image1.tiff    |  |  | 0.22075 |
+| sample_B   | path/to/sample2/fatqs/   | path/to/fullres/image2.tiff    |  |  | 0.22075 |
+| sample_C   | path/to/sample3/fatqs/   | path/to/fullres/image3.tiff    |  |  | 0.22075 |
+| ...  | ...  | ...  | ... | ... | ... |
 
-> ***Tip*** Column headers may be named differently but preserving the order, i.e. the first column contains sample identifiers, the second column points to a path of directories where the sample fastq files are stored, the third column points to a path of directories where the sample image is stored.
+> ***Tip*** Column headers must be named as shown above but not necessarily preserving the order, except that the first column must contain the sample identifiers. Even if a certain column is not necessary for a certain pipeline run that column must be present in the CSV with an empty value, e.g. if roifile is left blank then the entire WSI image is used in the analysis.
 
 > ***Tip*** Sample identifiers in column 1 must be unique. The output directory will contain sub-directories named by the sample identifiers. The pipeline output reports are also based on these identifiers.
 
 > ***Note*** The fastq files are expected to be compressed `fastq.gz` paired-end reads. Two files are expected in the fastq directory.
 
 
-| sample | image | grid |
-|------|------|------|
-| sample_A   | path/to/fullres/image1.tiff   |     |
-| sample_B   | path/to/fullres/image2.tiff   | /path/to/spaceranger/output/sampleB/spatial/  |
-| sample_C   | path/to/fullres/image3.tiff   |     |
-| ...  | ...  | ...  |
+The column "grid" points to a path of directories where the sample spatial image alignment is stored. The value in the column "grid" can be empty if the WSI is not from the 10x Visium Spatial Gene Expression Slide, or Space Ranger image alignment was not done.
 
-> ***Tip*** Column headers may be named differently but preserving the order, i.e. the first column contains sample identifiers, the second column points to a path of directories where the sample image is stored, the third column points to a path of directories where the sample spatial image alignment is stored. The value in the third column can be empty if the WSI is not from the 10x Visium Spatial Gene Expression Slide.
+The olumn "roifile" is used to specify path to a JSON file that contains information how to crop the WSI for processing in the imaging sub-workflow. Note, that the sequencing sub-workflow image must contain the slide fiducials for Space Ranger to align the image and grid. When using grid from the sequencing sub-workflow roifile value is ignored.
 
-
+The column "mpp" is used to specify WSI resolution in microns per pixel. The recommended resolution of images that can be used with the imaging sub-workflow is approximately 0.25 microns per pixel. Images are downsmpled or upsampled to the pre-specified in the configuration target mpp value.
 
 
 ##### Configure the pipeline
 
-Edit file `nextflow.config` to specify paths to singularity containers, reference genome sequences, and deconvolution indices. If necessary, adjust any of the resources allowed to be consumed by processes.
+Edit file `nextflow.config` to specify paths to singularity containers, reference genome sequences, and deconvolution indices. If necessary, adjust any of the resources allowed to be allocated to the pipeline processes.
 
-Check the defaults or edit the file `conf/analysis.config` to adjust any customizable parameters.
+Check the defaults or edit the file `conf/analysis.config` to adjust any customizable parameters. See file `conf/README.md` for description of each parameter.
 
-Edit file `run.sh` to modify the three lines:
+For JAX users preparation of the pipeline can be done via editing file `submit.sb` and modifying the following lines:
++ workflow="two_references" ### "two_references" "one_reference" "arbitrary_grid" "xenome_indices"
 + samplesheet="/path/to/samplesheet.csv"
-+ workdir="/fastscratch/[jaxuser]/some_work_run"
++ workdir="/flashscratch/[jaxuser]/some_work_run"
 + outdir="/path/to/results_my_analysis"
 
-> ***Tip*** Use unique paths for each run to make the cleanup of temporary files easier. This strategy allows the separation of pipeline run statistics and output samples.
+> ***Tip*** Use unique paths for "workdir" and "outdir" for each pipeline run to make the cleanup of temporary files easier. This strategy also allows the separation of pipeline run statistics and output samples.
 
-> ***Note*** `workdir` must point to a device with a large storage volume and fast I/O access capability.
+> ***Note*** `workdir` must point to a device with a large storage volume and fast I/O access capability, e.g. flashscratch or fastscratch for JAX users.
 
 ##### Run the pipeline
 
-        ./run.sh
+###### Interactive mode (this mode use is discouraged)
 
-The command above submits the pipeline to the HPC slurm system, which creates a low resource but long wall time job which manages the nextflow pipeline run. Nextflow manages all the pipeline processes and monitors the execution progress. Users can periodically monitor the contents of the `slurm-*.out` file to see progress.
+For JAX users start an interactive session, and run the script:
 
-> ***Tip*** Submitting via srun interactive session will show beautifully updated progress of the pipeline run. We do not recommend using srun for our pipeline, since network interruption will cause the ssh connection to drop and the pipeline to fail. In such an unfortunate case user can run the pipeline again, however, any previously unfinished processes will restart, while all finished processes resume from cached data.
+        srun -p compute -q batch -t 6:00:00 --cpus-per-task=1 --mem=2G -J ijob --pty /bin/bash
+        cd my-piepline-run/STQ/
+        ./submit.sb
+
+> ***Note*** The exemplified command above requests 6 hours wall-time; this can be adjusted to a specific necessary run time.
+
+> ***Tip*** Submitting via srun interactive session will show interactively updated progress of the pipeline run. We do not recommend using srun for our pipeline, since network interruption will cause the ssh connection to drop and the pipeline to fail. In such an unfortunate case user can run the pipeline again, however, any previously unfinished processes will restart, while all finished processes resume from cached data.
+
+###### Detached mode (preferred)
+
+For JAX users use any HPC node (login node use is acceptable too) and submit the script to slurm:
+
+       cd my-piepline-run/STQ/
+       sbatch submit.sb
+
+In this detached mode the above command submits the pipeline to the HPC slurm system, which creates a low resource but long wall time job (duration specified in the submit.sb file) which manages the nextflow pipeline run. Nextflow manages all the pipeline processes and monitors the execution progress. Users can periodically monitor the contents of the `slurm-*.out` file to see progress:
+
+       tail -n 50 slurm-<your_job_id>.out
+
 
 ## Tools used in the pipeline
 
@@ -139,7 +153,7 @@ The command above submits the pipeline to the HPC slurm system, which creates a 
 
 `xenome classify` is designed to classify xenograft-derived RNA-seq reads to deconvolve the graft (human) from the host (mouse) reads. Xenome defines classes of reads: definitely human, probably human, definitely mouse, probably mouse, both, ambiguous, neither. In xenome classes definitely human and probably human are combined into human; classes definitely mouse and probably mouse are combined into mouse. We discard reads classified as both, ambiguous, or neither. The statistics of Xenome reads deconvolution is generated in the sample output directory in file `xenome.summary.txt`.
 
-`xenome classify` requires indices generated by `xenome index` as an input. The indices used in out analysis were built with `-K 25`, `-H ensembl/v102/Mus_musculus.GRCm38.dna.primary_assembly.fa` and `-G T2T-CHM13v2.0/assembly/GCA_009914755.4_T2T-CHM13v2.0_genomic.fna`.
+`xenome classify` requires indices generated by `xenome index` as an input. The indices used in out analysis were built with `-K 35`, `-H Custom_Genomes/R84-REL1505/NOD_ShiLtJ/NOD_ShiLtJ.fa` and `-G GCA_009914755.4_T2T-CHM13v2.0_genomic.fna`.
 
 3. **`spaceranger count`** (https://support.10xgenomics.com/spatial-gene-expression/software/pipelines/latest/using/count) is a pipeline developed by 10x Genomics based on a Martian pipeline (https://martian-lang.org/). 
 
@@ -153,17 +167,19 @@ The command above submits the pipeline to the HPC slurm system, which creates a 
 + `tissue_lowres_image.png`
 + `tissue_positions_list.csv`
 
-Space Ranger requires the mouse and human reference genomes as input. These can be downloaded from the 10x Genomics website:
+Space Ranger requires the mouse, human or combined reference genomes as input. These can be downloaded from the 10x Genomics website:
 
-    wget https://{get-url-at-10x-genomics-website}/refdata-gex-GRCh38-2020-A.tar.gz
-    wget https://{get-url-at-10x-genomics-website}/refdata-gex-mm10-2020-A.tar.gz
+    wget https://cf.10xgenomics.com/supp/cell-exp/refdata-gex-GRCh38-2020-A.tar.gz
+    wget https://cf.10xgenomics.com/supp/cell-exp/refdata-gex-mm10-2020-A.tar.gz
+    wget https://cf.10xgenomics.com/supp/cell-exp/refdata-gex-GRCh38-and-mm10-2020-A.tar.gz
 
 and unpacked to create two directories `refdata-gex-GRCh38-2020-A` and `refdata-gex-mm10-2020-A`:
 
     tar -xf refdata-gex-GRCh38-2020-A.tar.gz
     tar -xf refdata-gex-mm10-2020-A.tar.gz
+    tar -xf refdata-gex-GRCh38-and-mm10-2020-A.tar.gz
 
-> ***Note*** Both unpacked reference genomes take 45GB of storage space in total.
+> ***Note*** Each unpacked reference genomes takes about 20 GB of storage space.
 
 The Xenome-classified mouse reads alignment to the reference transcriptome is done using mouse reference, and the Xenome-classified human reads alignment to the reference transcriptome is done using human reference. The output mouse and human gene count matrices in the MTX format are merged into one and generated as output in the sample folder under `raw_feature_bc_matrix`. The "raw" means that all 4992 ST spots are present in the matrix. Summaries of the human and mouse read quantification are generated in the `human` and `mouse` directories of the sample output directory.
  
@@ -237,13 +253,9 @@ StarDist is a method for detection of star-convex-shaped object from images. We 
 
 Execution of the pipeline and flow of data through processes enable generating the Directed Acyclic Graph (DAG). The inputs and outputs are interconnected with the logic encoded by or nextflow pipeline.
 
-<p>
-    <img src="docs/DAG.png" width="1000"/>
-</p>
+![Dag Arb](docs/dag-arb.svg)
 
-<p>
-    <img src="docs/example-DAG-wsi.png" width="600"/>
-</p>
+
 
 > ***Note*** DAG is generated during each pipeline run and is determined by the configuration and input parameters of the pipeline. For example, if certain optional processes are toggled "off" then those processes and relevant graph connections will not show in the DAG.
 
