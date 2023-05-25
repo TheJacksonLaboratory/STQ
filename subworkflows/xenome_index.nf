@@ -14,7 +14,7 @@ workflow XINDEX {
             reference_host = UNPACK_HOST.out
         }
         else {
-            reference_host =  params.xenome_reference_host
+            reference_host = params.xenome_reference_host
         }
 
         if ( file(params.xenome_reference_graft).getExtension() == "gz" ) {
@@ -22,7 +22,7 @@ workflow XINDEX {
             reference_graft = UNPACK_GRAFT.out
         }
         else {
-            reference_graft =  params.xenome_reference_graft
+            reference_graft = params.xenome_reference_graft
         }
 
         XENOME_GENERATE_INDEX ( reference_host, reference_graft, params.xenome_kmer_size )

@@ -23,7 +23,8 @@ process XENOME_GENERATE_INDEX {
     --num-threads ${task.cpus} \
     --host "${host_fasta}" \
     --graft "${graft_fasta}" \
-    --verbose
+    --verbose \
+    --max-memory 20
     """
 }
 
