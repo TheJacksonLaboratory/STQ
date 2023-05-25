@@ -255,6 +255,9 @@ Execution of the pipeline and flow of data through processes enable generating t
 
 ![Dag Arb](docs/dag-arb.svg)
 
+![Dag Two](docs/dag-one.svg)
+
+![Dag Two](docs/dag-two.svg)
 
 
 > ***Note*** DAG is generated during each pipeline run and is determined by the configuration and input parameters of the pipeline. For example, if certain optional processes are toggled "off" then those processes and relevant graph connections will not show in the DAG.
