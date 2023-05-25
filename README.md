@@ -24,7 +24,7 @@
 
 ## Overview
 
-This repository contains the source code of the nextflow implementation of the 10x Visium Spatial Gene Expression data processing developed at [The Jackson Laboratory](https://www.jax.org/ "The Jackson Laboratory"). The overview of the pipeline is shown below. The main input consists of compressed FASTQ files and a full-resolution image of the 10x Visium Slide sample. Additional required inputs include Xenome indices, mouse and human reference transcriptomes, and singularity containers with software tools.
+This repository contains the source code of the nextflow implementation of the 10x Visium Spatial Gene Expression data and full-resolution H&E-stained Whole Slide Images (WSI) processing developed at [The Jackson Laboratory](https://www.jax.org/ "The Jackson Laboratory"). The overview of the pipeline is shown above. The main input consists of compressed FASTQ files, reference FASTA files and a full-resolution image of the 10x Visium Slide sample. Additional required inputs include either pre-built Xenome indices or host and graft genome assemblies, mouse and human reference transcriptomes for reads mapping, DL pre-trained model weights, and singularity containers with software tools.
 
 <p>
     <img src="docs/Scheme_NF3.png" width="1000"/>
@@ -32,7 +32,7 @@ This repository contains the source code of the nextflow implementation of the 1
 
 
 <p>
-    <img src="docs/Scheme NF2.png" width="1000"/>
+    <img src="docs/Scheme NF2.png" width="700"/>
 </p>
 
 
