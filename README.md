@@ -2,6 +2,7 @@
 
 - [Overview](#overview)
 - [Motivation](#Motivation)
+- [Documentation](#Documentation)
 - [Running the piepline](#running-the-piepline)
 - [Tools used in the pipeline](#tools-used-in-the-pipeline)
   * fastq-tools
@@ -41,6 +42,10 @@ This repository contains the source code of the nextflow implementation of the 1
 
 Most of the steps implemented in our pipeline are computationally expensive and must be carried out on high-performance computer (HPC) systems. The most computationally intensive pipeline steps include RNA-seq reads mapping, full-resolution image alignment, preprocessing for RNA-velocity calculation, and preprocessing for RNA-based CNV inference, deep learning imaging features, and nuclear morphometrics data extraction. The pipeline generates a standardized set of files that can be used for downstream analysis using R-based Seurat of Python-based Scanpy or any other available environments.
 
+## Documentation
+
+The description of the pipeline components, parameters, analysis routes, required resources, and configuration guide are provided in this repository. The documentation files are [README.md](README.md), [conf/README.md](conf/README.md), and [workflows/README.md](workflows/README.md).
+
 ## Running the piepline
 
 ##### Prerequisites
@@ -76,7 +81,7 @@ The singularity containers used in our pipeline can be downloaded or built with 
 
 
 
-##### Sample sheet
+##### Samplesheet
 
 The pipeline is designed to take one or more samples and process them in parallel. The sample sheet must have a `csv` format and must contain a header, as shown below:
 
@@ -271,6 +276,11 @@ Example of CPU usage by various processes in the pipeline. A screenshot from the
 <p>
     <img src="docs/Example_CPU_usage.png" width="1000"/>
 </p>
+
+## Temporary files
+
+The Nextflow pipeline is designed to cache each step in the work directory, path to which is specified when the pipeline is invoked. The temporary files can take a large amount of storage space. After the pipeline runs are completed for all necesary analysis routes, the user has to remove the temporary files.
+
 
 #### Glossary of Terms:
 + STQ - Spatial Transcriptomics Quantification
