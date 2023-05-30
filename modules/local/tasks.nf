@@ -295,7 +295,7 @@ process TILE_WSI {
                                   grid_type="${params.grid_type}",
                                   spot_diamter=${params.grid_spot_diamter},
                                   spot_horizontal_spacing=${params.grid_spot_horizontal_spacing},
-                                  magnification=40,
+                                  resolution=1./${params.target_mpp},
                                   aspect_correction=${params.grid_aspect_correction},
                                   savepath=savepath, sname='grid')
     if False:

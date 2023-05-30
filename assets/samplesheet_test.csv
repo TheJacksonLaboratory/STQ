@@ -1,2 +1,5 @@
 sample,fastq,image,grid,roifile,mpp
-WM4237_T1_S1_ST,/projects/chuang-lab/rubinstein/ST_melanomaPDX/data/SC2200323_WM4237-T1-Day14-229/fastq/,/projects/chuang-lab/rubinstein/ST_melanomaPDX/data/SC2200323_WM4237-T1-Day14-229/img/SC2200323.tiff,,/projects/chuang-lab/USERS/domans/sample_roi.json,0.22075
+WM4237_TE_S1_ST,/projects/chuang-lab/rubinstein/ST_melanomaPDX/data/SC2200092_WM4237-1-1337/fastq/,/projects/chuang-lab/rubinstein/ST_melanomaPDX/data/SC2200092_WM4237-1-1337/img/SC2200092.tiff,,,0.2208187960959237
+WM4237_TE_S2_ST,/projects/chuang-lab/rubinstein/ST_melanomaPDX/data/SC2200093_WM4237-1-1337/fastq/,/projects/chuang-lab/rubinstein/ST_melanomaPDX/data/SC2200093_WM4237-1-1337/img/SC2200093.tiff,,,0.2208187960959237
+WM4237_TE_S3_ST,/projects/chuang-lab/rubinstein/ST_melanomaPDX/data/SC2200094_WM4237-1-1337/fastq/,/projects/chuang-lab/rubinstein/ST_melanomaPDX/data/SC2200094_WM4237-1-1337/img/SC2200094.tiff,,,0.2208187960959237
+WM4237_TE_S4_ST,/projects/chuang-lab/rubinstein/ST_melanomaPDX/data/SC2200095_WM4237-1-1337/fastq/,/projects/chuang-lab/rubinstein/ST_melanomaPDX/data/SC2200095_WM4237-1-1337/img/SC2200095.tiff,,,0.2208187960959237
