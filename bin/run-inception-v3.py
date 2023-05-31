@@ -136,7 +136,8 @@ if __name__ == '__main__':
     overlapAppendName = '' if overlap==1.0 else '_overlap_%s' % overlap
     sigmaAppendName = '' if sigma==0.0 else '_corrected_%s' % args.sigma
 
-    DT.to_csv(path=output_path + '%s%s.tsv.gz' % (sigmaAppendName, overlapAppendName), header=True, compression="auto") 
+    #DT.to_csv(path=output_path + '%s%s.tsv.gz' % (sigmaAppendName, overlapAppendName), header=True, compression="auto")
+    tbl.to_csv(output_path + '%s%s.tsv.gz' % (sigmaAppendName, overlapAppendName), index=False)
     print('Successfully wrote ' + output_path)
     
 exit(0)
