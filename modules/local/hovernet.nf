@@ -241,7 +241,7 @@ process INFER_STARDIST {
     
     normalizer = MyNormalizer(0, 255)
     
-    labels, details = model.predict_instances_big(img, axes='YXC', block_size=4096, min_overlap=128, context=128, normalizer=normalizer, n_tiles=(4,4,1))
+    labels, details = model.predict_instances_big(img, axes='YXC', block_size=int($params.stardist_block_size / np.power(2, $task.attempt)), min_overlap=128, context=128, normalizer=normalizer, n_tiles=(4,4,1))
     
     data = makeJSONoutput(details)
     
