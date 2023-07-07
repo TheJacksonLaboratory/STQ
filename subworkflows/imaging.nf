@@ -13,6 +13,13 @@ include { LOAD_SAMPLE_INFO;
           GET_INCEPTION_FEATURES_TILES;
           GET_INCEPTION_FEATURES;
         } from '../modules/local/tasks'
+        
+include { SUPERPIXELATION;
+          EXPORT_DOWN_IMAGE_FOR_CONTOURS;
+          CALCULATE_CELLS_OD;
+          ASSIGN_NUCLEI_TO_SUPERPIXELS;
+          EXPORT_SUPERPIXELATION_CONTOURS;
+        } from '../modules/local/superpixel'
 
 include { GET_HOVERNET_MASK;  
           CHECK_MASK;
@@ -63,6 +70,20 @@ workflow IMG {
             }
         else
             CONVERT_TO_TILED_TIFF ( EXTRACT_ROI.out.image )
+        
+        if ( params.do_superpixels ) {
+            SUPERPIXELATION ( CONVERT_TO_TILED_TIFF.out.full
+                              .join(CONVERT_TO_TILED_TIFF.out.size) )
+            
+            if ( params.export_superpixels_contours ) {
+                EXPORT_DOWN_IMAGE_FOR_CONTOURS ( CONVERT_TO_TILED_TIFF.out.full
+                                  .join(CONVERT_TO_TILED_TIFF.out.size) )
+            
+                EXPORT_SUPERPIXELATION_CONTOURS ( SUPERPIXELATION.out.main
+                                                  .join(CONVERT_TO_TILED_TIFF.out.size) )
+                }
+            }
+
 
         GET_PIXEL_MASK ( CONVERT_TO_TILED_TIFF.out.thumb
                          .join(CONVERT_TO_TILED_TIFF.out.size) )
@@ -111,6 +132,17 @@ workflow IMG {
         
             COMPUTE_SEGMENTATION_DATA ( jsonout
                                         .join(CONVERT_TO_TILED_TIFF.out.size) )
+            
+            if ( params.do_superpixels ) {
+                CALCULATE_CELLS_OD ( CONVERT_TO_TILED_TIFF.out.full
+                                     .join(INFER_STARDIST.out.mask)
+                                     .join(COMPUTE_SEGMENTATION_DATA.out)
+                                     .join(CONVERT_TO_TILED_TIFF.out.size) )
+                                     
+                ASSIGN_NUCLEI_TO_SUPERPIXELS ( SUPERPIXELATION.out.main
+                                               .join(CALCULATE_CELLS_OD.out)
+                                               .join(CONVERT_TO_TILED_TIFF.out.size) )
+                }
 
             GENERATE_PERSPOT_SEGMENTATION_DATA ( TILE_WSI.out.grid
                                              .join(COMPUTE_SEGMENTATION_DATA.out)

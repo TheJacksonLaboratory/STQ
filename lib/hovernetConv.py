@@ -4,6 +4,8 @@ import pandas as pd
 import numpy as np
 import cv2
 
+from skimage.segmentation import expand_labels
+
 def close_contour(c):
 
     def lfunc(s):
@@ -131,6 +133,8 @@ def computeContourQuantities(c, na_filler: float = np.nan, scale_factor: float =
         eccentricity = na_filler
         
     results['eccentricity'] = eccentricity
+    
+    results['circularity'] =  4 * np.pi * results['area'] / (results['perimeter_length'] ** 2)
     
     return results
 
@@ -350,3 +354,104 @@ def calculateAggregateValues(df_hovernet_cells, min_cell_type_prob: float = 0.75
         df.to_csv(savepath + '%s.csv' % sname)
 
     return df
+
+# Adapted from staintools
+def get_stain_matrix(I, angular_percentile=99):
+    
+    assert I.dtype == np.uint8, "Image should be RGB uint8."
+    
+    def convert_RGB_to_OD(I):
+        mask = (I == 0)
+        I[mask] = 1
+        return np.maximum(-1 * np.log(I / 255), 1e-6)
+    
+    OD = convert_RGB_to_OD(I).reshape((-1, 3))
+
+    # Eigenvectors of cov in OD space (orthogonal as cov symmetric)
+    _, V = np.linalg.eigh(np.cov(OD, rowvar=False))
+
+    # The two principle eigenvectors
+    V = V[:, [2, 1]]
+
+    # Make sure vectors are pointing the right way
+    if V[0, 0] < 0: V[:, 0] *= -1
+    if V[0, 1] < 0: V[:, 1] *= -1
+
+    # Project on this basis.
+    That = np.dot(OD, V)
+
+    # Angular coordinates with repect to the prinicple, orthogonal eigenvectors
+    phi = np.arctan2(That[:, 1], That[:, 0])
+
+    # Min and max angles
+    minPhi = np.percentile(phi, 100 - angular_percentile)
+    maxPhi = np.percentile(phi, angular_percentile)
+
+    # the two principle colors
+    v1 = np.dot(V, np.array([np.cos(minPhi), np.sin(minPhi)]))
+    v2 = np.dot(V, np.array([np.cos(maxPhi), np.sin(maxPhi)]))
+
+    # Order of H and E.
+    # H first row.
+    if v1[0] > v2[0]:
+        HE = np.array([v1, v2])
+    else:
+        HE = np.array([v2, v1])
+        
+    def normalize_matrix_rows(A):
+        return A / np.linalg.norm(A, axis=1)[:, None]
+
+    return normalize_matrix_rows(HE)
+
+def calculate_H_E_OD_quantities(img, nuclei, coords, df_stardist, offset='auto', expand_nuclei_distance=15):
+
+    # Calculate cytoplasms mask from nuclei mask
+    cytoplasms = expand_labels(nuclei, distance=expand_nuclei_distance)
+    cytoplasms[cytoplasms==nuclei] = 0
+
+    HE = get_stain_matrix(img)
+    print('Hematoxylin:\t', HE[0])
+    print('Eosin:\t\t', HE[1])
+    H, E = np.moveaxis(np.dot(img, HE.T), 2, 0)
+
+    H /= H.max()
+    E /= E.max()
+    
+    if offset == 'auto':
+        N = 5000
+        se = df_stardist['area'].sample(N, replace=False) if df_stardist.shape[0] > N else df_stardist['area'].copy()
+        offset = int(se.apply(np.sqrt).quantile(0.99) * 2)
+    print('Offset:', offset)
+    
+    print(coords)
+    
+    d = dict()
+    ids = np.unique(np.ravel(nuclei))
+    print(len(ids))
+    for id in ids[:]:
+        if id != 0:
+            sid = str(id - 1)
+            d[sid] = dict()
+
+            center_raw = df_stardist.loc[sid][['centroid_x', 'centroid_y']].astype(int).values
+            center = center_raw[0] - coords[1], center_raw[1] - coords[0]
+            x_min, x_max = max(0, center[1] - offset), min(H.shape[0], center[1] + offset)
+            y_min, y_max = max(0, center[0] - offset), min(H.shape[1], center[0] + offset)
+            
+            wh_cy = np.where(cytoplasms[x_min: x_max, y_min: y_max]==id)
+            wh_cy = wh_cy[0]  + x_min, wh_cy[1]  + y_min
+            wh_nuc = np.where(nuclei[x_min: x_max, y_min: y_max]==id)
+            wh_nuc = wh_nuc[0]  + x_min, wh_nuc[1]  + y_min
+
+            if (len(wh_cy[0]) > 0) and (len(wh_nuc[0]) > 0):
+                d[sid].update({'x': center_raw[0],
+                              'y': center_raw[1],
+                              'cy_hemat_mean': H[wh_cy].mean(),
+                              'cy_eosin_mean': E[wh_cy].mean(),
+                              'nuc_hemat_mean': H[wh_nuc].mean(),
+                              'nuc_eosin_mean': E[wh_nuc].mean(),
+                              'cy_eosin_max': E[wh_cy].max(),
+                              'cy_eosin_min': E[wh_cy].min()})
+
+    return pd.DataFrame(d).T
+

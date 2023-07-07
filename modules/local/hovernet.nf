@@ -206,6 +206,7 @@ process INFER_STARDIST {
     
     output:
     tuple val(sample_id), file("outfile.json"), emit: json
+    tuple val(sample_id), file("nuclei.npy"), emit: mask
     
     script:
     """
@@ -241,12 +242,16 @@ process INFER_STARDIST {
     
     normalizer = MyNormalizer(0, 255)
     
-    labels, details = model.predict_instances_big(img, axes='YXC', block_size=int($params.stardist_block_size / np.power(2, $task.attempt)), min_overlap=128, context=128, normalizer=normalizer, n_tiles=(4,4,1))
+    nuclei, details = model.predict_instances_big(img, axes='YXC', block_size=int($params.stardist_block_size / np.power(2, $task.attempt)), min_overlap=128, context=128, normalizer=normalizer, n_tiles=(4,4,1))
     
     data = makeJSONoutput(details)
     
     with open('outfile.json', 'w') as f:
         f.write(json.dumps(data))
+
+    # Save nuclei mask
+    with open('nuclei.npy', 'wb') as tempfile:
+        np.save(tempfile, nuclei)
     """ 
 }
 

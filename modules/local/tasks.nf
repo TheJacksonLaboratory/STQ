@@ -136,6 +136,7 @@ process STAIN_NORMALIZATION {
     """
 }
 
+
 process CONVERT_TO_TILED_TIFF {
 
     tag "$sample_id"
