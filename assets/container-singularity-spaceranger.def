@@ -29,8 +29,6 @@ from: debian:buster-slim
     mkdir -p /opt/ && cd /opt/
 
     wget --no-check-certificate -nv -O spaceranger-1.3.1.tar.gz "https://singlecell-software.s3-far.jax.org/spaceranger-1.3.1.tar.gz"
-    wget --no-check-certificate -nv -O spaceranger-1.3.1.tar.gz.sha1 "https://singlecell-software.s3-far.jax.org/spaceranger-1.3.1.tar.gz.sha1"
-    sha1sum --status -c spaceranger-1.3.1.tar.gz.sha1
 
     tar -zxf spaceranger-1.3.1.tar.gz && rm spaceranger-1.3.1.tar.gz*
     rm -r spaceranger-1.3.1/external/spaceranger_tiny_*
