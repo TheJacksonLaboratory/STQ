@@ -152,12 +152,13 @@ process CALCULATE_CELLS_OD {
     # Calculate HE OD quantities by patches
     dfs = []
     for ipatch, (i, j) in enumerate(tqdm(coords)):
-        df_OD_temp = calculate_H_E_OD_quantities(img[r[0][i]:r[0][i+1], r[1][j]:r[1][j+1], :],
-                                                 nuclei[r[0][i]:r[0][i+1], r[1][j]:r[1][j+1]],
-                                                 (r[0][i], r[1][j]),
-                                                 df_nuc_seg_measures,
-                                                 expand_nuclei_distance=${params.expand_nuclei_distance})
-        dfs.append(df_OD_temp)
+        if (r[0][i+1] - r[0][i] > 0) and (r[1][j+1] - r[1][j] > 0):
+            df_OD_temp = calculate_H_E_OD_quantities(img[r[0][i]:r[0][i+1], r[1][j]:r[1][j+1], :],
+                                                     nuclei[r[0][i]:r[0][i+1], r[1][j]:r[1][j+1]],
+                                                     (r[0][i], r[1][j]),
+                                                     df_nuc_seg_measures,
+                                                     expand_nuclei_distance=${params.expand_nuclei_distance})
+            dfs.append(df_OD_temp)
     
     # Merge patches data, average cells fragments due to patching
     df_OD = pd.concat(dfs)

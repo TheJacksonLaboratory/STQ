@@ -409,9 +409,18 @@ def calculate_H_E_OD_quantities(img, nuclei, coords, df_stardist, offset='auto',
     cytoplasms = expand_labels(nuclei, distance=expand_nuclei_distance)
     cytoplasms[cytoplasms==nuclei] = 0
 
-    HE = get_stain_matrix(img)
+    try:
+        HE = get_stain_matrix(img)
+    except Exception as exception:
+        print('ERROR:', exception)
+        print('Encountered empty image? Using arbitrary H and E stain matrix.')
+        HE = np.array([[0.58698897, 0.4946145,  0.64093716],
+                       [0.54270283, 0.40882776, 0.73371214]])
+        print(img)
+    print(img.shape)
     print('Hematoxylin:\t', HE[0])
     print('Eosin:\t\t', HE[1])
+    
     H, E = np.moveaxis(np.dot(img, HE.T), 2, 0)
 
     H /= H.max()
