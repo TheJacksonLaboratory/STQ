@@ -34,8 +34,16 @@ process LOAD_SAMPLE_INFO {
         fi
     else
         echo "Using a grid from samplesheet"
-        cp "${meta.grid}"/scalefactors_json.json .
-        cp "${meta.grid}"/tissue_positions_list.csv .
+        cp "${meta.grid}/scalefactors_json.json" .
+
+        if [ -s "${meta.grid}/tissue_positions_list.csv" ]
+        then
+            cp "${meta.grid}"/tissue_positions_list.csv .
+        else
+            echo "Removed spots header"
+            tail -n +2 "${meta.grid}"/tissue_positions.csv > ./tissue_positions_list.csv
+        fi
+    
     fi
     """
 }
