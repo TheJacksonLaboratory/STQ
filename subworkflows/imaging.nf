@@ -13,7 +13,10 @@ include { LOAD_SAMPLE_INFO;
           GET_INCEPTION_FEATURES_TILES;
           GET_INCEPTION_FEATURES;
         } from '../modules/local/tasks'
-        
+
+include { CHECK_FOCUS;
+        } from '../modules/local/focus'
+                
 include { SUPERPIXELATION;
           EXPORT_DOWN_IMAGE_FOR_CONTOURS;
           CALCULATE_CELLS_OD;
@@ -71,6 +74,11 @@ workflow IMG {
         else
             CONVERT_TO_TILED_TIFF ( EXTRACT_ROI.out.image )
         
+        if ( params.check_focus ) {
+            CHECK_FOCUS ( CONVERT_TO_TILED_TIFF.out.full
+                          .join(CONVERT_TO_TILED_TIFF.out.size) )
+        }
+        
         if ( params.do_superpixels ) {
             SUPERPIXELATION ( CONVERT_TO_TILED_TIFF.out.full
                               .join(CONVERT_TO_TILED_TIFF.out.size) )
@@ -98,13 +106,13 @@ workflow IMG {
                         .join(CONVERT_TO_TILED_TIFF.out.size))       
         
         
-        // Feature extraction for all tiles
-        
-        GET_INCEPTION_FEATURES ( CONVERT_TO_TILED_TIFF.out.full
-                                 .join(GET_TILE_MASK.out.mask)
-                                 .join(TILE_WSI.out.grid)
-                                 .join(LOAD_SAMPLE_INFO.out.grid)
-                                 .join(CONVERT_TO_TILED_TIFF.out.size) )       
+        if ( params.extract_tile_features ) {
+            GET_INCEPTION_FEATURES ( CONVERT_TO_TILED_TIFF.out.full
+                                     .join(GET_TILE_MASK.out.mask)
+                                     .join(TILE_WSI.out.grid)
+                                     .join(LOAD_SAMPLE_INFO.out.grid)
+                                     .join(CONVERT_TO_TILED_TIFF.out.size) )
+        }      
 
         
         if ( params.do_nuclear_sementation ) {
@@ -148,17 +156,21 @@ workflow IMG {
                                              .join(COMPUTE_SEGMENTATION_DATA.out)
                                              .join(CONVERT_TO_TILED_TIFF.out.size) )
 
-            MERGE_IMAGING_DATA ( GET_INCEPTION_FEATURES.out
-                                 .join(GENERATE_PERSPOT_SEGMENTATION_DATA.out.data)
-                                 .join(CONVERT_TO_TILED_TIFF.out.size) )
+            if ( params.extract_tile_features ) {
+                MERGE_IMAGING_DATA ( GET_INCEPTION_FEATURES.out
+                                     .join(GENERATE_PERSPOT_SEGMENTATION_DATA.out.data)
+                                     .join(CONVERT_TO_TILED_TIFF.out.size) )
 
-            if ( params.do_imaging_anndata ) {
-                CONVERT_CSV_TO_ANNDATA ( MERGE_IMAGING_DATA.out )
+                if ( params.do_imaging_anndata ) {
+                    CONVERT_CSV_TO_ANNDATA ( MERGE_IMAGING_DATA.out )
+                }
             }
         }
         else {
-            if ( params.do_imaging_anndata ) {
-                CONVERT_CSV_TO_ANNDATA ( GET_INCEPTION_FEATURES.out )
+            if ( params.extract_tile_features ) {
+                if ( params.do_imaging_anndata ) {
+                    CONVERT_CSV_TO_ANNDATA ( GET_INCEPTION_FEATURES.out )
+                }
             }        
         }
 }
