@@ -4,7 +4,6 @@ import pandas as pd
 import numpy as np
 import cv2
 import tensorflow as tf
-import datatable as dt
 import openslide
 from pathlib import Path
 import itertools
@@ -130,13 +129,11 @@ if __name__ == '__main__':
     print(tbl)   
     
     # Output the features with spot information
-    DT = dt.Frame(tbl)
     ## This will automatically compress if the file suffix is .gz   
     
     overlapAppendName = '' if overlap==1.0 else '_overlap_%s' % overlap
     sigmaAppendName = '' if sigma==0.0 else '_corrected_%s' % args.sigma
 
-    #DT.to_csv(path=output_path + '%s%s.tsv.gz' % (sigmaAppendName, overlapAppendName), header=True, compression="auto")
     tbl.to_csv(output_path + '%s%s.tsv.gz' % (sigmaAppendName, overlapAppendName), index=False)
     print('Successfully wrote ' + output_path)
     

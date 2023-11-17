@@ -5,11 +5,13 @@
 #SBATCH --mem=2G
 #SBATCH --ntasks=1
 
-workflow="xenome_indices" ### "two_references" "one_reference" "arbitrary_grid" "xenome_indices"
+workflow="arbitrary_grid" ### "two_references" "one_reference" "arbitrary_grid" "xenome_indices"
 
+mainDir="."
 samplesheet="./assets/samplesheet_test.csv"
-workdir="/fastscratch/domans/work_test"
-outdir="./results_test"
+# workdir="/flashscratch/<usename>/work"
+workdir="${mainDir}/work"
+outdir="${mainDir}/results"
 
 cd $SLURM_SUBMIT_DIR
 
@@ -22,4 +24,5 @@ nextflow run main.nf \
 -resume \
 --input=${samplesheet} \
 --outdir=${outdir} \
---workflow=${workflow}
+--workflow=${workflow} \
+--bind="-B /projects/"

@@ -1,16 +1,23 @@
-bootstrap: shub
-from: jaxreg.jax.org/singlecell/python:3.8
+bootstrap: docker
+from: condaforge/mambaforge@sha256:1461e0a1fa14431128dc95d921655fd6cd0b9147b4ec757c6d99e02776e82b47
+#from: condaforge/mambaforge:23.3.1-1
+
+%environment
+    export DEBIAN_FRONTEND=noninteractive
 
 %post
-apt-get update
-apt-get install -y gcc
-apt-get install -y g++
-apt-get install -y openslide-tools
-apt-get install -y python-openslide
-apt-get install -y procps
+    echo 'debconf debconf/frontend select Noninteractive' | debconf-set-selections
+    
+    apt-get update
+    apt-get install -y dialog apt-utils
+    apt-get install -y gcc g++
+    apt-get install -y openslide-tools
+    apt-get install -y procps
 
-/opt/conda/bin/conda install --quiet -y -c conda-forge pandas
-/opt/conda/bin/conda install --quiet -y pip
-/opt/conda/bin/pip install pysnic Pillow tifffile imagecodecs stardist matplotlib scikit-learn scipy datatable openslide-python "tensorflow==2.11.0" "h5py<3.0.0" opencv-python-headless
+    /opt/conda/bin/mamba install -y -c conda-forge -c fastai -c anaconda \
+    pandas scikit-learn scipy matplotlib scikit-image \
+    jupyterlab tifffile imagecodecs stardist \
+    openslide-python opencv-python-headless pillow h5py \
+    "tensorflow==2.11.0"
 
-/opt/conda/bin/pip install scikit-image
+    /opt/conda/bin/pip install pysnic
