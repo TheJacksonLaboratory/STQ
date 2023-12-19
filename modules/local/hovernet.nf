@@ -104,6 +104,61 @@ process INFER_HOVERNET {
     """ 
 }
 
+
+process GET_NUCLEI_MASK_FROM_HOVERNET_JSON {
+
+    tag "$sample_id"
+    label 'python_process_low'
+    maxRetries 0
+    debug true
+    errorStrategy  { task.attempt <= maxRetries  ? 'retry' : 'finish' }
+    publishDir "${params.outdir}/${sample_id}", mode: 'copy', overwrite: true
+    memory { 3.GB + (Float.valueOf(size) / 1000.0).round(2) * params.memory_scale_factor * 6.GB }
+    
+    input:
+    tuple val(sample_id), path(image), file(json), val(size)
+    
+    output:
+    tuple val(sample_id), file("nuclei.npy")
+    
+    script:
+    """
+    #!/usr/bin/env python
+    import sys
+    import json
+    import cv2
+    import tifffile
+    import numpy as np
+
+    sys.path.append("${projectDir}/lib")
+    from hovernetConv import close_contour
+
+    imgshape = tifffile.TiffFile("${image}").pages[0].shape
+    print(imgshape)
+    
+    nuclei = np.zeros(imgshape, dtype=np.int32)
+
+    with open("${json}", 'r') as tempfile:
+        data = json.loads(tempfile.read())
+    
+    #for id in sorted(list(data['nuc'].keys())):
+    #    print(id, end='\t')
+    #    c = np.array([data['nuc'][id]['contour']], dtype=np.int32)
+    #    vmin = tuple(c.min(axis=1)[0])
+    #    vmax = tuple(c.max(axis=1)[0])
+    #    c[0] -= vmin[0]
+    #    c[1] -= vmin[1]    
+    #    temp = np.zeros((vmax[0]+1, vmax[1]+1), dtype=np.int32)
+    #    cv2.fillPoly(temp, c, 1)
+    #    wh = np.where(temp!=0)
+    #    nuclei[wh[0] + vmin[0], wh[1] + vmin[1]] = int(id)
+
+    with open('nuclei.npy', 'wb') as tempfile:
+        np.save(tempfile, nuclei)
+    """
+}
+
+
 process INFER_HOVERNET_TILES {
 
     tag "$sample_id"
@@ -202,7 +257,7 @@ process INFER_STARDIST {
     memory { 6.GB + (Float.valueOf(size) / 1000.0).round(2) * params.memory_scale_factor * 16.GB }
     
     input:
-    tuple val(sample_id), path(image), val(size)
+    tuple val(sample_id), path(image), path(mask), val(size)
     
     output:
     tuple val(sample_id), file("outfile.json"), emit: json
@@ -221,12 +276,19 @@ process INFER_STARDIST {
     from csbdeep.utils import normalize
     from stardist.data import test_image_nuclei_2d
     from stardist.models import StarDist2D
+    import matplotlib.pyplot as plt
     
     shutil.copytree("${params.stardist_model}", "custom_model/")
     model = StarDist2D(None, name="custom_model/")
     
     img = tifffile.imread("${image}")[..., :3]
     print(img.shape)
+    
+    tissuemask = plt.imread("${mask}")
+    mask_reduction_factor = int(img.shape[0] / tissuemask.shape[0])
+    print('Input tissue mask:', tissuemask.shape, mask_reduction_factor)
+    
+    #img[tissuemask==0] = 0
     
     from csbdeep.data import Normalizer, normalize_mi_ma
     class MyNormalizer(Normalizer):

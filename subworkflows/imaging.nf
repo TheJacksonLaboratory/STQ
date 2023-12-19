@@ -24,8 +24,7 @@ include { SUPERPIXELATION;
           EXPORT_SUPERPIXELATION_CONTOURS;
         } from '../modules/local/superpixel'
 
-include { GET_HOVERNET_MASK;  
-          CHECK_MASK;
+include { GET_NUCLEI_MASK_FROM_HOVERNET_JSON;  
           INFER_HOVERNET_TILES;
           GET_NUCLEI_TYPE_COUNTS;
           INFER_HOVERNET;
@@ -45,6 +44,10 @@ workflow IMG {
         samples
 
     main:
+        if (params.hovernet_segmentation && params.do_superpixels) {
+            error "NotImplementedError: HoVer-Net nuclear segmentation and superpixels subworkflow are incompatible."
+        }
+    
         images = samples.map{[it[0], (it[1].image)]}
         
         LOAD_SAMPLE_INFO ( samples
@@ -116,24 +119,31 @@ workflow IMG {
 
         
         if ( params.do_nuclear_sementation ) {
+        
+            GET_TISSUE_MASK ( TILE_WSI.out.grid
+                      .join(GET_TILE_MASK.out.mask)
+                      .join(CONVERT_TO_TILED_TIFF.out.size) )
+                      
             if ( params.hovernet_segmentation ) {
-                GET_HOVERNET_MASK ( CONVERT_TO_TILED_TIFF.out.full )
-
-                GET_TISSUE_MASK ( TILE_WSI.out.grid
-                                  .join(GET_TILE_MASK.out.mask)
-                                  .join(CONVERT_TO_TILED_TIFF.out.size) )
-
                 INFER_HOVERNET ( CONVERT_TO_TILED_TIFF.out.full
                                  .join(GET_TISSUE_MASK.out)
                                  .join(CONVERT_TO_TILED_TIFF.out.size) )
-            
+                
                 jsonout = INFER_HOVERNET.out.json
+                                 
+                GET_NUCLEI_MASK_FROM_HOVERNET_JSON ( CONVERT_TO_TILED_TIFF.out.full
+                                                     .join(jsonout)
+                                                     .join(CONVERT_TO_TILED_TIFF.out.size) )
+                
+                segmaskout = GET_NUCLEI_MASK_FROM_HOVERNET_JSON.out
             }
             else {
                 INFER_STARDIST ( CONVERT_TO_TILED_TIFF.out.full
+                                 .join(GET_TISSUE_MASK.out)
                                  .join(CONVERT_TO_TILED_TIFF.out.size) )
             
                 jsonout = INFER_STARDIST.out.json
+                segmaskout = INFER_STARDIST.out.mask
             }
 
             COMPRESS_JSON_FILE ( jsonout )
@@ -143,7 +153,7 @@ workflow IMG {
             
             if ( params.do_superpixels ) {
                 CALCULATE_CELLS_OD ( CONVERT_TO_TILED_TIFF.out.full
-                                     .join(INFER_STARDIST.out.mask)
+                                     .join(segmaskout)
                                      .join(COMPUTE_SEGMENTATION_DATA.out)
                                      .join(CONVERT_TO_TILED_TIFF.out.size) )
                                      
