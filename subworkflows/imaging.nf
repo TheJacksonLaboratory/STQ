@@ -44,9 +44,9 @@ workflow IMG {
         samples
 
     main:
-        if (params.hovernet_segmentation && params.do_superpixels) {
-            error "NotImplementedError: HoVer-Net nuclear segmentation and superpixels subworkflow are incompatible."
-        }
+        //if (params.hovernet_segmentation && params.do_superpixels) {
+        //    error "NotImplementedError: HoVer-Net nuclear segmentation and superpixels subworkflow are incompatible."
+        //}
     
         images = samples.map{[it[0], (it[1].image)]}
         

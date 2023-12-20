@@ -109,10 +109,8 @@ process GET_NUCLEI_MASK_FROM_HOVERNET_JSON {
 
     tag "$sample_id"
     label 'python_process_low'
-    maxRetries 0
-    debug true
+    maxRetries 3
     errorStrategy  { task.attempt <= maxRetries  ? 'retry' : 'finish' }
-    publishDir "${params.outdir}/${sample_id}", mode: 'copy', overwrite: true
     memory { 3.GB + (Float.valueOf(size) / 1000.0).round(2) * params.memory_scale_factor * 6.GB }
     
     input:
@@ -141,17 +139,21 @@ process GET_NUCLEI_MASK_FROM_HOVERNET_JSON {
     with open("${json}", 'r') as tempfile:
         data = json.loads(tempfile.read())
     
-    #for id in sorted(list(data['nuc'].keys())):
-    #    print(id, end='\t')
-    #    c = np.array([data['nuc'][id]['contour']], dtype=np.int32)
-    #    vmin = tuple(c.min(axis=1)[0])
-    #    vmax = tuple(c.max(axis=1)[0])
-    #    c[0] -= vmin[0]
-    #    c[1] -= vmin[1]    
-    #    temp = np.zeros((vmax[0]+1, vmax[1]+1), dtype=np.int32)
-    #    cv2.fillPoly(temp, c, 1)
-    #    wh = np.where(temp!=0)
-    #    nuclei[wh[0] + vmin[0], wh[1] + vmin[1]] = int(id)
+    for id in sorted(list(data['nuc'].keys())):
+        # print(id, end='\t')
+        c = np.array([data['nuc'][id]['contour']], dtype=np.int32)
+        vmin = tuple(c.min(axis=1)[0])
+        
+        c[0, :, 0] -= vmin[0]
+        c[0, :, 1] -= vmin[1]
+        
+        vmax = tuple(c.max(axis=1)[0])
+        
+        temp = np.zeros((vmax[0]+1, vmax[1]+1), dtype=np.int32)
+        cv2.fillPoly(temp, c, 1)
+        wh = np.where(temp!=0)
+        # print(len(wh[0]), end='\t')
+        nuclei[wh[0] + vmin[0], wh[1] + vmin[1]] = int(id)
 
     with open('nuclei.npy', 'wb') as tempfile:
         np.save(tempfile, nuclei)
