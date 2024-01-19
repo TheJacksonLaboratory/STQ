@@ -104,9 +104,9 @@ process CALCULATE_CELLS_OD {
 
     tag "$sample_id"
     label 'process_inception'
-    maxRetries 1
+    maxRetries 0
     errorStrategy  { task.attempt <= maxRetries  ? 'retry' : 'finish' }
-    memory { 3.GB + (Float.valueOf(size) / 1000.0).round(2) * params.memory_scale_factor * 10.GB }
+    memory { 3.GB + (Float.valueOf(size) / 1000.0).round(2) * params.memory_scale_factor * 11.GB }
     cpus 1
     
     input:
@@ -130,7 +130,7 @@ process CALCULATE_CELLS_OD {
     # Load nuclei mask
     with open("${nuclei}", 'rb') as tempfile:
         nuclei = np.load(tempfile)
-    print('Nuclei segmetation mask shape:', nuclei.shape, flush=True)
+    print('Nuclei segmetation mask shape:', nuclei.shape, nuclei.dtype, flush=True)
         
     # Load nuc_seg_measures
     df_nuc_seg_measures = pd.read_csv("${nuc_seg_measures}", index_col=0)
@@ -148,20 +148,24 @@ process CALCULATE_CELLS_OD {
     r = [np.append(s*np.array(range(0, int(np.floor(dims[i]/s))+1)), [dims[i]]) for i in range(2)]
     coords = [(i,j) for i in range(len(r[0])-1) for j in range(len(r[1])-1)]
     print(coords, flush=True)
+    print()
     
     # Calculate HE OD quantities by patches
     dfs = []
     for ipatch, (i, j) in enumerate(tqdm(coords)):
         if (r[0][i+1] - r[0][i] > 0) and (r[1][j+1] - r[1][j] > 0):
-            df_OD_temp = calculate_H_E_OD_quantities(img[r[0][i]:r[0][i+1], r[1][j]:r[1][j+1], :],
-                                                     nuclei[r[0][i]:r[0][i+1], r[1][j]:r[1][j+1]],
-                                                     (r[0][i], r[1][j]),
-                                                     df_nuc_seg_measures,
-                                                     expand_nuclei_distance=${params.expand_nuclei_distance})
-            dfs.append(df_OD_temp)
+            patch_nuclei = nuclei[r[0][i]:r[0][i+1], r[1][j]:r[1][j+1]]
+            if (patch_nuclei!=0).any():
+                df_OD_temp = calculate_H_E_OD_quantities(img[r[0][i]:r[0][i+1], r[1][j]:r[1][j+1], :],
+                                                         patch_nuclei,
+                                                         (r[0][i], r[1][j]),
+                                                         df_nuc_seg_measures,
+                                                         expand_nuclei_distance=${params.expand_nuclei_distance})
+                dfs.append(df_OD_temp)
     
     # Merge patches data, average cells fragments due to patching
     df_OD = pd.concat(dfs)
+    print(df_OD.shape)
     df_OD = df_OD.groupby(level=0).mean()
     print(df_OD, flush=True)
     

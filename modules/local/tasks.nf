@@ -9,6 +9,7 @@ process LOAD_SAMPLE_INFO {
     output:
     tuple val(sample_id), file(image), file("roifile.json"), env(mpp), emit: main
     tuple val(sample_id), file("tissue_positions_list.csv"), file("scalefactors_json.json"), emit: grid
+    tuple val(sample_id), env(mpp), emit: mpp
     
     script:
     """
@@ -258,7 +259,7 @@ process TILE_WSI {
     memory { 3.GB + (Float.valueOf(size) / 1000.0).round(2) * params.memory_scale_factor * 3.GB }
     
     input:
-    tuple val(sample_id), path(image), path(meta_grid_csv), path(meta_grid_json), val(size)
+    tuple val(sample_id), path(image), path(meta_grid_csv), path(meta_grid_json), val(size), val(mpp)
     
     output:
     tuple val(sample_id), file("grid/grid.csv"), file("grid/grid.json"), emit: grid
@@ -286,17 +287,29 @@ process TILE_WSI {
         if not os.path.exists(savepath):
             os.makedirs(savepath)
             
+        f = ${mpp} / ${params.target_mpp}
+        ${params.thumbnail_downsample_factor}
+          
         import pandas as pd
         grid = pd.read_csv("${meta_grid_csv}", index_col=0, header=None) 
         grid.index.name = 'id'
         grid.columns = ['in_tissue', 'array_row', 'array_col', 'pxl_row_in_fullres', 'pxl_col_in_fullres']
+        grid['pxl_row_in_fullres'] = (grid['pxl_row_in_fullres'] * f).astype(int)
+        grid['pxl_col_in_fullres'] = (grid['pxl_col_in_fullres'] * f).astype(int)
         grid.to_csv(savepath + 'grid.csv', header=False)
         
         import json
-        with open("${meta_grid_json}") as f:
-            info_dict = json.load(f)
+        with open("${meta_grid_json}") as tempfile:
+            info_dict_sr = json.load(tempfile)
+        print(info_dict_sr)
+        
+        info_dict = dict()
+        info_dict['tissue_lowres_scalef'] = float(${params.thumbnail_downsample_factor})
+        info_dict['spot_diameter_fullres'] = info_dict_sr['spot_diameter_fullres'] * f
+        
         tile_size = info_dict['spot_diameter_fullres']
         info_dict['x'], info_dict['y'] = slide_dimensions
+        
         with open(savepath + 'grid.json', 'w') as outfile:        
             outfile.write(json.dumps(info_dict))
     else:

@@ -134,7 +134,8 @@ process GET_NUCLEI_MASK_FROM_HOVERNET_JSON {
     imgshape = tifffile.TiffFile("${image}").pages[0].shape
     print(imgshape)
     
-    nuclei = np.zeros(imgshape, dtype=np.int32)
+    nuclei = np.zeros((imgshape[0], imgshape[1]), dtype=np.int32)
+    print(nuclei.shape, flush=True)
 
     with open("${json}", 'r') as tempfile:
         data = json.loads(tempfile.read())
@@ -152,8 +153,7 @@ process GET_NUCLEI_MASK_FROM_HOVERNET_JSON {
         temp = np.zeros((vmax[0]+1, vmax[1]+1), dtype=np.int32)
         cv2.fillPoly(temp, c, 1)
         wh = np.where(temp!=0)
-        # print(len(wh[0]), end='\t')
-        nuclei[wh[0] + vmin[0], wh[1] + vmin[1]] = int(id)
+        nuclei[wh[1] + vmin[1], wh[0] + vmin[0]] = int(id) + 1
 
     with open('nuclei.npy', 'wb') as tempfile:
         np.save(tempfile, nuclei)
@@ -397,6 +397,7 @@ process GENERATE_PERSPOT_SEGMENTATION_DATA {
     import sys
     sys.path.append("${projectDir}/lib")
     from hovernetConv import assignNuceiToSpots, calculateAggregateValues
+    print()
 
     df = assignNuceiToSpots(grid_file_path="${grid_csv}",
                        scalefactors_json_file="${grid_json}",

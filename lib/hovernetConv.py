@@ -299,10 +299,10 @@ def calculateAggregateValues(df_hovernet_cells, min_cell_type_prob: float = 0.75
     
     df_filtered = df_hovernet_cells.loc[~df_hovernet_cells['barcode'].isna()].reset_index().set_index('barcode')
 
-    df_class_densities = pd.get_dummies(df_filtered['cell_type']).groupby(level=0).mean()
+    df_class_densities = pd.get_dummies(df_filtered['cell_type']).astype(int).groupby(level=0).mean()
     df_class_densities.columns = 'density_' + df_class_densities.columns
 
-    df_class_counts = pd.get_dummies(df_filtered['cell_type']).replace({0: np.nan}).groupby(level=0).count()
+    df_class_counts = pd.get_dummies(df_filtered['cell_type']).astype(int).replace({0: np.nan}).groupby(level=0).count()
     df_class_counts.columns = 'count_' + df_class_counts.columns
 
     df_total_counts = df_class_counts.sum(axis=1).to_frame()
@@ -312,27 +312,11 @@ def calculateAggregateValues(df_hovernet_cells, min_cell_type_prob: float = 0.75
     
     for q in ['perimeter_length', 'area', 'orientation', 'eccentricity', 'cell_type_prob']:
         # Average per class
-        #df_q_classes = []
-        #for barcode in df_filtered.index.unique():
-        #    df_temp = df_filtered.loc[barcode]
-        #    if type(df_temp) is pd.Series:
-        #        df_temp = df_temp.to_frame().T
-        #    df_q_classes.append(df_temp.set_index('cell_type')[q].astype(float).groupby(level=0).mean().rename(barcode))
-        #
-        #df_q_classes = pd.concat(df_q_classes, axis=1).T
         df_q_classes = df_filtered.set_index('cell_type', append=True)[q].astype(float).groupby(level=[0, 1]).mean().unstack('cell_type').reindex(df_filtered.index.unique())
         df_q_classes.columns = 'average_%s_' % q + df_q_classes.columns
         df_q_classes.index.name = 'barcode'
         
         # Standard deviation per class
-        #df_sdq_classes = []
-        #for barcode in df_filtered.index.unique():
-        #    df_temp = df_filtered.loc[barcode]
-        #    if type(df_temp) is pd.Series:
-        #        df_temp = df_temp.to_frame().T
-        #    df_sdq_classes.append(df_temp.set_index('cell_type')[q].astype(float).groupby(level=0).std().rename(barcode))
-        #
-        #df_sdq_classes = pd.concat(df_sdq_classes, axis=1).T
         df_sdq_classes = df_filtered.set_index('cell_type', append=True)[q].astype(float).groupby(level=[0, 1]).std().unstack('cell_type').reindex(df_filtered.index.unique())
         df_sdq_classes.columns = 'std_%s_' % q + df_sdq_classes.columns
         df_sdq_classes.index.name = 'barcode'                 
@@ -436,11 +420,10 @@ def calculate_H_E_OD_quantities(img, nuclei, coords, df_stardist, offset='auto',
     
     d = dict()
     ids = np.unique(np.ravel(nuclei))
-    print(len(ids))
+    print(len(ids), flush=True)
     for id in ids[:]:
         if id != 0:
             sid = str(id - 1)
-            d[sid] = dict()
 
             center_raw = df_stardist.loc[sid][['centroid_x', 'centroid_y']].astype(int).values
             center = center_raw[0] - coords[1], center_raw[1] - coords[0]
@@ -453,6 +436,7 @@ def calculate_H_E_OD_quantities(img, nuclei, coords, df_stardist, offset='auto',
             wh_nuc = wh_nuc[0]  + x_min, wh_nuc[1]  + y_min
 
             if (len(wh_cy[0]) > 0) and (len(wh_nuc[0]) > 0):
+                d[sid] = dict()
                 d[sid].update({'x': center_raw[0],
                               'y': center_raw[1],
                               'cy_hemat_mean': H[wh_cy].mean(),

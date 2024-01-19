@@ -101,7 +101,8 @@ workflow IMG {
         
         TILE_WSI ( CONVERT_TO_TILED_TIFF.out.full
                   .join(LOAD_SAMPLE_INFO.out.grid)
-                  .join(CONVERT_TO_TILED_TIFF.out.size) )
+                  .join(CONVERT_TO_TILED_TIFF.out.size)
+                  .join(LOAD_SAMPLE_INFO.out.mpp) )
         
         GET_TILE_MASK ( CONVERT_TO_TILED_TIFF.out.thumb
                         .join(GET_PIXEL_MASK.out)

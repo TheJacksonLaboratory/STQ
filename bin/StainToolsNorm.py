@@ -34,6 +34,12 @@ class StainNormalizer(staintools.StainNormalizer):
     def __init__(self, method):
         super().__init__(method)
 
+    def fit(self, target):
+        self.stain_matrix_target = self.extractor.get_stain_matrix(target)
+        target_concentrations = get_concentrations(target, self.stain_matrix_target)
+        self.maxC_target = np.percentile(target_concentrations, 99, axis=0).reshape((1, 2))
+        return
+
     def estimate(self, I):
         stain_matrix_source = self.extractor.get_stain_matrix(I)
         print(stain_matrix_source.dtype)
@@ -61,11 +67,38 @@ if __name__ == '__main__':
     
     print('s:', args.s)
 
-    target = tifffile.imread(args.referenceImagePath)[:,:,:3][:,:,::-1]
+    target = tifffile.imread(args.referenceImagePath)
+    if target.shape[0]<=4:
+        target = np.moveaxis(target, 0, 2)
+    target = target[:,:,:3]
+
+    max_color = 255
+    quantile = 0.95  
+    v = max_color - int(np.quantile(target.ravel(), quantile))
+    print('Color max shift:', v)
+    target[(target.astype(int) + v) > max_color] = max_color
+    target[(target.astype(int) + v) <= max_color] += v
+    target = target.astype(np.uint8)
+    target = np.asfortranarray(target)
+    print(target.shape)
     normalizer = StainNormalizer(method='macenko')
     normalizer.fit(target)
     
-    img = tifffile.imread(args.inputImagePath)[:,:,:3][:,:,::-1]
+    img = tifffile.imread(args.inputImagePath)
+    if img.shape[0]<=4:
+        img = np.moveaxis(img, 0, 2)
+    img = img[:,:,:3]
+    max_color = 255
+    quantile = 0.95
+    v = max_color - int(np.quantile(img.ravel(), quantile))
+    print('Color max shift:', v)
+    for i in tqdm(range(img.shape[0])):
+        wh = np.where((img[i, :, :].astype(int) + v) > max_color)
+        img[i, wh[0], wh[1]] = max_color
+        wh = np.where((img[i, :, :].astype(int) + v) <= max_color)
+        img[i, wh[0], wh[1]] += v
+    img = np.asfortranarray(img)
+    
     dims = img.shape[0], img.shape[1]
     r = [np.append(args.s*np.array(range(0, int(np.floor(dims[i]/args.s))+1)), [dims[i]]) for i in range(2)]
     coords = [(i,j) for i in range(len(r[0])-1) for j in range(len(r[1])-1)]
@@ -121,7 +154,7 @@ if __name__ == '__main__':
     # Normalize all patches
     for i, j in tqdm(coords):
         try:
-            img[r[0][i]:r[0][i+1], r[1][j]:r[1][j+1], :] = normalizer.transform(img[r[0][i]:r[0][i+1], r[1][j]:r[1][j+1], :], m, c)[:,:,::-1]
+            img[r[0][i]:r[0][i+1], r[1][j]:r[1][j+1], :] = normalizer.transform(img[r[0][i]:r[0][i+1], r[1][j]:r[1][j+1], :], m, c)
         except Exception as exception:
             print('Exception:', exception)
     
