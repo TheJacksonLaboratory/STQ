@@ -67,7 +67,7 @@ process INFER_HOVERNET {
 
     tag "$sample_id"
     label 'process_hovernet'
-    memory { 6.GB + (Float.valueOf(size) / 1000.0).round(2) * params.memory_scale_factor * 2.GB }
+    memory { 6.GB + (Float.valueOf(size) / 1000.0).round(2) * params.memory_scale_factor * 4.GB }
     maxRetries 3
     errorStrategy  { task.attempt <= maxRetries  ? 'retry' : 'finish' }
     
@@ -81,10 +81,16 @@ process INFER_HOVERNET {
     """
     [ ! -d "mask" ] && mkdir "mask"
     cp ${mask} mask/outfile.png
+    
+    CUDEV=""
+    if [[ "${params.hovernet_device_mode}" == "gpu" ]];
+    then
+        CUDEV="\$CUDA_VISIBLE_DEVICES"
+    fi
      
     python /hover_net/run_infer.py \
-    --gpu="" \
-    --device_mode="cpu" \
+    --gpu="\$CUDEV" \
+    --device_mode="${params.hovernet_device_mode}" \
     --cpu_count=${task.cpus} \
     --model_mode=fast \
     --nr_inference_workers=${params.hovernet_num_inference_workers} \
