@@ -14,6 +14,7 @@ dev/
 
 results*/
 .nextflow.log*
+.nextflow/
 
 # Distribution / packaging
 .Python
