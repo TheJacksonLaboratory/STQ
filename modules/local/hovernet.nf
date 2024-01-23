@@ -184,10 +184,16 @@ process INFER_HOVERNET_TILES {
     tuple val(sample_id), file("temp/overlay/*.png"), emit: png
     
     script:
-    """    
+    """ 
+    CUDEV=""
+    if [[ "${params.hovernet_device_mode}" == "gpu" ]];
+    then
+        CUDEV="\$CUDA_VISIBLE_DEVICES"
+    fi
+   
     python /hover_net/run_infer.py \
-    --gpu="" \
-    --device_mode="cpu" \
+    --gpu="\$CUDEV" \
+    --device_mode="${params.hovernet_device_mode}" \
     --cpu_count=${task.cpus} \
     --model_mode=fast \
     --nr_inference_workers=${params.hovernet_num_inference_workers} \

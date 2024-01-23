@@ -107,8 +107,22 @@ workflow IMG {
         GET_TILE_MASK ( CONVERT_TO_TILED_TIFF.out.thumb
                         .join(GET_PIXEL_MASK.out)
                         .join(TILE_WSI.out.grid) 
-                        .join(CONVERT_TO_TILED_TIFF.out.size))       
-        
+                        .join(CONVERT_TO_TILED_TIFF.out.size))    
+                        
+                        
+        // Tilitng sub-workflow for a small number of tiles
+        if ( params.sample_tiles_subworkflow ) {
+            SELECT_SAVE_TILES ( CONVERT_TO_TILED_TIFF.out.full
+                                .join(TILE_WSI.out.grid)
+                                .join(GET_TILE_MASK.out.mask) )
+            
+            GET_INCEPTION_FEATURES_TILES ( SELECT_SAVE_TILES.out.tiles )
+                                             
+            INFER_HOVERNET_TILES ( SELECT_SAVE_TILES.out.tiles )
+            
+            GET_NUCLEI_TYPE_COUNTS ( INFER_HOVERNET_TILES.out.json )
+        }
+      
         
         if ( params.extract_tile_features ) {
             GET_INCEPTION_FEATURES ( CONVERT_TO_TILED_TIFF.out.full
