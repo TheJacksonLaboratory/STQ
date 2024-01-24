@@ -33,14 +33,27 @@ if __name__ == '__main__':
                         help="""Name of _CSV_ file in which to store the feature matrix (rows are tiles, cols are features). 
                                 The file will be compressed if it is named *.gz""")
     parser.add_argument('--tile-mask', dest='tile_mask', default=None, action='store', required=False)
-    parser.add_argument('--sigma', dest='sigma', action='store', default=0, required=False,
-                        help="""Gaussian smoothing parameter for background subtraction""")
-    parser.add_argument('--overlap-scale-factor', dest='overlap', action='store',
+    parser.add_argument('--downsample-expanded', dest='downsample', action='store', default=True,
+                        required=False,
+                        help="""If expansion factor is greater than 1 then downsample the tiles back to the input size""")
+    parser.add_argument('--expansion-factor', dest='expansion', action='store',
                         required=True,
-                        help="""Overlap factor, 1 means no overlap""")
+                        help="""Expansion factor, 1 means no expansion""")
     args = parser.parse_args()
-    overlap = float(args.overlap)
-    sigma = float(args.sigma)
+    expansion = float(args.expansion)
+    downsample = args.downsample=='true'
+
+    if expansion == 1.0:
+        print('Expansion factor is 1, requested downsampling:', downsample)
+        downsample = False
+    else:
+        if downsample:
+            expansion = np.ceil(expansion)
+            print('Expansion factor rounded to next interger:', expansion)
+            print('Tiles will be expanded and then downsampled')
+        else:
+            print('Expansion without downsampling is requested')
+    
     wsi_file = args.wsi_file
     positions_list_file = args.positions_list_file
     scalefactors_json_file = args.scalefactors_json_file
@@ -76,7 +89,13 @@ if __name__ == '__main__':
     pos['pxl_col_in_wsi'] = pos.pxl_col_in_fullres * scale_factor
     # Create the inception v3 model
     num_dimensions = 3
-    num_rows = num_cols = round(spot_diameter_wsi * overlap)
+    
+    if downsample:
+        num_rows = num_cols = round(spot_diameter_wsi)
+    else:
+        num_rows = num_cols = round(spot_diameter_wsi * expansion)
+    print('Model image size:', num_rows, num_cols)
+
     base_modeli = tf.keras.applications.inception_v3.InceptionV3(include_top=False, weights='imagenet',
                                                                  input_shape=(num_rows, num_cols, num_dimensions),
                                                                  classes=2)
@@ -106,8 +125,22 @@ if __name__ == '__main__':
                 cy = pos.loc[indx + ibatch*batch_size, 'pxl_row_in_wsi']
                 cx = pos.loc[indx + ibatch*batch_size, 'pxl_col_in_wsi']
                 if pos.loc[indx + ibatch*batch_size, 'in_tissue']:
-                    images.append(np.array(slide.read_region((int(cx - w / 2), int(cy - h / 2)), lvl, (int(w), int(h))).convert('RGB')))
-            except:
+                    if downsample:
+                        ew = round(w * expansion)
+                        eh = round(h * expansion)
+                    else:
+                        ew = w
+                        eh = h
+                        
+                    img = np.array(slide.read_region((int(cx - ew / 2), int(cy - eh / 2)), lvl, (int(ew), int(eh))).convert('RGB'))
+                    
+                    if downsample:
+                        img = img[::int(expansion), ::int(expansion), :]
+                        assert (img.shape[0], img.shape[1])==(w, h), 'Wrong tile dimensions after downsampling!'
+                    
+                    images.append(img)
+            except Exception as exception:
+                #print(exception)
                 pass
         print('Block 1:', time.time() - sT)       
         print('Number of tiles:', len(images)) 
@@ -129,12 +162,9 @@ if __name__ == '__main__':
     print(tbl)   
     
     # Output the features with spot information
-    ## This will automatically compress if the file suffix is .gz   
-    
-    overlapAppendName = '' if overlap==1.0 else '_overlap_%s' % overlap
-    sigmaAppendName = '' if sigma==0.0 else '_corrected_%s' % args.sigma
+    ## This will automatically compress if the file suffix is .gz
 
-    tbl.to_csv(output_path + '%s%s.tsv.gz' % (sigmaAppendName, overlapAppendName), index=False)
+    tbl.to_csv(output_path + '.tsv.gz', index=False)
     print('Successfully wrote ' + output_path)
     
 exit(0)

@@ -9,7 +9,7 @@ process GET_HOVERNET_MASK {
     tuple val(sample_id), path(image)
     
     output:
-    tuple val(sample_id), file("hovernet/mask/outfile.png"), emit: mask
+    tuple val(sample_id), file("${params.nuclei_segmentation_dir}/mask/outfile.png"), emit: mask
     
     script:
     """
@@ -33,6 +33,9 @@ process GET_HOVERNET_MASK {
     --chunk_shape=${params.hovernet_chunk_size} \
     --tile_shape=${params.hovernet_tile_size} \
     --save_mask
+    
+    mkdir -p ${params.nuclei_segmentation_dir}/mask/
+    cp hovernet/mask/outfile.png ${params.nuclei_segmentation_dir}/mask/outfile.png
     """ 
 }
 
@@ -48,7 +51,7 @@ process CHECK_MASK {
     tuple val(sample_id), path(mask), path(thumbnail)
     
     output:
-    tuple val(sample_id), file("hovernet/mask/outfile.png")
+    tuple val(sample_id), file("${params.nuclei_segmentation_dir}/mask/outfile.png")
     
     script:
     """
@@ -58,7 +61,7 @@ process CHECK_MASK {
     sys.path.append("${projectDir}/lib")
     from hovernetConv import checkMask
     
-    checkMask("${thumbnail}", "${mask}", "hovernet/mask/", bc=${params.mask_background_cutoff}) 
+    checkMask("${thumbnail}", "${mask}", "${params.nuclei_segmentation_dir}/mask/", bc=${params.mask_background_cutoff}) 
     """
 }
 
@@ -75,7 +78,7 @@ process INFER_HOVERNET {
     tuple val(sample_id), path(image), path(mask), val(size)
     
     output:
-    tuple val(sample_id), file("hovernet/outfile.json"), emit: json
+    tuple val(sample_id), file("${params.nuclei_segmentation_dir}/outfile.json"), emit: json
     
     script:
     """
@@ -107,6 +110,9 @@ process INFER_HOVERNET {
     --proc_mag=40 \
     --chunk_shape=${params.hovernet_chunk_size} \
     --tile_shape=${params.hovernet_tile_size}
+
+    mkdir -p ${params.nuclei_segmentation_dir}/
+    cp hovernet/outfile.json ${params.nuclei_segmentation_dir}/outfile.json    
     """ 
 }
 
@@ -344,12 +350,12 @@ process COMPRESS_JSON_FILE {
     tuple val(sample_id), path(json_file)
     
     output:
-    tuple val(sample_id), file("hovernet/outfile.json.gz")
+    tuple val(sample_id), file("${params.nuclei_segmentation_dir}/outfile.json.gz")
     
     script:
     """
-    [ ! -d "hovernet" ] && mkdir "hovernet"
-    gzip -c ${json_file} > hovernet/outfile.json.gz
+    [ ! -d "${params.nuclei_segmentation_dir}" ] && mkdir "${params.nuclei_segmentation_dir}"
+    gzip -c ${json_file} > ${params.nuclei_segmentation_dir}/outfile.json.gz
     """ 
 }
 
@@ -367,7 +373,7 @@ process COMPUTE_SEGMENTATION_DATA {
     tuple val(sample_id), path(hovernet_json), val(size)
     
     output:
-    tuple val(sample_id), file("hovernet/per_nucleus_data.csv.gz")
+    tuple val(sample_id), file("${params.nuclei_segmentation_dir}/per_nucleus_data.csv.gz")
     
     script:
     """
@@ -379,7 +385,7 @@ process COMPUTE_SEGMENTATION_DATA {
     print()
     
     loadNuclei("${hovernet_json}",
-              savepath='hovernet/',
+              savepath='${params.nuclei_segmentation_dir}/',
               sname='per_nucleus_data',
               original_mpp=${params.target_mpp})   
     """
@@ -399,8 +405,8 @@ process GENERATE_PERSPOT_SEGMENTATION_DATA {
     tuple val(sample_id), path(grid_csv), path(grid_json), path(hovernet_csv), val(size)
     
     output:
-    tuple val(sample_id), file("hovernet/per_nucleus_data.csv.gz.csv"), emit: assignment
-    tuple val(sample_id), file("hovernet/per_spot_data.csv"), emit: data
+    tuple val(sample_id), file("${params.nuclei_segmentation_dir}/per_nucleus_data.csv.gz.csv"), emit: assignment
+    tuple val(sample_id), file("${params.nuclei_segmentation_dir}/per_spot_data.csv"), emit: data
     
     script:
     """
@@ -416,9 +422,9 @@ process GENERATE_PERSPOT_SEGMENTATION_DATA {
                        hovernet_data_file_path="${hovernet_csv}",
                        spot_shape="${params.hovernet_spot_assignment_shape}",
                        factor=${params.hovernet_spot_assignment_factor},
-                       savepath='hovernet/')
+                       savepath='${params.nuclei_segmentation_dir}/')
                        
     calculateAggregateValues(df, min_cell_type_prob = ${params.hovernet_min_cell_type_prob},
-                             savepath = 'hovernet/', sname = 'per_spot_data')
+                             savepath = '${params.nuclei_segmentation_dir}/', sname = 'per_spot_data')
     """
 }

@@ -144,7 +144,7 @@ process CALCULATE_CELLS_OD {
     print(dims, flush=True)
     
     # Prepare image patches coordinates
-    s = ${params.stardist_block_size}
+    s = ${params.od_block_size}
     r = [np.append(s*np.array(range(0, int(np.floor(dims[i]/s))+1)), [dims[i]]) for i in range(2)]
     coords = [(i,j) for i in range(len(r[0])-1) for j in range(len(r[1])-1)]
     print(coords, flush=True)

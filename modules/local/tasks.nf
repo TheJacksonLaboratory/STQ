@@ -395,7 +395,8 @@ process GET_INCEPTION_FEATURES {
     --tile-mask="\${vtilemask}" \
     --scalefactors-json-file="${grid_json}" \
     --output-path="inception/inception_features" \
-    --overlap-scale-factor=${params.overlap_scale_factor} 
+    --expansion-factor=${params.expansion_factor} \
+    --downsample-expanded=${params.downsample_expanded_tile}
     """   
 }
 

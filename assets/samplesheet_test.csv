@@ -1,2 +1,2 @@
 sample,fastq,image,grid,roifile,mpp
-WM4237_TE_S1_ST,/projects/chuang-lab/rubinstein/ST_melanomaPDX/data/SC2200092_WM4237-1-1337/fastq/,/projects/chuang-lab/rubinstein/ST_melanomaPDX/data/SC2200092_WM4237-1-1337/img/SC2200092.tiff,,,0.2208187960959237
+TCGA-AA-A00Z-01A-01-BS1.0,,/projects/chuang-lab/TCGA-COAD/WSI/TCGA-AA-A00Z-01A-01-BS1.47febbeb-d8d0-45fe-b934-30d8992a1737.svs,,/projects/rubinstein-lab/USERS/domans/COAD/tcga_coad_svs_thumbs/TCGA-AA-A00Z-01A-01-BS1.47febbeb-d8d0-45fe-b934-30d8992a1737.oid0.json,0.2485
