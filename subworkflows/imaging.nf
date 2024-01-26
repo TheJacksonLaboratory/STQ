@@ -12,6 +12,7 @@ include { LOAD_SAMPLE_INFO;
           SELECT_SAVE_TILES;
           GET_INCEPTION_FEATURES_TILES;
           GET_INCEPTION_FEATURES;
+          GET_CTRANSPATH_FEATURES;
         } from '../modules/local/tasks'
 
 include { CHECK_FOCUS;
@@ -125,11 +126,25 @@ workflow IMG {
       
         
         if ( params.extract_tile_features ) {
-            GET_INCEPTION_FEATURES ( CONVERT_TO_TILED_TIFF.out.full
-                                     .join(GET_TILE_MASK.out.mask)
-                                     .join(TILE_WSI.out.grid)
-                                     .join(LOAD_SAMPLE_INFO.out.grid)
-                                     .join(CONVERT_TO_TILED_TIFF.out.size) )
+            if (params.extract_inception_features) {
+                GET_INCEPTION_FEATURES ( CONVERT_TO_TILED_TIFF.out.full
+                                         .join(GET_TILE_MASK.out.mask)
+                                         .join(TILE_WSI.out.grid)
+                                         .join(LOAD_SAMPLE_INFO.out.grid)
+                                         .join(CONVERT_TO_TILED_TIFF.out.size) )
+                
+                features_out = GET_INCEPTION_FEATURES.out
+            }
+
+            if (params.extract_transpath_features) {                   
+                GET_CTRANSPATH_FEATURES ( CONVERT_TO_TILED_TIFF.out.full
+                                         .join(GET_TILE_MASK.out.mask)
+                                         .join(TILE_WSI.out.grid)
+                                         .join(LOAD_SAMPLE_INFO.out.grid)
+                                         .join(CONVERT_TO_TILED_TIFF.out.size) )
+                                         
+                features_out = GET_CTRANSPATH_FEATURES.out
+            }
         }      
 
         
@@ -182,7 +197,7 @@ workflow IMG {
                                              .join(CONVERT_TO_TILED_TIFF.out.size) )
 
             if ( params.extract_tile_features ) {
-                MERGE_IMAGING_DATA ( GET_INCEPTION_FEATURES.out
+                MERGE_IMAGING_DATA ( features_out
                                      .join(GENERATE_PERSPOT_SEGMENTATION_DATA.out.data)
                                      .join(CONVERT_TO_TILED_TIFF.out.size) )
 
@@ -194,7 +209,7 @@ workflow IMG {
         else {
             if ( params.extract_tile_features ) {
                 if ( params.do_imaging_anndata ) {
-                    CONVERT_CSV_TO_ANNDATA ( GET_INCEPTION_FEATURES.out )
+                    CONVERT_CSV_TO_ANNDATA ( features_out )
                 }
             }        
         }

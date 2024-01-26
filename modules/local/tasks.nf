@@ -369,12 +369,13 @@ process GET_INCEPTION_FEATURES {
     maxRetries 3
     errorStrategy  { task.attempt <= maxRetries  ? 'retry' : 'finish' }
     memory { 6.GB + (Float.valueOf(size) / 1000.0).round(2) * params.memory_scale_factor * 14.GB }
-        
+    publishDir "${params.outdir}/${sample_id}", pattern: 'features/*.tsv.gz', mode: 'copy', overwrite: true
+    
     input:
     tuple val(sample_id), path(image), path(tile_mask), path(grid_csv), path(grid_json), path(meta_grid_csv), path(meta_grid_json), val(size)
     
     output:
-    tuple val(sample_id), file("inception/inception_features.tsv.gz"), optional: true
+    tuple val(sample_id), file("features/inception_features.tsv.gz"), optional: true
     
     script:
     """
@@ -387,16 +388,64 @@ process GET_INCEPTION_FEATURES {
         vtilemask="${tile_mask}"
     fi
     
-    [ ! -d "inception" ] && mkdir "inception"
+    [ ! -d "features" ] && mkdir "features"
 
     python -u ${projectDir}/bin/run-inception-v3.py \
     --wsi-file="${image}" \
     --positions-list-file="${grid_csv}" \
     --tile-mask="\${vtilemask}" \
     --scalefactors-json-file="${grid_json}" \
-    --output-path="inception/inception_features" \
+    --output-path="features/inception_features" \
     --expansion-factor=${params.expansion_factor} \
     --downsample-expanded=${params.downsample_expanded_tile}
+    """   
+}
+
+
+process GET_CTRANSPATH_FEATURES {
+
+    tag "$sample_id"
+    label 'process_ctranspath'
+    maxRetries 0
+    errorStrategy  { task.attempt <= maxRetries  ? 'retry' : 'finish' }
+    memory { 24.GB + (Float.valueOf(size) / 1000.0).round(2) * params.memory_scale_factor * 16.GB }
+    publishDir "${params.outdir}/${sample_id}", pattern: 'features/*.tsv.gz', mode: 'copy', overwrite: true
+    
+    input:
+    tuple val(sample_id), path(image), path(tile_mask), path(grid_csv), path(grid_json), path(meta_grid_csv), path(meta_grid_json), val(size)
+    
+    output:
+    tuple val(sample_id), file("features/ctranspath_features.tsv.gz"), optional: true
+    
+    script:
+    """
+    CUDEV=""
+    if [[ "${params.ctranspath_device_mode}" == "gpu" ]];
+    then
+        CUDEV="\$CUDA_VISIBLE_DEVICES"
+    fi
+    
+    # If the grid from SpaceRanger, then don't owerwrite the tile mask with my mask
+    filesize=`wc -c <"${meta_grid_csv}"`
+    if [ \$filesize -ge 10 ];
+    then
+        vtilemask=None
+    else
+        vtilemask="${tile_mask}"
+    fi
+    
+    [ ! -d "features" ] && mkdir "features"
+
+    python -u ${projectDir}/bin/run-ctranspath.py \
+    --wsi-file="${image}" \
+    --positions-list-file="${grid_csv}" \
+    --tile-mask="\${vtilemask}" \
+    --scalefactors-json-file="${grid_json}" \
+    --output-path="features/ctranspath_features" \
+    --expansion-factor=${params.expansion_factor} \
+    --downsample-expanded=${params.downsample_expanded_tile} \
+    --model=${params.transpath_features_model} \
+    --cuda-visible-devices="\$CUDEV"
     """   
 }
 

@@ -1,0 +1,37 @@
+bootstrap: docker
+from: condaforge/mambaforge:23.3.1-1
+
+%environment
+    export DEBIAN_FRONTEND=noninteractive
+
+%post
+    echo 'debconf debconf/frontend select Noninteractive' | debconf-set-selections
+
+    apt-get update
+    apt-get install -y dialog apt-utils
+    apt-get install -y openslide-tools
+    apt-get install -y git
+    apt-get install -y procps
+
+    # Clone the repository at SHA of December 2023
+    git clone https://github.com/Xiyue-Wang/TransPath
+    cd TransPath
+    git reset --hard 74673ef15656a6f01e53dde5c06e6964022e3789
+
+    /opt/conda/bin/mamba install -y -c anaconda pip pandas pyarrow scipy
+    /opt/conda/bin/mamba install -y -c conda-forge pillow openslide-python
+    
+    /opt/conda/bin/pip install gdown ml-collections
+    
+    # Modified timm package
+    gdown 1JV7aj9rKqGedXY1TdDfi3dP07022hcgZ
+    /opt/conda/bin/pip install timm-0.5.4.tar
+
+    # 1. CTransPath: ctranspath.pth - 108MB
+    gdown 1DoDx_70_TLj98gTf6YTXnu4tFhsFocDX
+    
+    # 2. MoCo V3 model: vit_small.pth.tar - 680M
+    gdown 13d_SHy9t9JCwp_MsU2oOUZ5AvI6tsC-K
+    
+    # 3. TransPath model: checkpoint.pth - 840MB
+    gdown 1dhysqcv_Ct_A96qOF8i6COTK3jLb56vx

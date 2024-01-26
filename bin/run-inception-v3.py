@@ -154,7 +154,7 @@ if __name__ == '__main__':
     
     # Convert the dictionary of features to a dataframe and name its columns featXXX
     df_features = pd.DataFrame(features)
-    df_features.columns = ['feat' + str(i) for i in range(df_features.shape[1])]
+    df_features.columns = ['feat_InceptionV3_' + str(i) for i in range(df_features.shape[1])]
     df_features.index = pos.loc[pos['in_tissue']==1].index
     
     # Append the spot position information to each row
