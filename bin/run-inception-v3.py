@@ -104,7 +104,7 @@ if __name__ == '__main__':
     model = tf.keras.models.Model(inputs=base_modeli.input, outputs=xi)
     
     num_images = len(pos)
-    batch_size = int(10**9 / (num_cols * num_rows))
+    batch_size = int(10**8 / (float(args.expansion) * float(args.expansion) * num_cols * num_rows))
     num_batches = int(np.ceil(num_images / batch_size))
     
     print('Reading and pocessing tiles:', num_images)
