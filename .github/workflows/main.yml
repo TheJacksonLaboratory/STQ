@@ -5,7 +5,8 @@ on:
   workflow_dispatch:
 
 jobs:
-  j1:
+  stats:
+    permissions: write-all
     name: repostats
     runs-on: ubuntu-latest
     steps:
