@@ -1,0 +1,15 @@
+on:
+  schedule:
+    # Run this once per week
+    - cron: "59 23 * * 0"
+  workflow_dispatch:
+
+jobs:
+  j1:
+    name: repostats
+    runs-on: ubuntu-latest
+    steps:
+      - name: github-repo-stats
+        uses: jgehrcke/github-repo-stats@1.4.2
+        with:
+          ghtoken: ${{ secrets.ghrs_github_api_token }}
