@@ -9,7 +9,8 @@ workflow TWO {
         samples
 
     main:
-        if ( !file("${params.xenome_indices_path}/${params.xenome_indices_name}-both.kmers.low-bits.lwr").exists() ) {
+        // Need to accomodate XENGSORT structure
+        if ( !file("${params.deconvolution_indices_path}/${params.deconvolution_indices_name}-both.kmers.low-bits.lwr").exists() ) {
             XINDEX ( )
         }
 

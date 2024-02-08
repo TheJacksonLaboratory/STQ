@@ -5,7 +5,7 @@
 #SBATCH --mem=2G
 #SBATCH --ntasks=1
 
-workflow="arbitrary_grid" ### "two_references" "one_reference" "arbitrary_grid" "xenome_indices"
+workflow="xenome_indices" ### "two_references" "one_reference" "arbitrary_grid" "xenome_indices"
 
 mainDir="."
 samplesheet="./assets/samplesheet_test.csv"
@@ -13,10 +13,10 @@ samplesheet="./assets/samplesheet_test.csv"
 workdir="${mainDir}/work"
 outdir="${mainDir}/results"
 
-cd $SLURM_SUBMIT_DIR
+#cd $SLURM_SUBMIT_DIR
 
-module use --append /projects/omics_share/meta/modules
-module load nextflow
+#module use --append /projects/omics_share/meta/modules
+#module load nextflow
 
 nextflow run main.nf \
 -w ${workdir} \

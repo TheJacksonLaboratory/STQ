@@ -1,0 +1,31 @@
+bootstrap: docker
+from: condaforge/mambaforge:23.3.1-1
+
+%environment
+    export DEBIAN_FRONTEND=noninteractive
+
+%post
+    echo 'debconf debconf/frontend select Noninteractive' | debconf-set-selections
+
+    apt-get update
+    apt-get install -y dialog apt-utils
+    apt-get install -y git
+    apt-get install -y procps
+
+    /opt/conda/bin/mamba install -y -c bioconda numpy>=1.24 numba>=0.57
+    /opt/conda/bin/mamba install -y -c conda-forge jsonargparse pytest
+    
+    git clone https://github.com/Biivy/Xenomake
+    cd Xenomake
+    chmod -R +x scripts/
+    # Use the repository version at SHA of November 2023
+    git reset --hard 363b8f5d51daae52ef12a2bd8bb9a12a1aacb4f4
+    /opt/conda/bin/mamba env update -n base --file environment.yaml
+    
+    git clone https://gitlab.com/genomeinformatics/xengsort.git
+    cd xengsort
+    # Use the repository version at SHA of December 2023
+    git reset --hard 62ea5c6419af8ad366212b617133dc1c6c1a8e28
+    /opt/conda/bin/pip install -e .
+    xengsort index --help
+    which xengsort

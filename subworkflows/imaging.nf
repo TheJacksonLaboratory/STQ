@@ -9,7 +9,6 @@ include { LOAD_SAMPLE_INFO;
           TILE_WSI;
           GET_TILE_MASK;
           GET_TISSUE_MASK;
-          SELECT_SAVE_TILES;
           GET_INCEPTION_FEATURES;
         } from '../modules/local/tasks'
                

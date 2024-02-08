@@ -1,7 +1,7 @@
 
 include { LOAD_SAMPLE_INFO } from '../modules/local/load'
 include { GUNZIP as UNPACK_FASTQ } from '../modules/local/gunzip'
-include { DECONVOLUTION;
+include { DECONVOLUTION_XENOME;
           SORT_FASTQ as SORT_FASTQ_MOUSE;
           SORT_FASTQ as SORT_FASTQ_HUMAN;
         } from '../modules/local/deconvolution'
@@ -45,14 +45,14 @@ workflow SEQ {
 
         UNPACK_FASTQ ( LOAD_SAMPLE_INFO.out.fastq )
         
-        DECONVOLUTION ( UNPACK_FASTQ.out,
-                        file("${params.xenome_indices_path}"),
-                        params.xenome_indices_name )
+        DECONVOLUTION_XENOME ( UNPACK_FASTQ.out,
+                              file("${params.xenome_indices_path}"),
+                              params.xenome_indices_name )
         
         
-        SORT_FASTQ_MOUSE ( DECONVOLUTION.out.mouse )     
+        SORT_FASTQ_MOUSE ( DECONVOLUTION_XENOME.out.mouse )     
          
-        SORT_FASTQ_HUMAN ( DECONVOLUTION.out.human )
+        SORT_FASTQ_HUMAN ( DECONVOLUTION_XENOME.out.human )
 
 
         SPACERANGER_MOUSE ( SORT_FASTQ_MOUSE.out

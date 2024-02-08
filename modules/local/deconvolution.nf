@@ -28,7 +28,32 @@ process XENOME_GENERATE_INDEX {
     """
 }
 
-process DECONVOLUTION {
+process XENGSORT_GENERATE_INDEX {
+
+    tag "${params.xengsort_indices_name}"
+    publishDir "${params.xengsort_indices_path}", pattern: "${params.xengsort_indices_name}-xind", mode: 'copy', overwrite: false
+
+    input:
+    path host_fasta
+    path graft_fasta
+    val kmer_size
+    
+    output:
+    path("${params.xengsort_indices_name}-xind"), emit: indices_path
+    
+    script:    
+    """    
+    xengsort index \
+    -H "${host_fasta}" \
+    -G "${graft_fasta}" \
+    -n "${params.xengsort_n}" \
+    -k ${kmer_size} \
+    -W ${task.cpus} \
+    --index ${params.xengsort_indices_name}-xind
+    """
+}
+
+process DECONVOLUTION_XENOME {
 
     tag "$sample_id"
     publishDir "${params.outdir}/${sample_id}", pattern: '.command.out', saveAs: { filename -> "xenome.summary.txt" }, mode: 'copy', overwrite: true
@@ -59,6 +84,33 @@ process DECONVOLUTION {
     --output-filename-prefix categorized/unsorted \
     --tmp-dir tmp \
     --verbose
+    """
+}
+
+process DECONVOLUTION_XENGSORT {
+
+    tag "$sample_id"
+    publishDir "${params.outdir}/${sample_id}", pattern: '.command.out', saveAs: { filename -> "xengsort.summary.txt" }, mode: 'copy', overwrite: true
+
+    input:
+    tuple val(sample_id), path(fastq)
+    path(indices_path)
+    val(indices_name)
+    
+    output:
+    tuple val(sample_id), file("categorized/unsorted_human_{1,2}.fastq"), emit: human
+    tuple val(sample_id), file("categorized/unsorted_mouse_{1,2}.fastq"), emit: mouse
+    path(".command.out"), emit: summary
+    
+    script:    
+    """
+
+
+
+
+
+
+
     """
 }
 
