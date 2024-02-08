@@ -10,23 +10,10 @@ include { LOAD_SAMPLE_INFO;
           GET_TILE_MASK;
           GET_TISSUE_MASK;
           SELECT_SAVE_TILES;
-          GET_INCEPTION_FEATURES_TILES;
           GET_INCEPTION_FEATURES;
-          GET_CTRANSPATH_FEATURES;
         } from '../modules/local/tasks'
-
-include { CHECK_FOCUS;
-        } from '../modules/local/focus'
-                
-include { SUPERPIXELATION;
-          EXPORT_DOWN_IMAGE_FOR_CONTOURS;
-          CALCULATE_CELLS_OD;
-          ASSIGN_NUCLEI_TO_SUPERPIXELS;
-          EXPORT_SUPERPIXELATION_CONTOURS;
-        } from '../modules/local/superpixel'
-
-include { GET_NUCLEI_MASK_FROM_HOVERNET_JSON;  
-          INFER_HOVERNET_TILES;
+               
+include { GET_NUCLEI_MASK_FROM_HOVERNET_JSON;
           GET_NUCLEI_TYPE_COUNTS;
           INFER_HOVERNET;
           INFER_STARDIST;
@@ -36,7 +23,6 @@ include { GET_NUCLEI_MASK_FROM_HOVERNET_JSON;
         } from '../modules/local/hovernet'
         
 include { MERGE_IMAGING_DATA;
-          CONVERT_CSV_TO_ANNDATA;
         } from '../modules/local/merge'
         
 workflow IMG {
@@ -44,11 +30,7 @@ workflow IMG {
     take:
         samples
 
-    main:
-        //if (params.hovernet_segmentation && params.do_superpixels) {
-        //    error "NotImplementedError: HoVer-Net nuclear segmentation and superpixels subworkflow are incompatible."
-        //}
-    
+    main:   
         images = samples.map{[it[0], (it[1].image)]}
         
         LOAD_SAMPLE_INFO ( samples
@@ -83,19 +65,6 @@ workflow IMG {
                           .join(CONVERT_TO_TILED_TIFF.out.size) )
         }
         
-        if ( params.do_superpixels ) {
-            SUPERPIXELATION ( CONVERT_TO_TILED_TIFF.out.full
-                              .join(CONVERT_TO_TILED_TIFF.out.size) )
-            
-            if ( params.export_superpixels_contours ) {
-                EXPORT_DOWN_IMAGE_FOR_CONTOURS ( CONVERT_TO_TILED_TIFF.out.full
-                                  .join(CONVERT_TO_TILED_TIFF.out.size) )
-            
-                EXPORT_SUPERPIXELATION_CONTOURS ( SUPERPIXELATION.out.main
-                                                  .join(CONVERT_TO_TILED_TIFF.out.size) )
-                }
-            }
-
 
         GET_PIXEL_MASK ( CONVERT_TO_TILED_TIFF.out.thumb
                          .join(CONVERT_TO_TILED_TIFF.out.size) )
@@ -109,21 +78,7 @@ workflow IMG {
                         .join(GET_PIXEL_MASK.out)
                         .join(TILE_WSI.out.grid) 
                         .join(CONVERT_TO_TILED_TIFF.out.size))    
-                        
-                        
-        // Tilitng sub-workflow for a small number of tiles
-        if ( params.sample_tiles_subworkflow ) {
-            SELECT_SAVE_TILES ( CONVERT_TO_TILED_TIFF.out.full
-                                .join(TILE_WSI.out.grid)
-                                .join(GET_TILE_MASK.out.mask) )
-            
-            GET_INCEPTION_FEATURES_TILES ( SELECT_SAVE_TILES.out.tiles )
-                                             
-            INFER_HOVERNET_TILES ( SELECT_SAVE_TILES.out.tiles )
-            
-            GET_NUCLEI_TYPE_COUNTS ( INFER_HOVERNET_TILES.out.json )
-        }
-      
+
         
         if ( params.extract_tile_features ) {
             if (params.extract_inception_features) {
@@ -134,16 +89,6 @@ workflow IMG {
                                          .join(CONVERT_TO_TILED_TIFF.out.size) )
                 
                 features_out = GET_INCEPTION_FEATURES.out
-            }
-
-            if (params.extract_transpath_features) {                   
-                GET_CTRANSPATH_FEATURES ( CONVERT_TO_TILED_TIFF.out.full
-                                         .join(GET_TILE_MASK.out.mask)
-                                         .join(TILE_WSI.out.grid)
-                                         .join(LOAD_SAMPLE_INFO.out.grid)
-                                         .join(CONVERT_TO_TILED_TIFF.out.size) )
-                                         
-                features_out = GET_CTRANSPATH_FEATURES.out
             }
         }      
 
@@ -180,17 +125,7 @@ workflow IMG {
         
             COMPUTE_SEGMENTATION_DATA ( jsonout
                                         .join(CONVERT_TO_TILED_TIFF.out.size) )
-            
-            if ( params.do_superpixels ) {
-                CALCULATE_CELLS_OD ( CONVERT_TO_TILED_TIFF.out.full
-                                     .join(segmaskout)
-                                     .join(COMPUTE_SEGMENTATION_DATA.out)
-                                     .join(CONVERT_TO_TILED_TIFF.out.size) )
-                                     
-                ASSIGN_NUCLEI_TO_SUPERPIXELS ( SUPERPIXELATION.out.main
-                                               .join(CALCULATE_CELLS_OD.out)
-                                               .join(CONVERT_TO_TILED_TIFF.out.size) )
-                }
+
 
             GENERATE_PERSPOT_SEGMENTATION_DATA ( TILE_WSI.out.grid
                                              .join(COMPUTE_SEGMENTATION_DATA.out)
@@ -201,16 +136,6 @@ workflow IMG {
                                      .join(GENERATE_PERSPOT_SEGMENTATION_DATA.out.data)
                                      .join(CONVERT_TO_TILED_TIFF.out.size) )
 
-                if ( params.do_imaging_anndata ) {
-                    CONVERT_CSV_TO_ANNDATA ( MERGE_IMAGING_DATA.out )
-                }
             }
-        }
-        else {
-            if ( params.extract_tile_features ) {
-                if ( params.do_imaging_anndata ) {
-                    CONVERT_CSV_TO_ANNDATA ( features_out )
-                }
-            }        
         }
 }
