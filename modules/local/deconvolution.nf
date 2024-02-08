@@ -1,8 +1,8 @@
 
 process XENOME_GENERATE_INDEX {
 
-    tag "${params.xenome_indices_name}"
-    publishDir "${params.xenome_indices_path}", pattern: "${params.xenome_indices_name}-*", mode: 'copy', overwrite: false
+    tag "${params.deconvolution_indices_name}"
+    publishDir "${params.deconvolution_indices_path}", pattern: "${params.deconvolution_indices_name}-*", mode: 'copy', overwrite: false
 
     input:
     path host_fasta
@@ -10,7 +10,7 @@ process XENOME_GENERATE_INDEX {
     val kmer_size
     
     output:
-    path("${params.xenome_indices_name}-*"), emit: indices_path
+    path("${params.deconvolution_indices_name}-*"), emit: indices_path
     
     script:    
     """
@@ -18,7 +18,7 @@ process XENOME_GENERATE_INDEX {
     
     /xenome-1.0.1-r/xenome index \
     --kmer-size ${kmer_size} \
-    --prefix ${params.xenome_indices_name} \
+    --prefix ${params.deconvolution_indices_name} \
     --tmp-dir tempw \
     --num-threads ${task.cpus} \
     --host "${host_fasta}" \
@@ -30,8 +30,8 @@ process XENOME_GENERATE_INDEX {
 
 process XENGSORT_GENERATE_INDEX {
 
-    tag "${params.xengsort_indices_name}"
-    publishDir "${params.xengsort_indices_path}", pattern: "${params.xengsort_indices_name}-xind", mode: 'copy', overwrite: false
+    tag "${params.deconvolution_indices_name}"
+    publishDir "${params.deconvolution_indices_path}", pattern: "${params.deconvolution_indices_name}-xind*", mode: 'copy', overwrite: false
 
     input:
     path host_fasta
@@ -39,17 +39,17 @@ process XENGSORT_GENERATE_INDEX {
     val kmer_size
     
     output:
-    path("${params.xengsort_indices_name}-xind"), emit: indices_path
+    path("${params.deconvolution_indices_name}-xind*"), emit: indices_path
     
     script:    
     """    
     xengsort index \
     -H "${host_fasta}" \
     -G "${graft_fasta}" \
-    -n "${params.xengsort_n}" \
+    -n ${params.xengsort_n} \
     -k ${kmer_size} \
     -W ${task.cpus} \
-    --index ${params.xengsort_indices_name}-xind
+    --index ${params.deconvolution_indices_name}-xind
     """
 }
 
@@ -90,7 +90,7 @@ process DECONVOLUTION_XENOME {
 process DECONVOLUTION_XENGSORT {
 
     tag "$sample_id"
-    publishDir "${params.outdir}/${sample_id}", pattern: '.command.out', saveAs: { filename -> "xengsort.summary.txt" }, mode: 'copy', overwrite: true
+    //publishDir "${params.outdir}/${sample_id}", pattern: '.command.out', saveAs: { filename -> "xengsort.summary.txt" }, mode: 'copy', overwrite: true
 
     input:
     tuple val(sample_id), path(fastq)
@@ -104,13 +104,12 @@ process DECONVOLUTION_XENGSORT {
     
     script:    
     """
-
-
-
-
-
-
-
+    xengsort classify \
+    --index ${indices_path} \
+    --fastq {fastq} \
+    --out woutput \
+    --threads ${task.cpus} \
+    --chunksize 16.0
     """
 }
 
