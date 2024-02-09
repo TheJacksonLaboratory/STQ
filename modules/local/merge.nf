@@ -46,7 +46,7 @@ process CONVERT_CSV_TO_ANNDATA {
     #!/usr/bin/env python
     
     import os
-    os.environ["NUMBA_CACHE_DIR"] = "./tmp"
+    os.environ["NUMBA_CACHE_DIR"] = "/tmp/"
 
     import gc
     import pandas as pd
@@ -82,6 +82,9 @@ process MERGE_MTX {
         
     """    
     #!/usr/bin/env python
+    
+    import os
+    os.environ[ 'NUMBA_CACHE_DIR' ] = '/tmp/'
     
     import sys
     sys.path.append("${projectDir}/bin")   

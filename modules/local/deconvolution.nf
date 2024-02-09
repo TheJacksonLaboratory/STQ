@@ -90,7 +90,7 @@ process DECONVOLUTION_XENOME {
 process DECONVOLUTION_XENGSORT {
 
     tag "$sample_id"
-    //publishDir "${params.outdir}/${sample_id}", pattern: '.command.out', saveAs: { filename -> "xengsort.summary.txt" }, mode: 'copy', overwrite: true
+    publishDir "${params.outdir}/${sample_id}", pattern: '.command.out', saveAs: { filename -> "xengsort.summary.txt" }, mode: 'copy', overwrite: true
 
     input:
     tuple val(sample_id), path(fastq)
@@ -98,18 +98,25 @@ process DECONVOLUTION_XENGSORT {
     val(indices_name)
     
     output:
-    tuple val(sample_id), file("categorized/unsorted_human_{1,2}.fastq"), emit: human
-    tuple val(sample_id), file("categorized/unsorted_mouse_{1,2}.fastq"), emit: mouse
+    tuple val(sample_id), file("unsorted_human_{1,2}.fastq"), emit: human
+    tuple val(sample_id), file("unsorted_mouse_{1,2}.fastq"), emit: mouse
     path(".command.out"), emit: summary
     
     script:    
     """
     xengsort classify \
-    --index ${indices_path} \
-    --fastq {fastq} \
-    --out woutput \
+    --index "${indices_path}/${params.deconvolution_indices_name}-xind" \
+    --fastq ${fastq[1]} \
+    --out fastq \
     --threads ${task.cpus} \
-    --chunksize 16.0
+    --chunksize 32.0 \
+    --compression none
+
+    mv fastq-host.fq unsorted_mouse_2.fastq
+    mv fastq-graft.fq unsorted_human_2.fastq
+    
+    seqtk subseq ${fastq[0]} <(fgrep "@" unsorted_mouse_2.fastq | cut -d ' ' -f1 | cut -d '@' -f2) >> unsorted_mouse_1.fastq
+    seqtk subseq ${fastq[0]} <(fgrep "@" unsorted_human_2.fastq | cut -d ' ' -f1 | cut -d '@' -f2) >> unsorted_human_1.fastq
     """
 }
 
