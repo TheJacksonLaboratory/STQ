@@ -12,7 +12,7 @@ from: condaforge/mambaforge:23.3.1-1
     apt-get install -y git
     apt-get install -y procps
 
-    /opt/conda/bin/mamba install -y -c bioconda numpy>=1.24 numba>=0.57
+    /opt/conda/bin/mamba install -y -c bioconda numpy>=1.24 numba>=0.57 seqtk
     /opt/conda/bin/mamba install -y -c conda-forge jsonargparse pytest
     
     git clone https://github.com/Biivy/Xenomake
