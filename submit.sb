@@ -5,10 +5,10 @@
 #SBATCH --mem=2G
 #SBATCH --ntasks=1
 
-workflow="xenome_indices" ### "two_references" "one_reference" "arbitrary_grid" "xenome_indices"
+workflow="two_references" ### "two_references" "one_reference" "arbitrary_grid" "xenome_indices"
 
 mainDir="."
-samplesheet="./assets/samplesheet_test.csv"
+samplesheet="./assets/samplesheet_two.csv"
 # workdir="/flashscratch/<usename>/work"
 workdir="${mainDir}/work"
 outdir="${mainDir}/results"

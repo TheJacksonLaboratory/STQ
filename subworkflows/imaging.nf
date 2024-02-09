@@ -59,11 +59,6 @@ workflow IMG {
         else
             CONVERT_TO_TILED_TIFF ( EXTRACT_ROI.out.image )
         
-        if ( params.check_focus ) {
-            CHECK_FOCUS ( CONVERT_TO_TILED_TIFF.out.full
-                          .join(CONVERT_TO_TILED_TIFF.out.size) )
-        }
-        
 
         GET_PIXEL_MASK ( CONVERT_TO_TILED_TIFF.out.thumb
                          .join(CONVERT_TO_TILED_TIFF.out.size) )
