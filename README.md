@@ -1,4 +1,4 @@
-# Nextflow Pipeline for Visium and H&E Data Processing
+﻿# Nextflow Pipeline for Visium and H&E Data Processing
 
 - [Overview](#overview)
 - [Motivation](#Motivation)
@@ -26,17 +26,6 @@
 ## Overview
 
 This repository contains the source code of the nextflow implementation of the 10x Visium Spatial Gene Expression data and full-resolution H&E-stained Whole Slide Images (WSI) processing developed at [The Jackson Laboratory](https://www.jax.org/ "The Jackson Laboratory"). The overview of the pipeline is shown above. The primary input consists of compressed FASTQ files, reference FASTA files, and a full-resolution image of the 10x Visium Slide sample. Additional required inputs include either pre-built Xenome indices or host and graft genome assemblies, mouse and human reference transcriptomes for reads mapping, DL pre-trained model weights, and singularity containers with software tools.
-
-<p>
-    <img src="docs/Scheme_NF3.png" width="1000"/>
-</p>
-
-
-<p>
-    <img src="docs/Scheme NF2.png" width="700"/>
-</p>
-
-
 
 ## Motivation
 
@@ -150,6 +139,67 @@ In this detached mode, the above command submits the pipeline to the HPC slurm s
        tail -n 50 slurm-<your_job_id>.out
 
 
+## Output
+
+Example output directory structure:
+
+<pre>
+.
+├── <b>pipeline_info</b>
+│   ├── execution_report_2024-02-09_10-57-36.html
+│   ├── execution_timeline_2024-02-09_10-57-36.html
+│   ├── execution_trace_2024-02-09_10-57-36.txt
+│   └── pipeline_dag_2024-02-09_10-57-36.svg
+│
+└── <b>WM4237_TE_S1_ST</b>
+    ├── <b>raw_feature_bc_matrix</b>
+    │   ├── barcodes.tsv.gz
+    │   ├── features.tsv.gz
+    │   └── matrix.mtx.gz
+    ├── <b>spatial</b>
+    │   ├── aligned_fiducials.jpg
+    │   ├── detected_tissue_image.jpg
+    │   ├── scalefactors_json.json
+    │   ├── tissue_hires_image.png
+    │   ├── tissue_lowres_image.png
+    │   └── tissue_positions_list.csv
+    │
+    ├── <font color="#9900FF">xenome.summary.txt</font>
+    ├── <b>human</b>
+    │   ├── extracted.baf
+    │   ├── metrics_summary.csv
+    │   ├── velocyto.loom
+    │   └── web_summary.html
+    ├── <b>mouse</b>
+    │   ├── extracted.baf
+    │   ├── metrics_summary.csv
+    │   ├── velocyto.loom
+    │   └── web_summary.html
+    │
+    ├── <b>grid</b>
+    │   ├── grid.csv
+    │   └── grid.json
+    ├── <b>mask</b>
+    │   ├── pixel_mask.csv
+    │   ├── tile_mask.csv
+    │   ├── tile_mask.png
+    │   └── tissue_mask.png
+    ├── <b>features</b>
+    │   └── inception_features.tsv.gz
+    ├── <b>nucseg</b>
+    │   ├── outfile.json.gz
+    │   ├── per_nucleus_data.csv.gz
+    │   ├── per_nucleus_data.csv.gz.csv
+    │   └── per_spot_data.csv
+    |
+    ├── <font color="#9900FF">data.csv.gz</font>
+    └── <font color="#9900FF">thumbnail.tiff</font>
+</pre>
+
+
+
+
+
 ## Tools used in the pipeline
 
 1. **`fastq-tools`** (https://github.com/dcjones/fastq-tools)
@@ -207,11 +257,6 @@ BAFextract is a tool designed by the authors of CaSpER and is intended to extrac
 
 BAFextract includes DNA scaffolds and mitochondrion (MT) DNA if those are present in the species genome reference. The output is a file `extracted.baf` generated in the human and mouse sub-directories of the sample output directory.
 
-The schema of using BAFextract in our pipeline is depicted below:
-
-<p>
-    <img src="docs/BAF_extract_scheme.png" width="1000"/>
-</p>
 
 > ***Note*** CaSpER RNA-based CNV-inference is outside the scope of this pipeline and is carried out in the downstream steps.
 
