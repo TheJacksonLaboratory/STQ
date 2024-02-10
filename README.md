@@ -146,10 +146,10 @@ Example output directory structure:
 <pre>
 .
 ├── <b>pipeline_info</b>
-│   ├── execution_report_2024-02-09_10-57-36.html
-│   ├── execution_timeline_2024-02-09_10-57-36.html
-│   ├── execution_trace_2024-02-09_10-57-36.txt
-│   └── pipeline_dag_2024-02-09_10-57-36.svg
+│   ├── <i>execution_report_2024-02-09_10-57-36.html</i>
+│   ├── <i>execution_timeline_2024-02-09_10-57-36.html</i>
+│   ├── <i>execution_trace_2024-02-09_10-57-36.txt</i>
+│   └── <i>pipeline_dag_2024-02-09_10-57-36.svg</i>
 │
 └── <b>WM4237_TE_S1_ST</b>
     ├── <b>raw_feature_bc_matrix</b>
@@ -164,7 +164,7 @@ Example output directory structure:
     │   ├── tissue_lowres_image.png
     │   └── tissue_positions_list.csv
     │
-    ├── <font color="#9900FF">xenome.summary.txt</font>
+    ├── xenome.summary.txt
     ├── <b>human</b>
     │   ├── extracted.baf
     │   ├── metrics_summary.csv
@@ -192,8 +192,8 @@ Example output directory structure:
     │   ├── per_nucleus_data.csv.gz.csv
     │   └── per_spot_data.csv
     |
-    ├── <font color="#9900FF">data.csv.gz</font>
-    └── <font color="#9900FF">thumbnail.tiff</font>
+    ├── data.csv.gz
+    └── thumbnail.tiff
 </pre>
 
 
