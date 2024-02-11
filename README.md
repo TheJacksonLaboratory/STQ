@@ -305,9 +305,18 @@ Execution of the pipeline and data flow through processes enable generating the 
 
 ![Dag Arb](docs/dag-two.svg)
 
+<details closed><summary>Directed Acyclic Graph for one-reference workflow</summary><p>
+
 ![Dag Two](docs/dag-one.svg)
 
+</p></details>
+
+
+<details closed><summary>Directed Acyclic Graph for arbitrary grid workflow</summary><p>
+
 ![Dag Two](docs/dag-arb.svg)
+
+</p></details>
 
 
 > ***Note*** DAG is generated during each pipeline run and is determined by the configuration and input parameters of the pipeline. For example, if specific optional processes are toggled "off," those processes and relevant graph connections will not show in the DAG.
