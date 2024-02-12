@@ -27,7 +27,7 @@ workflow {
         TWO ( samples )
     }
 
-    if ( params.workflow == "xenome_indices" ) {
+    if ( params.workflow == "deconvolution_indices" ) {
         if ( params.deconvolution_tool == "xenome" ) {
             if ( !file("${params.deconvolution_indices_path}/${params.deconvolution_indices_name}-both.kmers.low-bits.lwr").exists() ) {
                 XINDEX ( )

@@ -5,24 +5,13 @@
 #SBATCH --mem=2G
 #SBATCH --ntasks=1
 
-workflow="two_references" ### "two_references" "one_reference" "arbitrary_grid" "xenome_indices"
-
-mainDir="."
-samplesheet="./assets/samplesheet_two.csv"
-# workdir="/flashscratch/<usename>/work"
-workdir="${mainDir}/work"
-outdir="${mainDir}/results"
-
-#cd $SLURM_SUBMIT_DIR
-
-#module use --append /projects/omics_share/meta/modules
-#module load nextflow
+cd $SLURM_SUBMIT_DIR
 
 nextflow run main.nf \
--w ${workdir} \
+-w $3 \
 -profile slurm,singularity \
 -resume \
---input=${samplesheet} \
---outdir=${outdir} \
---workflow=${workflow} \
---bind="-B /projects/"
+--input=$2 \
+--outdir=$4 \
+--workflow=$1 \
+--bind="-B $5"
