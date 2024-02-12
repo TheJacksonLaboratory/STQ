@@ -3,6 +3,7 @@
 - [Overview](#overview)
 - [Motivation](#Motivation)
 - [Documentation](#Documentation)
+- [Output](#Output)
 - [Running the piepline](#running-the-piepline)
 - [Tools used in the pipeline](#tools-used-in-the-pipeline)
   * fastq-tools
@@ -37,6 +38,15 @@ The description of the pipeline components, parameters, analysis routes, require
 
 ## Running the piepline
 
+![Flow](docs/flow.gif)
+
+<details closed><summary>Click to see all steps</summary><p>
+
+<img src="docs/flow-static.png" width="1200"/>
+
+</p></details>
+
+
 ##### Prerequisites
 + HPC environment with sufficient CPU and RAM and temporary storage resources
 
@@ -66,7 +76,7 @@ The singularity containers used in our pipeline can be downloaded or built with 
 
 + Reference genomes for mouse and human (see tool `spaceranger count` below)
 
-+ Deconvolution indices (see tool `xenome classify` below) or graft and host reference FASTA files.
++ Graft and host reference FASTA files.
 
 
 
