@@ -89,6 +89,58 @@ The singularity containers used in our pipeline can be downloaded or built with 
 
 > ***Note*** 10x Genomics requires that any software containers with Space Ranger are not shared publicly. We provide an example of a definition file for building a Space Ranger container with singularity: [assets/container-singularity-spaceranger.def](conf/container-singularity-spaceranger.def) that pulls a standard `debian:buster-slim` container from docker and installs all necessary Linux libraries. After that, a copy of Space Ranger is downloaded and installed from the 10x Genomics download portal. To obtain a download link for a specific version of Space Ranger user must navigate to https://www.10xgenomics.com/support/software/space-ranger/downloads, register, review, and accept any required user agreements from 10x, and copy the download link. Next, paste the link to a copy of the `def` file. Finally, build a container with any desired resource, for example, https://cloud.sylabs.io/builder.
 
+
+
+<details closed><summary>Click to see the commands used to upload singularity-built containers to quay.io</summary><p>
+
+    singularity remote login -u <user> docker://quay.io
+
+    singularity push /projects/chuang-lab/USERS/domans/containers/local/mamba-xenomake.sif oras://quay.io/jaxcompsci/xenomake:v1.0.0
+    singularity push /projects/chuang-lab/USERS/domans/containers/container-mamba-inception.sif oras://quay.io/jaxcompsci/inception:v1.0.0
+    singularity push /projects/chuang-lab/USERS/domans/containers/container-singularity-hovernet-py.sif oras://quay.io/jaxcompsci/hovernet:v1.0.0
+    singularity push /projects/chuang-lab/USERS/domans/containers/container-singularity-stainnet.sif oras://quay.io/jaxcompsci/stainnet:v1.0.0
+    singularity push /projects/chuang-lab/USERS/domans/containers/container-singularity-staintools.sif oras://quay.io/jaxcompsci/staintools:v1.0.0
+    singularity push /projects/chuang-lab/USERS/domans/containers/container-singularity-vips.sif oras://quay.io/jaxcompsci/vips:v1.0.0
+    singularity push /projects/chuang-lab/USERS/domans/containers/container-singularity-fastqtools.sif oras://quay.io/jaxcompsci/fastqtools:v1.0.0
+    singularity push /projects/chuang-lab/USERS/domans/containers/container-singularity-bafextract.sif oras://quay.io/jaxcompsci/bafextract:v1.0.0
+    singularity push /projects/chuang-lab/USERS/domans/containers/container-singularity-velocyto.sif oras://quay.io/jaxcompsci/velocyto:v1.0.0
+    singularity push /projects/chuang-lab/USERS/domans/containers/container-singularity-python.sif oras://quay.io/jaxcompsci/pythonlow:v1.0.0
+
+</p></details>
+
+
+To download containers for use with the pipeline: change directory to the desirable download location and run the commands below:
+
+    singularity pull docker://quay.io/jaxcompsci/xenome:v1.0.1
+    singularity pull oras://quay.io/jaxcompsci/xenomake:v1.0.0
+    singularity pull oras://quay.io/jaxcompsci/inception:v1.0.0
+    singularity pull oras://quay.io/jaxcompsci/hovernet:v1.0.0
+    singularity pull oras://quay.io/jaxcompsci/stainnet:v1.0.0
+    singularity pull oras://quay.io/jaxcompsci/staintools:v1.0.0
+    singularity pull oras://quay.io/jaxcompsci/vips:v1.0.0
+    singularity pull oras://quay.io/jaxcompsci/fastqtools:v1.0.0
+    singularity pull oras://quay.io/jaxcompsci/bafextract:v1.0.0
+    singularity pull oras://quay.io/jaxcompsci/velocyto:v1.0.0
+    singularity pull oras://quay.io/jaxcompsci/pythonlow:v1.0.0
+
+<details open><summary>Template for conf/containers.config file:</summary><p>
+
+    container_inception        = "${params.container_dir}/inception_v1.0.0.sif"
+    container_hovernet         = "${params.container_dir}/hovernet_v1.0.0.sif"
+    container_stainnet         = "${params.container_dir}/stainnet_v1.0.0.sif"
+    container_staintools       = "${params.container_dir}/staintools_v1.0.0.sif"
+    container_vips             = "${params.container_dir}/vips_v1.0.0.sif"
+    container_xenome           = "${params.container_dir}/xenome_v1.0.1.sif"
+    container_xengsort         = "${params.container_dir}/xenomake_v1.0.0.sif"
+    container_fastqtools       = "${params.container_dir}/fastqtools_v1.0.0.sif"
+    container_spaceranger      = "${params.container_dir}/spaceranger_v1.0.0.sif"
+    container_bafextract       = "${params.container_dir}/bafextract_v1.0.0.sif"
+    container_python           = "${params.container_dir}/python_v1.0.0.sif"
+    container_velocyto         = "${params.container_dir}/velocyto_v1.0.0.sif"
+
+</p></details>
+
+
 + Reference packages for mouse and human (see tool `spaceranger count` below).
 
 + Custom graft and host reference FASTA files to use with reads classification tools.
