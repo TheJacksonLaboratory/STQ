@@ -38,19 +38,22 @@ The description of the pipeline components, parameters, analysis routes, require
 
 ## Running the piepline
 
-<details open><summary>Workflow steps</summary><p>
+<details closed><summary>Animated workflow steps</summary><p>
 
 ![Flow](docs/flow.gif)
 
 </p></details>
 
 
-<details closed><summary>Click to see all steps</summary><p>
+<details open><summary>Summary of all workflow steps</summary><p>
 
 <img src="docs/flow-static.png" width="1200"/>
 
 </p></details>
 
+<br>
+<br>
+<br>
 
 ##### Installation
 + HPC environment with sufficient CPU and RAM and storage resources
@@ -123,7 +126,7 @@ To download containers for use with the pipeline: change directory to the desira
     singularity pull oras://quay.io/jaxcompsci/velocyto:v1.0.0
     singularity pull oras://quay.io/jaxcompsci/pythonlow:v1.0.0
 
-<details open><summary>Template for conf/containers.config file:</summary><p>
+<details closed><summary>Click to get a template for conf/containers.config file:</summary><p>
 
     container_inception        = "${params.container_dir}/inception_v1.0.0.sif"
     container_hovernet         = "${params.container_dir}/hovernet_v1.0.0.sif"
