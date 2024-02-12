@@ -76,7 +76,7 @@ Processing 1 sample requires approximately 100+ CPU hours of computing time. Som
 
       apt-get install -y git
 
-+ The pipeline source code <img src="https://github.githubassets.com/images/modules/logos_page/Octocat.png" height="30"/> (this repository)
++ Get the pipeline source code (this repository)
 
       mkdir my-piepline-run
       cd my-piepline-run
@@ -123,8 +123,6 @@ The column "mpp" is used to specify WSI resolution in microns per pixel. The rec
 ##### Configure the pipeline
 
 Edit any (or all) of the files in `conf` to specify paths to containers, reference genome sequences, deconvolution indices and analysis parameters. See description of the analysis parameters in [conf/README.md](conf/README.md).
-
-Check the defaults or edit the file `conf/analysis.config` to adjust any customizable parameters. See file `conf/README.md` for the description of each parameter.
 
 For JAX users, preparation of the pipeline can be done by editing the file `run.sh` and modifying the following lines:
 + workflow="two_references" ### "two_references" "one_reference" "arbitrary_grid" "deconvolution_indices"
@@ -254,7 +252,7 @@ For each row in the samplesheet (except the header) there is a directory in the 
 
 > Martian pipeline is implemented in GOYACC (https://pkg.go.dev/golang.org/x/tools/cmd/goyacc), i.e., YACC (Yet Another Compiler-Compiler) for GO (https://go.dev/). We build `spaceranger count` pipeline into our pipeline as a nextflow process. 
 
-`space ranger count` is designed to process one capture area of a Visium Spatial Gene Expression Slide for fresh frozen (FF) and formalin fixed paraffin embedded FFPE tissue samples. We use automatic capture area image alignment, where fiducials and the grid are detected by SpaceRanger. Note the image alignment is independent of the reference transcriptome or any sequencing parameters. The image alignment result is generated in the sample output folder under `spatial` and contains six files:
+`spaceranger count` is designed to process one capture area of a Visium Spatial Gene Expression Slide for fresh frozen (FF) and formalin fixed paraffin embedded FFPE tissue samples. We use automatic capture area image alignment, where fiducials and the grid are detected by SpaceRanger. Note the image alignment is independent of the reference transcriptome or any sequencing parameters. The image alignment result is generated in the sample output folder under `spatial` and contains six files:
 + `aligned_fiducials.jpg`
 + `detected_tissue_image.jpg`
 + `scalefactors_json.json`
