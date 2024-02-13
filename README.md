@@ -55,7 +55,7 @@ The description of the pipeline components, parameters, analysis routes, require
 
 ##### Demo data
 
-Once the pipeline and all the prerequisite software are installed, the demo can be executed on a small dataset (https://zenodo.org/records/10654467). To get a copy of the data, modify the `savePath` below to a meaningful location on your computing system and execute the lines. We recommend using an absolute path since it is required to generate a proper samplesheet file. Modify the STQ run.sh file to point input samplesheet to `samplesheet_demo_local.csv`. 
+Once the pipeline and all the prerequisite software are installed, the demo can be executed on a small dataset (https://zenodo.org/records/10654467). To get a copy of the data, modify the `savePath` below to a meaningful location on your computing system and execute the lines. We recommend using an absolute path since it is required to generate a proper samplesheet file. Modify the STQ run.sh file to point input samplesheet to `samplesheet_demo_local.csv`. Demo run is a good test that the software is installed properly and can take approximately 30 minutes to complete.
 
     savePath="/path/to/save/demodata"
 
@@ -161,6 +161,9 @@ To download containers for use with the pipeline: change directory to the desira
 
 + Custom graft and host reference FASTA files to use with reads classification tools.
 
++ If you plan to use StainNet within the pipeline, download the checkpoint from: 
+
+      wget https://github.com/khtao/StainNet/blob/master/checkpoints/aligned_histopathology_dataset/StainNet-Public_layer3_ch32.pth
 
 
 ##### Samplesheet
