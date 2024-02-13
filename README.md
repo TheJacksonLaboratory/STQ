@@ -52,7 +52,20 @@ The description of the pipeline components, parameters, analysis routes, require
 </p></details>
 
 <br>
-<br>
+
+##### Demo data
+
+Once the pipeline and all the prerequisite software are installed, the demo can be executed on a small dataset (https://zenodo.org/records/10654467). To get a copy of the data, modify the `savePath` below to a meaningful location on your computing system and execute the lines. We recommend using an absolute path since it is required to generate a proper samplesheet file. Modify the STQ run.sh file to point input samplesheet to `samplesheet_demo_local.csv`. 
+
+    savePath="/path/to/save/demodata"
+
+    cd $savePath
+    wget https://zenodo.org/records/10654467/files/SC2200092.tiff
+    wget https://zenodo.org/records/10654467/files/fastq.tar
+    tar -xvf fastq.tar
+
+    echo -e "sample,fastq,image,grid,roifile,mpp\nDemo_S1,${savePath}/fastq/,${savePath}/SC2200092.tiff,,,0.22075" > samplesheet_demo_local.csv
+
 <br>
 
 ##### Installation
