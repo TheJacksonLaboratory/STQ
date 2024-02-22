@@ -123,8 +123,8 @@ if __name__ == '__main__':
         except Exception as exception:
             print('Exception:', exception)
         
-    fcutoff = np.quantile(fractions, args.qfraction)
-    fcutoff = min(fcutoff, 0.5)
+    #fcutoff = np.quantile(fractions, args.qfraction)
+    fcutoff = 0.5
     print('fcutoff:', fcutoff)
     
     ms = []
