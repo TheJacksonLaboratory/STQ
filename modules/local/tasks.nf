@@ -444,6 +444,9 @@ process GET_CTRANSPATH_FEATURES {
     --output-path="features/ctranspath_features" \
     --expansion-factor=${params.expansion_factor} \
     --downsample-expanded=${params.downsample_expanded_tile} \
+    --subtiling=${params.subtiling} \
+    --subcoords-factor=${params.subcoords_factor} \
+    --subcoords-list="${params.subcoords_list}" \
     --model=${params.transpath_features_model} \
     --cuda-visible-devices="\$CUDEV"
     """   

@@ -240,9 +240,23 @@ if __name__ == '__main__':
     parser.add_argument('--expansion-factor', dest='expansion', action='store',
                         required=True,
                         help="""Expansion factor, 1 means no expansion""")
+    parser.add_argument('--subtiling', dest='subtiling', action='store',
+                        required=True,
+                        help="""Do subtiling""")
+    parser.add_argument('--subcoords-factor', dest='subcoordsf', action='store',
+                        required=True,
+                        help="""Factor for subtiling subtiling""")                        
+    parser.add_argument('--subcoords-list', dest='subcoords', action='store',
+                        required=True,
+                        help="""Subtiling coordinates""")    
+
     args = parser.parse_args()
     expansion = float(args.expansion)
     downsample = args.downsample=='true'
+    subtiling = args.subtiling=='true'
+
+    subcoordsf = int(args.subcoordsf)
+    subcoords = json.loads(args.subcoords)
 
     if expansion == 1.0:
         print('Expansion factor is 1, requested downsampling:', downsample)
@@ -322,6 +336,8 @@ if __name__ == '__main__':
 
     num_images = len(pos)
     batch_size = int(10**8 / (float(args.expansion) * float(args.expansion) * num_cols * num_rows))
+    if subtiling:
+        batch_size = int(batch_size / 5)
     num_batches = int(np.ceil(num_images / batch_size))
     
     print('Reading and pocessing tiles:', num_images)
@@ -329,18 +345,18 @@ if __name__ == '__main__':
     print('Number of batches:', num_batches)
     
     slide = openslide.open_slide(wsi_file)
-    
+
     w = num_cols
     h = num_rows
     lvl = 0
     features = []
     for ibatch in tqdm(range(num_batches)):
-        sT = time.time()
         images = []
         for indx in range(batch_size):
             try:
                 cy = pos.loc[indx + ibatch*batch_size, 'pxl_row_in_wsi']
                 cx = pos.loc[indx + ibatch*batch_size, 'pxl_col_in_wsi']
+
                 if pos.loc[indx + ibatch*batch_size, 'in_tissue']:
                     if downsample:
                         ew = round(w * expansion)
@@ -348,26 +364,39 @@ if __name__ == '__main__':
                     else:
                         ew = w
                         eh = h
-                        
+                    
                     img = np.array(slide.read_region((int(cx - ew / 2), int(cy - eh / 2)), lvl, (int(ew), int(eh))).convert('RGB'))
-                    
-                    if downsample:
-                        img = img[::int(expansion), ::int(expansion), :]
-                        assert (img.shape[0], img.shape[1])==(w, h), 'Wrong tile dimensions after downsampling!'
-                    
-                    images.append(img)
+
+                    if subtiling:
+                        a = int(np.floor(img.shape[0]/subcoordsf))
+                        b = int(np.floor(img.shape[1]/subcoordsf))
+                        for i, j in subcoords:
+                            subimg = img[a*(i-1): a*(i+1), b*(i-1): b*(i+1), :]
+                            images.append(subimg)
+                    else:
+                        # The downsampling is done to save memory
+                        if downsample:
+                            img = img[::int(expansion), ::int(expansion), :]
+                            assert (img.shape[0], img.shape[1])==(w, h), 'Wrong tile dimensions after downsampling!'
+                        
+                        images.append(img)
+
             except Exception as exception:
                 #print(exception)
-                pass
-        print('Block 1:', time.time() - sT)       
+                pass    
         print('Number of tiles:', len(images)) 
-        
-        sT = time.time()
+
         if len(images)>0:
             images = torch.cat([normalizer(PIL.Image.fromarray(image), size=models[args.model]['size'])[None, :, :, :] for image in images], 0)
             with torch.no_grad():
-                features.append(model(images).cpu().numpy())
-        print('Block 2:', time.time() - sT)
+                temp_features = model(images).cpu().numpy()
+
+                # Average the subtiles, e.g., every 5 subtiles
+                if subtiling:
+                    df_temp = pd.DataFrame(temp_features)
+                    temp_features = df_temp.groupby(np.arange(len(df_temp.index))//len(subcoords)).mean().values
+
+                features.append(temp_features)
         
     features = np.vstack(features)
     
