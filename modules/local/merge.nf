@@ -6,7 +6,7 @@ process MERGE_IMAGING_DATA {
     maxRetries 3
     errorStrategy  { task.attempt <= maxRetries  ? 'retry' : 'finish' }
     publishDir "${params.outdir}/${sample_id}", mode: 'copy', overwrite: true
-    memory { (Float.valueOf(size) / 1000.0).round(2) * params.memory_scale_factor * 3.GB }
+    memory { 1.GB + (Float.valueOf(size) / 1000.0).round(2) * params.memory_scale_factor * 3.GB }
     
     input:
     tuple val(sample_id), path(inception_csv), path(hovernet_csv), val(size)
