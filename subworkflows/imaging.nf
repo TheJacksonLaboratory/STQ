@@ -196,14 +196,21 @@ workflow IMG {
                                              .join(COMPUTE_SEGMENTATION_DATA.out)
                                              .join(CONVERT_TO_TILED_TIFF.out.size) )
 
-            if ( params.extract_tile_features ) {
-                MERGE_IMAGING_DATA ( features_out
-                                     .join(GENERATE_PERSPOT_SEGMENTATION_DATA.out.data)
-                                     .join(CONVERT_TO_TILED_TIFF.out.size) )
-
-                if ( params.do_imaging_anndata ) {
-                    CONVERT_CSV_TO_ANNDATA ( MERGE_IMAGING_DATA.out )
+            if ( params.merge_features_and_nucseg) {
+                if ( params.extract_tile_features ) {
+                    MERGE_IMAGING_DATA ( features_out
+                                         .join(GENERATE_PERSPOT_SEGMENTATION_DATA.out.data)
+                                         .join(CONVERT_TO_TILED_TIFF.out.size) )
+    
+                    if ( params.do_imaging_anndata ) {
+                        CONVERT_CSV_TO_ANNDATA ( MERGE_IMAGING_DATA.out )
+                    }
                 }
+            }
+            else {
+                if ( params.do_imaging_anndata ) {
+                    CONVERT_CSV_TO_ANNDATA ( features_out )
+                }            
             }
         }
         else {

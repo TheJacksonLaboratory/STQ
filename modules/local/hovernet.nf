@@ -70,8 +70,8 @@ process INFER_HOVERNET {
 
     tag "$sample_id"
     label 'process_hovernet'
-    memory { 6.GB + (Float.valueOf(size) / 1000.0).round(2) * params.memory_scale_factor * 4.GB }
-    maxRetries 3
+    memory { 30.GB + (Float.valueOf(size) / 1000.0).round(2) * params.memory_scale_factor * 5.GB }
+    maxRetries 1
     errorStrategy  { task.attempt <= maxRetries  ? 'retry' : 'finish' }
     
     input:

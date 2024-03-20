@@ -122,24 +122,32 @@ if __name__ == '__main__':
                 fractions.append(f)
         except Exception as exception:
             print('Exception:', exception)
-        
+  
+    def get_ms_cs(fcutoff):
+        print('fcutoff:', fcutoff)
+        ms = []
+        cs = []
+        for i, j, f in tqdm(coordsf):
+            # Get in_tissue flags for patch
+            in_tissue = f >= fcutoff
+            print(i, j, in_tissue, f)
+            if in_tissue:
+                try:
+                    m, c = normalizer.estimate(img[r[0][i]:r[0][i+1], r[1][j]:r[1][j+1], :])
+                    ms.append(m)
+                    cs.append(c)
+                except Exception as exception:
+                    print('Exception:', exception)
+        return ms, cs
+
     #fcutoff = np.quantile(fractions, args.qfraction)
-    fcutoff = 0.5
-    print('fcutoff:', fcutoff)
+    ms, cs = get_ms_cs(0.5)
     
-    ms = []
-    cs = []
-    for i, j, f in tqdm(coordsf):
-        # Get in_tissue flags for patch
-        in_tissue = f >= fcutoff
-        print(i, j, in_tissue, f)
-        if in_tissue:
-            try:
-                m, c = normalizer.estimate(img[r[0][i]:r[0][i+1], r[1][j]:r[1][j+1], :])
-                ms.append(m)
-                cs.append(c)
-            except Exception as exception:
-                print('Exception:', exception)
+    if len(ms) == 0:
+        ms, cs = get_ms_cs(0.25)
+        
+    if len(ms) == 0:
+        ms, cs = get_ms_cs(0.125)
 
     ms = np.dstack(ms)
     msm = np.median(ms, axis=2)
