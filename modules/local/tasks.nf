@@ -366,17 +366,17 @@ process GET_INCEPTION_FEATURES {
 
     tag "$sample_id"
     label 'process_inception'
-    maxRetries 3
+    maxRetries 0
     errorStrategy  { task.attempt <= maxRetries  ? 'retry' : 'finish' }
     memory { 6.GB + (Float.valueOf(size) / 1000.0).round(2) * params.memory_scale_factor * 14.GB }
     //publishDir "${params.outdir}/${sample_id}", pattern: 'features/*.tsv.gz', mode: 'copy', overwrite: true
-    publishDir "${params.outdir}/${sample_id}/features", pattern: 'features/*.tsv.gz', saveAs: { filename -> "${params.expansion_factor}-${filename.split("/")[filename.split("/").length - 1]}" }, mode: 'copy', overwrite: true
+    publishDir "${params.outdir}/${sample_id}/features", pattern: 'features/*.tsv.gz', saveAs: { filename -> "${expansion_factor}-${filename.split("/")[filename.split("/").length - 1]}" }, mode: 'copy', overwrite: true
     
     input:
-    tuple val(sample_id), path(image), path(tile_mask), path(grid_csv), path(grid_json), path(meta_grid_csv), path(meta_grid_json), val(size)
+    tuple val(sample_id), path(image), path(tile_mask), path(grid_csv), path(grid_json), path(meta_grid_csv), path(meta_grid_json), val(size), val(expansion_factor)
     
     output:
-    tuple val(sample_id), file("features/inception_features.tsv.gz"), optional: true
+    tuple val(sample_id), file("features/inception_features.tsv.gz"), val(expansion_factor), val("inception"), optional: true
     
     script:
     """
@@ -397,7 +397,7 @@ process GET_INCEPTION_FEATURES {
     --tile-mask="\${vtilemask}" \
     --scalefactors-json-file="${grid_json}" \
     --output-path="features/inception_features" \
-    --expansion-factor=${params.expansion_factor} \
+    --expansion-factor=${expansion_factor} \
     --downsample-expanded=${params.downsample_expanded_tile}
     """   
 }
@@ -411,13 +411,13 @@ process GET_CTRANSPATH_FEATURES {
     errorStrategy  { task.attempt <= maxRetries  ? 'retry' : 'finish' }
     memory { 24.GB + (Float.valueOf(size) / 1000.0).round(2) * params.memory_scale_factor * 16.GB }
     //publishDir "${params.outdir}/${sample_id}", pattern: 'features/*.tsv.gz', mode: 'copy', overwrite: true
-    publishDir "${params.outdir}/${sample_id}/features", pattern: 'features/*.tsv.gz', saveAs: { filename -> "${params.subtiling}-${params.expansion_factor}-${filename.split("/")[filename.split("/").length - 1]}" }, mode: 'copy', overwrite: true
+    publishDir "${params.outdir}/${sample_id}/features", pattern: 'features/*.tsv.gz', saveAs: { filename -> "${params.subtiling}-${expansion_factor}-${filename.split("/")[filename.split("/").length - 1]}" }, mode: 'copy', overwrite: true
     
     input:
-    tuple val(sample_id), path(image), path(tile_mask), path(grid_csv), path(grid_json), path(meta_grid_csv), path(meta_grid_json), val(size)
+    tuple val(sample_id), path(image), path(tile_mask), path(grid_csv), path(grid_json), path(meta_grid_csv), path(meta_grid_json), val(size), val(expansion_factor)
     
     output:
-    tuple val(sample_id), file("features/ctranspath_features.tsv.gz"), optional: true
+    tuple val(sample_id), file("features/ctranspath_features.tsv.gz"), val(expansion_factor), val("ctranspath"), optional: true
     
     script:
     """
@@ -444,7 +444,7 @@ process GET_CTRANSPATH_FEATURES {
     --tile-mask="\${vtilemask}" \
     --scalefactors-json-file="${grid_json}" \
     --output-path="features/ctranspath_features" \
-    --expansion-factor=${params.expansion_factor} \
+    --expansion-factor=${expansion_factor} \
     --downsample-expanded=${params.downsample_expanded_tile} \
     --subtiling=${params.subtiling} \
     --subcoords-factor=${params.subcoords_factor} \

@@ -1,30 +1,37 @@
 
-process MERGE_IMAGING_DATA {
+process CONVERT_SEGMENTATION_DATA {
 
     tag "$sample_id"
-    label 'python_process_low'
-    maxRetries 3
+    label 'python_low_process'
+    maxRetries 1
     errorStrategy  { task.attempt <= maxRetries  ? 'retry' : 'finish' }
     publishDir "${params.outdir}/${sample_id}", mode: 'copy', overwrite: true
     memory { 1.GB + (Float.valueOf(size) / 1000.0).round(2) * params.memory_scale_factor * 3.GB }
     
     input:
-    tuple val(sample_id), path(inception_csv), path(hovernet_csv), val(size)
+    tuple val(sample_id), path(segmentation_csv), val(size)
     
     output:
-    tuple val(sample_id), file("data.csv.gz")
+    tuple val(sample_id), file("segmentaion.h5ad")
     
     script:
     """
     #!/usr/bin/env python
     
-    import pandas as pd
+    import os
+    os.environ["NUMBA_CACHE_DIR"] = "./tmp"
 
-    df_inception = pd.read_csv("${inception_csv}", index_col=0, header=0).sort_index() 
-    df_hovernet = pd.read_csv("${hovernet_csv}", index_col=0, header=0).sort_index().reindex(df_inception.index)
-    df = pd.concat([df_inception, df_hovernet], axis=1, sort=False)
-    df.index.name = 'id'    
-    df.to_csv("data.csv.gz")
+    import pandas as pd
+    import scanpy as sc
+
+    df_temp = pd.read_csv("${segmentation_csv}", index_col=0, header=0).sort_index()
+    df_temp.index.name = 'id'
+    df_temp.insert(0, 'original_barcode', df_temp.index.values)
+
+    ad = sc.AnnData(X=df_temp.loc[:, ~df_temp.columns.str.contains('original_barcode')],
+                    obs=df_temp.loc[:, df_temp.columns.str.contains('original_barcode')])
+
+    ad.write("segmentaion.h5ad")
     """
 }
 
@@ -36,10 +43,10 @@ process CONVERT_CSV_TO_ANNDATA {
     publishDir "${params.outdir}/${sample_id}", mode: 'copy', overwrite: true
 
     input:
-    tuple val(sample_id), path(data_csv)
+    tuple val(sample_id), path(data_csv), val(expansion_factor), val(suffix)
 
     output:
-    tuple val(sample_id), file("img.data.h5ad")
+    tuple val(sample_id), file("img.data.${suffix}-${expansion_factor}.h5ad")
     
     script:
     """
@@ -61,7 +68,7 @@ process CONVERT_CSV_TO_ANNDATA {
     df_temp = None
     gc.collect()
         
-    ad.write("img.data.h5ad")
+    ad.write("img.data.${suffix}-${expansion_factor}.h5ad")
     """
 }
 
