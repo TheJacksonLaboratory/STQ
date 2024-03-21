@@ -12,7 +12,7 @@ process CONVERT_SEGMENTATION_DATA {
     tuple val(sample_id), path(segmentation_csv), val(size)
     
     output:
-    tuple val(sample_id), file("segmentaion.h5ad")
+    tuple val(sample_id), file("segmentation.h5ad")
     
     script:
     """
@@ -31,7 +31,7 @@ process CONVERT_SEGMENTATION_DATA {
     ad = sc.AnnData(X=df_temp.loc[:, ~df_temp.columns.str.contains('original_barcode')],
                     obs=df_temp.loc[:, df_temp.columns.str.contains('original_barcode')])
 
-    ad.write("segmentaion.h5ad")
+    ad.write("segmentation.h5ad")
     """
 }
 
@@ -46,7 +46,7 @@ process CONVERT_CSV_TO_ANNDATA {
     tuple val(sample_id), path(data_csv), val(expansion_factor), val(suffix)
 
     output:
-    tuple val(sample_id), file("img.data.${suffix}-${expansion_factor}.h5ad")
+    tuple val(sample_id), file("img.data.${suffix}-${expansion_factor}.h5ad"), val(expansion_factor), val(suffix)
     
     script:
     """

@@ -42,6 +42,9 @@ include { CONVERT_TO_PYRAMIDAL_OME;
 include { CONVERT_SEGMENTATION_DATA;
           CONVERT_CSV_TO_ANNDATA;
         } from '../modules/local/merge'
+
+include { DIMRED_CLUSTER;
+        } from '../modules/local/postprocessing'
         
 workflow IMG {
 
@@ -220,9 +223,17 @@ workflow IMG {
                                              .join(COMPUTE_SEGMENTATION_DATA.out)
                                              .join(CONVERT_TO_TILED_TIFF.out.size) )
 
-            if ( params.do_segmentation_anndata) {
-                CONVERT_SEGMENTATION_DATA ( GENERATE_PERSPOT_SEGMENTATION_DATA.out.data
-                                            .join(CONVERT_TO_TILED_TIFF.out.size) )
+            if ( params.do_clustering ) {
+                if ( params.do_imaging_anndata ) {
+                    features_selected_out = CONVERT_CSV_TO_ANNDATA.out
+                    .filter{ it[2]== 2 }
+                    .filter{ it[3] == "ctranspath" }
+
+                    DIMRED_CLUSTER ( TILE_WSI.out.grid
+                                     .join(CONVERT_TO_TILED_TIFF.out.thumb)
+                                     .join(GENERATE_PERSPOT_SEGMENTATION_DATA.out.data)
+                                     .join(features_selected_out) )
+                }
             }
         }
 }
