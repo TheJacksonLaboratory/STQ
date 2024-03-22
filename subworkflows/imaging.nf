@@ -133,8 +133,6 @@ workflow IMG {
             SELECT_SAVE_TILES ( CONVERT_TO_TILED_TIFF.out.full
                                 .join(TILE_WSI.out.grid)
                                 .join(GET_TILE_MASK.out.mask) )
-            
-            GET_INCEPTION_FEATURES_TILES ( SELECT_SAVE_TILES.out.tiles )
                                              
             INFER_HOVERNET_TILES ( SELECT_SAVE_TILES.out.tiles )
             
