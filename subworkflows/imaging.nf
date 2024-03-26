@@ -5,6 +5,7 @@ include { LOAD_SAMPLE_INFO;
           COLOR_NORMALIZATION;
           STAIN_NORMALIZATION;
           CONVERT_TO_TILED_TIFF;
+          GET_THUMB;
           GET_PIXEL_MASK;
           TILE_WSI;
           GET_TILE_MASK;
@@ -44,6 +45,7 @@ include { CONVERT_SEGMENTATION_DATA;
         } from '../modules/local/merge'
 
 include { DIMRED_CLUSTER;
+          DIMRED_CLUSTER_MORPH;
         } from '../modules/local/postprocessing'
         
 workflow IMG {
@@ -51,11 +53,7 @@ workflow IMG {
     take:
         samples
 
-    main:
-        //if (params.hovernet_segmentation && params.do_superpixels) {
-        //    error "NotImplementedError: HoVer-Net nuclear segmentation and superpixels subworkflow are incompatible."
-        //}
-    
+    main:    
         images = samples.map{[it[0], (it[1].image)]}
         
         LOAD_SAMPLE_INFO ( samples
@@ -63,74 +61,87 @@ workflow IMG {
          
         GET_IMAGE_SIZE ( LOAD_SAMPLE_INFO.out.main )
         
-        if ( params.export_image_metadata ) {
-            EXTRACT_IMAGE_METADATA ( LOAD_SAMPLE_INFO.out.main
-                                     .join(GET_IMAGE_SIZE.out) )
-        }
-        
-        EXTRACT_ROI ( LOAD_SAMPLE_INFO.out.main
-                      .join(GET_IMAGE_SIZE.out) )
+        if ( params.short_workflow ) {
+            GET_THUMB ( LOAD_SAMPLE_INFO.out.image )
 
-        if ( params.stain_normalization ) {
-            if ( params.macenko_normalization ) {
-                STAIN_NORMALIZATION ( EXTRACT_ROI.out.image
-                                      .join(GET_IMAGE_SIZE.out) )
-                
-                normimage = STAIN_NORMALIZATION.out
-                }
-            else {
-                COLOR_NORMALIZATION ( EXTRACT_ROI.out.image
-                                      .join(GET_IMAGE_SIZE.out) )
-                
-                normimage = COLOR_NORMALIZATION.out
-                }
-            
-            CONVERT_TO_TILED_TIFF ( normimage )
+            convertedimage = LOAD_SAMPLE_INFO.out.image
+            thumbimage = GET_THUMB.out
+            imagesize = GET_IMAGE_SIZE.out
+        }
+        else {
+            if ( params.export_image_metadata ) {
+                EXTRACT_IMAGE_METADATA ( LOAD_SAMPLE_INFO.out.main
+                                         .join(GET_IMAGE_SIZE.out) )
             }
-        else
-            CONVERT_TO_TILED_TIFF ( EXTRACT_ROI.out.image )
-        
-        if ( params.export_image ) {
-            CONVERT_TO_PYRAMIDAL_OME ( CONVERT_TO_TILED_TIFF.out.full )
+            
+            EXTRACT_ROI ( LOAD_SAMPLE_INFO.out.main
+                          .join(GET_IMAGE_SIZE.out) )
+    
+            if ( params.stain_normalization ) {
+                if ( params.macenko_normalization ) {
+                    STAIN_NORMALIZATION ( EXTRACT_ROI.out.image
+                                          .join(GET_IMAGE_SIZE.out) )
+                    
+                    normimage = STAIN_NORMALIZATION.out
+                    }
+                else {
+                    COLOR_NORMALIZATION ( EXTRACT_ROI.out.image
+                                          .join(GET_IMAGE_SIZE.out) )
+                    
+                    normimage = COLOR_NORMALIZATION.out
+                    }
+                
+                CONVERT_TO_TILED_TIFF ( normimage )
+                }
+            else
+                CONVERT_TO_TILED_TIFF ( EXTRACT_ROI.out.image )
+            
+            convertedimage = CONVERT_TO_TILED_TIFF.out.full
+            thumbimage = CONVERT_TO_TILED_TIFF.out.thumb
+            imagesize = CONVERT_TO_TILED_TIFF.out.size
+            
+            if ( params.export_image ) {
+                CONVERT_TO_PYRAMIDAL_OME ( convertedimage )
+            }
         }
 
 
         if ( params.check_focus ) {
-            CHECK_FOCUS ( CONVERT_TO_TILED_TIFF.out.full
-                          .join(CONVERT_TO_TILED_TIFF.out.size) )
+            CHECK_FOCUS ( convertedimage
+                          .join(imagesize) )
         }
         
         if ( params.do_superpixels ) {
-            SUPERPIXELATION ( CONVERT_TO_TILED_TIFF.out.full
-                              .join(CONVERT_TO_TILED_TIFF.out.size) )
+            SUPERPIXELATION ( convertedimage
+                              .join(imagesize) )
             
             if ( params.export_superpixels_contours ) {
-                EXPORT_DOWN_IMAGE_FOR_CONTOURS ( CONVERT_TO_TILED_TIFF.out.full
-                                  .join(CONVERT_TO_TILED_TIFF.out.size) )
+                EXPORT_DOWN_IMAGE_FOR_CONTOURS ( convertedimage
+                                  .join(imagesize) )
             
                 EXPORT_SUPERPIXELATION_CONTOURS ( SUPERPIXELATION.out.main
-                                                  .join(CONVERT_TO_TILED_TIFF.out.size) )
+                                                  .join(imagesize) )
                 }
             }
 
 
-        GET_PIXEL_MASK ( CONVERT_TO_TILED_TIFF.out.thumb
-                         .join(CONVERT_TO_TILED_TIFF.out.size) )
+        GET_PIXEL_MASK ( thumbimage
+                         .join(imagesize) )
         
-        TILE_WSI ( CONVERT_TO_TILED_TIFF.out.full
+        TILE_WSI ( convertedimage
                   .join(LOAD_SAMPLE_INFO.out.grid)
-                  .join(CONVERT_TO_TILED_TIFF.out.size)
+                  .join(imagesize)
                   .join(LOAD_SAMPLE_INFO.out.mpp) )
         
-        GET_TILE_MASK ( CONVERT_TO_TILED_TIFF.out.thumb
+        GET_TILE_MASK ( thumbimage
                         .join(GET_PIXEL_MASK.out)
                         .join(TILE_WSI.out.grid) 
-                        .join(CONVERT_TO_TILED_TIFF.out.size))    
+                        .join(imagesize))    
                         
                         
         // Tilitng sub-workflow for a small number of tiles
         if ( params.sample_tiles_subworkflow ) {
-            SELECT_SAVE_TILES ( CONVERT_TO_TILED_TIFF.out.full
+            SELECT_SAVE_TILES ( convertedimage
                                 .join(TILE_WSI.out.grid)
                                 .join(GET_TILE_MASK.out.mask) )
                                              
@@ -142,22 +153,22 @@ workflow IMG {
         
         if ( params.extract_tile_features ) {        
             if (params.extract_inception_features) {
-                GET_INCEPTION_FEATURES ( CONVERT_TO_TILED_TIFF.out.full
+                GET_INCEPTION_FEATURES ( convertedimage
                                          .join(GET_TILE_MASK.out.mask)
                                          .join(TILE_WSI.out.grid)
                                          .join(LOAD_SAMPLE_INFO.out.grid)
-                                         .join(CONVERT_TO_TILED_TIFF.out.size)
+                                         .join(imagesize)
                                          .combine(Channel.fromList(params.expansion_factor)) )
                 
                 features_out = GET_INCEPTION_FEATURES.out
             }
 
             if (params.extract_transpath_features) {                   
-                GET_CTRANSPATH_FEATURES ( CONVERT_TO_TILED_TIFF.out.full
+                GET_CTRANSPATH_FEATURES ( convertedimage
                                          .join(GET_TILE_MASK.out.mask)
                                          .join(TILE_WSI.out.grid)
                                          .join(LOAD_SAMPLE_INFO.out.grid)
-                                         .join(CONVERT_TO_TILED_TIFF.out.size)
+                                         .join(imagesize)
                                          .combine(Channel.fromList(params.expansion_factor)) )
                 
                 if (params.extract_inception_features) {
@@ -177,25 +188,25 @@ workflow IMG {
         
             GET_TISSUE_MASK ( TILE_WSI.out.grid
                       .join(GET_TILE_MASK.out.mask)
-                      .join(CONVERT_TO_TILED_TIFF.out.size) )
+                      .join(imagesize) )
                       
             if ( params.hovernet_segmentation ) {
-                INFER_HOVERNET ( CONVERT_TO_TILED_TIFF.out.full
+                INFER_HOVERNET ( convertedimage
                                  .join(GET_TISSUE_MASK.out)
-                                 .join(CONVERT_TO_TILED_TIFF.out.size) )
+                                 .join(imagesize) )
                 
                 jsonout = INFER_HOVERNET.out.json
                                  
-                GET_NUCLEI_MASK_FROM_HOVERNET_JSON ( CONVERT_TO_TILED_TIFF.out.full
+                GET_NUCLEI_MASK_FROM_HOVERNET_JSON ( convertedimage
                                                      .join(jsonout)
-                                                     .join(CONVERT_TO_TILED_TIFF.out.size) )
+                                                     .join(imagesize) )
                 
                 segmaskout = GET_NUCLEI_MASK_FROM_HOVERNET_JSON.out
             }
             else {
-                INFER_STARDIST ( CONVERT_TO_TILED_TIFF.out.full
+                INFER_STARDIST ( convertedimage
                                  .join(GET_TISSUE_MASK.out)
-                                 .join(CONVERT_TO_TILED_TIFF.out.size) )
+                                 .join(imagesize) )
             
                 jsonout = INFER_STARDIST.out.json
                 segmaskout = INFER_STARDIST.out.mask
@@ -204,32 +215,45 @@ workflow IMG {
             COMPRESS_JSON_FILE ( jsonout )
         
             COMPUTE_SEGMENTATION_DATA ( jsonout
-                                        .join(CONVERT_TO_TILED_TIFF.out.size) )
+                                        .join(imagesize) )
             
             if ( params.do_superpixels ) {
-                CALCULATE_CELLS_OD ( CONVERT_TO_TILED_TIFF.out.full
+                CALCULATE_CELLS_OD ( convertedimage
                                      .join(segmaskout)
                                      .join(COMPUTE_SEGMENTATION_DATA.out)
-                                     .join(CONVERT_TO_TILED_TIFF.out.size) )
+                                     .join(imagesize) )
                                      
                 ASSIGN_NUCLEI_TO_SUPERPIXELS ( SUPERPIXELATION.out.main
                                                .join(CALCULATE_CELLS_OD.out)
-                                               .join(CONVERT_TO_TILED_TIFF.out.size) )
+                                               .join(imagesize) )
                 }
 
             GENERATE_PERSPOT_SEGMENTATION_DATA ( TILE_WSI.out.grid
                                              .join(COMPUTE_SEGMENTATION_DATA.out)
-                                             .join(CONVERT_TO_TILED_TIFF.out.size) )
+                                             .join(imagesize) )
 
             if ( params.do_clustering ) {
                 if ( params.do_imaging_anndata ) {
                     features_selected_out = CONVERT_CSV_TO_ANNDATA.out
-                    .filter{ it[2]== 2 }
-                    .filter{ it[3] == "ctranspath" }
+                    .filter{ it[2]== params.expansion_factor_for_clustering }
+                    .filter{ it[3] == params.suffix_for_clustering }
+
+                    DIMRED_CLUSTER_MORPH ( TILE_WSI.out.grid
+                                         .join(thumbimage)
+                                         .join(GENERATE_PERSPOT_SEGMENTATION_DATA.out.data)
+                                         .join(features_selected_out) )
+                }
+            }
+        }
+        else {
+            if ( params.do_clustering ) {
+                if ( params.do_imaging_anndata ) {
+                    features_selected_out = CONVERT_CSV_TO_ANNDATA.out
+                    .filter{ it[2]== params.expansion_factor_for_clustering }
+                    .filter{ it[3] == params.suffix_for_clustering }
 
                     DIMRED_CLUSTER ( TILE_WSI.out.grid
-                                     .join(CONVERT_TO_TILED_TIFF.out.thumb)
-                                     .join(GENERATE_PERSPOT_SEGMENTATION_DATA.out.data)
+                                     .join(thumbimage)
                                      .join(features_selected_out) )
                 }
             }

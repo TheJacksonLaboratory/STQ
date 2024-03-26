@@ -10,6 +10,7 @@ process LOAD_SAMPLE_INFO {
     tuple val(sample_id), file(image), file("roifile.json"), env(mpp), emit: main
     tuple val(sample_id), file("tissue_positions_list.csv"), file("scalefactors_json.json"), emit: grid
     tuple val(sample_id), env(mpp), emit: mpp
+    tuple val(sample_id), file(image), emit: image
     
     script:
     """
@@ -179,6 +180,38 @@ process CONVERT_TO_TILED_TIFF {
     
     size=`echo "\$w * \$h / 1000000" | bc -l`
     size=`echo "\$size/1" | bc`
+    """
+}
+
+
+process GET_THUMB {
+
+    tag "$sample_id"
+    label 'process_extract'
+    maxRetries 0
+    errorStrategy  { task.attempt <= maxRetries  ? 'retry' : 'finish' }
+    memory { 64.GB }
+    publishDir "${params.outdir}/${sample_id}", pattern: 'thumbnail.tiff', mode: 'copy', overwrite: true
+    
+    input:
+    tuple val(sample_id), path(image)
+    
+    output:
+    tuple val(sample_id), file("thumbnail.tiff")
+
+    script:    
+    """
+    #!/usr/bin/env python
+    
+    import openslide
+    s = openslide.open_slide("${image}")
+    
+    f = ${params.thumbnail_downsample_factor}
+    x, y = int(s.dimensions[0] * f), int(s.dimensions[1] * f)
+    print(x, y)
+
+    img = s.get_thumbnail((x, y))
+    img.save("thumbnail.tiff")
     """
 }
 
@@ -366,7 +399,7 @@ process GET_INCEPTION_FEATURES {
 
     tag "$sample_id"
     label 'process_inception'
-    maxRetries 0
+    maxRetries 1
     errorStrategy  { task.attempt <= maxRetries  ? 'retry' : 'finish' }
     memory { 6.GB + (Float.valueOf(size) / 1000.0).round(2) * params.memory_scale_factor * 14.GB }
     //publishDir "${params.outdir}/${sample_id}", pattern: 'features/*.tsv.gz', mode: 'copy', overwrite: true
@@ -407,7 +440,7 @@ process GET_CTRANSPATH_FEATURES {
 
     tag "$sample_id"
     label 'process_ctranspath'
-    maxRetries 0
+    maxRetries 1
     errorStrategy  { task.attempt <= maxRetries  ? 'retry' : 'finish' }
     memory { 24.GB + (Float.valueOf(size) / 1000.0).round(2) * params.memory_scale_factor * 16.GB }
     //publishDir "${params.outdir}/${sample_id}", pattern: 'features/*.tsv.gz', mode: 'copy', overwrite: true
