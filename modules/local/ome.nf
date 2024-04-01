@@ -19,14 +19,15 @@ process CONVERT_TO_PYRAMIDAL_OME {
     export _JAVA_OPTIONS="-Xmx24g"
     bfconvert -version
 
-    bfconvert -noflat -bigtiff \
-    -pyramid-resolutions 3 \
-    -pyramid-scale 4 \
-    -tilex ${params.tiled_tiff_tile_size} \
-    -tiley ${params.tiled_tiff_tile_size} \
-    -compression ${params.compression} \
-    "${image}" \
-    image.ome.tiff
+    bfconvert -noflat -bigtiff -overwrite \
+    -pyramid-resolutions 3 -pyramid-scale 4 -tilex ${params.tiled_tiff_tile_size} -tiley ${params.tiled_tiff_tile_size} \
+    -compression ${params.compression} "${image}" image.ome.tiff || \
+    bfconvert -noflat -bigtiff -overwrite \
+    -pyramid-resolutions 2 -pyramid-scale 4 -tilex ${params.tiled_tiff_tile_size} -tiley ${params.tiled_tiff_tile_size} \
+    -compression ${params.compression} "${image}" image.ome.tiff || \
+    bfconvert -noflat -bigtiff -overwrite \
+    -pyramid-resolutions 1 -pyramid-scale 4 -tilex ${params.tiled_tiff_tile_size} -tiley ${params.tiled_tiff_tile_size} \
+    -compression ${params.compression} "${image}" image.ome.tiff
     """
 }
 

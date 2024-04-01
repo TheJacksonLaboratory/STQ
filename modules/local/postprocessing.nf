@@ -93,7 +93,7 @@ process DIMRED_CLUSTER_MORPH {
     # Dimensionality reduction
     sc.pp.highly_variable_genes(ad, flavor='seurat', n_top_genes=500)
     sc.pp.scale(ad)
-    sc.pp.pca(ad, n_comps=30, zero_center=False, use_highly_variable=True)
+    sc.pp.pca(ad, n_comps=min(30, ad.shape[0]-1), zero_center=False, use_highly_variable=True)
     sc.pp.neighbors(ad, use_rep='X_pca')
     sc.tl.umap(ad)
     
@@ -196,7 +196,7 @@ process DIMRED_CLUSTER {
     # Dimensionality reduction
     sc.pp.highly_variable_genes(ad, flavor='seurat', n_top_genes=500)
     sc.pp.scale(ad)
-    sc.pp.pca(ad, n_comps=30, zero_center=False, use_highly_variable=True)
+    sc.pp.pca(ad, n_comps=min(30, ad.shape[0]-1), zero_center=False, use_highly_variable=True)
     sc.pp.neighbors(ad, use_rep='X_pca')
     sc.tl.umap(ad)
     

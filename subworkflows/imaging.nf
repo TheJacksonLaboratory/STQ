@@ -180,7 +180,9 @@ workflow IMG {
             }
             
             if ( params.do_imaging_anndata ) {
-                CONVERT_CSV_TO_ANNDATA ( features_out )
+                CONVERT_CSV_TO_ANNDATA ( features_out
+                .filter{ it[2]== params.expansion_factor_for_clustering }
+                .filter{ it[3] == params.suffix_for_clustering } )
             }
         }
 

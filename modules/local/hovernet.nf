@@ -70,7 +70,7 @@ process INFER_HOVERNET {
 
     tag "$sample_id"
     label 'process_hovernet'
-    memory { 30.GB + (Float.valueOf(size) / 1000.0).round(2) * params.memory_scale_factor * 5.GB }
+    memory { 30.GB + (Float.valueOf(size) / 1000.0).round(2) * params.memory_scale_factor * 12.GB }
     maxRetries 0
     errorStrategy  { task.attempt <= maxRetries  ? 'retry' : 'finish' }
     
@@ -367,7 +367,7 @@ process COMPUTE_SEGMENTATION_DATA {
     maxRetries 3
     errorStrategy  { task.attempt <= maxRetries  ? 'retry' : 'finish' }
     publishDir "${params.outdir}/${sample_id}", mode: 'copy', overwrite: true
-    memory { 3.GB + (Float.valueOf(size) / 1000.0).round(2) * params.memory_scale_factor * 3.GB }
+    memory { 4.GB * task.attempt + (Float.valueOf(size) / 1000.0).round(2) * params.memory_scale_factor * 4.GB * task.attempt }
     
     input:
     tuple val(sample_id), path(hovernet_json), val(size)
@@ -399,7 +399,7 @@ process GENERATE_PERSPOT_SEGMENTATION_DATA {
     maxRetries 3
     errorStrategy  { task.attempt <= maxRetries  ? 'retry' : 'finish' }
     publishDir "${params.outdir}/${sample_id}", mode: 'copy', overwrite: true
-    memory { 3.GB + (Float.valueOf(size) / 1000.0).round(2) * params.memory_scale_factor * 3.GB }
+    memory { 4.GB * task.attempt + (Float.valueOf(size) / 1000.0).round(2) * params.memory_scale_factor * 4.GB * task.attempt }
     
     input:
     tuple val(sample_id), path(grid_csv), path(grid_json), path(hovernet_csv), val(size)
