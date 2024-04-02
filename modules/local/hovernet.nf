@@ -123,7 +123,7 @@ process GET_NUCLEI_MASK_FROM_HOVERNET_JSON {
     label 'python_process_low'
     maxRetries 2
     errorStrategy  { task.attempt <= maxRetries  ? 'retry' : 'finish' }
-    memory { 3.GB + (Float.valueOf(size) / 1000.0).round(2) * params.memory_scale_factor * 6.GB }
+    memory { 6.GB + (Float.valueOf(size) / 1000.0).round(2) * params.memory_scale_factor * task.attempt * 6.GB }
     
     input:
     tuple val(sample_id), path(image), file(json), val(size)
@@ -180,7 +180,7 @@ process INFER_HOVERNET_TILES {
     maxRetries 1
     errorStrategy  { task.attempt <= maxRetries  ? 'retry' : 'finish' }
     publishDir "${params.outdir}/${sample_id}/tiles", pattern: 'temp/overlay/*.png', saveAs: { filename -> "${filename.split("/")[filename.split("/").length - 1]}" }, mode: 'copy', overwrite: true
-    memory { 8.GB }
+    memory { 16.GB }
     
     input:
     tuple val(sample_id), path("tiles/")
@@ -367,7 +367,7 @@ process COMPUTE_SEGMENTATION_DATA {
     maxRetries 3
     errorStrategy  { task.attempt <= maxRetries  ? 'retry' : 'finish' }
     publishDir "${params.outdir}/${sample_id}", mode: 'copy', overwrite: true
-    memory { 4.GB * task.attempt + (Float.valueOf(size) / 1000.0).round(2) * params.memory_scale_factor * 4.GB * task.attempt }
+    memory { 6.GB * task.attempt + (Float.valueOf(size) / 1000.0).round(2) * params.memory_scale_factor * 6.GB * task.attempt }
     
     input:
     tuple val(sample_id), path(hovernet_json), val(size)
