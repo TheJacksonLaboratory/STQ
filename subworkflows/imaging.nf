@@ -30,6 +30,7 @@ include { GET_NUCLEI_MASK_FROM_HOVERNET_JSON;
           INFER_HOVERNET_TILES;
           GET_NUCLEI_TYPE_COUNTS;
           INFER_HOVERNET;
+          INFER_PREP_HOVERNET;
           INFER_STARDIST;
           COMPRESS_JSON_FILE;
           COMPUTE_SEGMENTATION_DATA;
@@ -193,9 +194,14 @@ workflow IMG {
                       .join(imagesize) )
                       
             if ( params.hovernet_segmentation ) {
+                INFER_PREP_HOVERNET ( convertedimage
+                                   .join(GET_TISSUE_MASK.out)
+                                   .join(imagesize) )
+
                 INFER_HOVERNET ( convertedimage
                                  .join(GET_TISSUE_MASK.out)
-                                 .join(imagesize) )
+                                 .join(imagesize)
+                                 .join(INFER_PREP_HOVERNET.out) )
                 
                 jsonout = INFER_HOVERNET.out.json
                                  

@@ -66,7 +66,7 @@ process CHECK_MASK {
 }
 
 
-process INFER_HOVERNET {
+process INFER_PREP_HOVERNET {
 
     tag "$sample_id"
     label 'process_hovernet'
@@ -78,7 +78,7 @@ process INFER_HOVERNET {
     tuple val(sample_id), path(image), path(mask), val(size)
     
     output:
-    tuple val(sample_id), file("${params.nuclei_segmentation_dir}/outfile.json"), emit: json
+    tuple val(sample_id), file("cache/pred_map.npy")
     
     script:
     """
@@ -102,6 +102,52 @@ process INFER_HOVERNET {
     --type_info_path=/hover_net/type_info.json \
     --model_path=/hovernet_fast_pannuke_type_tf2pytorch.tar \
     --batch_size=${params.hovernet_batch_size} \
+    --run_prep_stage \
+    wsi \
+    --input_dir="./${image}" \
+    --output_dir=hovernet/ \
+    --input_mask_dir=mask/ \
+    --slide_mag=40 \
+    --proc_mag=40 \
+    --chunk_shape=${params.hovernet_chunk_size} \
+    --tile_shape=${params.hovernet_tile_size} 
+    """ 
+}
+
+process INFER_HOVERNET {
+
+    tag "$sample_id"
+    label 'process_hovernet'
+    memory { 30.GB + (Float.valueOf(size) / 1000.0).round(2) * params.memory_scale_factor * 12.GB }
+    maxRetries 0
+    errorStrategy  { task.attempt <= maxRetries  ? 'retry' : 'finish' }
+    
+    input:
+    tuple val(sample_id), path(image), path(mask), val(size), file("cache/pred_map.npy")
+    
+    output:
+    tuple val(sample_id), file("${params.nuclei_segmentation_dir}/outfile.json"), emit: json
+    
+    script:
+    """
+    [ ! -d "mask" ] && mkdir "mask"
+    cp ${mask} mask/outfile.png
+
+    # stage as "cache/pred_map.npy"
+
+     
+    python /hover_net/run_infer.py \
+    --gpu="" \
+    --device_mode="cpu" \
+    --cpu_count=${task.cpus} \
+    --model_mode=fast \
+    --nr_inference_workers=${params.hovernet_num_inference_workers} \
+    --nr_post_proc_workers=${task.cpus} \
+    --nr_types=6 \
+    --type_info_path=/hover_net/type_info.json \
+    --model_path=/hovernet_fast_pannuke_type_tf2pytorch.tar \
+    --batch_size=${params.hovernet_batch_size} \
+    --run_post_stage \
     wsi \
     --input_dir="./${image}" \
     --output_dir=hovernet/ \
