@@ -111,7 +111,7 @@ The singularity containers used in our pipeline can be downloaded or built with 
 
     singularity remote login -u <user> docker://quay.io
 
-    singularity push /projects/chuang-lab/USERS/domans/containers/local/mamba-xenomake.sif oras://quay.io/jaxcompsci/xenomake:v1.0.0
+    singularity push /projects/chuang-lab/USERS/domans/containers/local/mamba-xenomake.sif oras://quay.io/jaxcompsci/xenomake:1.0.0
     singularity push /projects/chuang-lab/USERS/domans/containers/container-mamba-inception.sif oras://quay.io/jaxcompsci/inception:v1.0.0
     singularity push /projects/chuang-lab/USERS/domans/containers/container-singularity-hovernet-py.sif oras://quay.io/jaxcompsci/hovernet:v1.0.0
     singularity push /projects/chuang-lab/USERS/domans/containers/container-singularity-stainnet.sif oras://quay.io/jaxcompsci/stainnet:v1.0.0
