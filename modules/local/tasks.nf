@@ -78,7 +78,7 @@ process EXTRACT_ROI {
     label 'process_extract'
     maxRetries 1
     errorStrategy  { task.attempt <= maxRetries  ? 'retry' : 'finish' }
-    memory { 6.GB + (Float.valueOf(size) / 1000.0).round(2) * params.memory_scale_factor * 12.GB }
+    memory { 6.GB + (Float.valueOf(size) / 1000.0).round(2) * params.memory_scale_factor * 18.GB }
 
     input:
     tuple val(sample_id), path(fileslide), path(roifile), val(mpp), val(size)

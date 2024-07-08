@@ -117,7 +117,7 @@ process INFER_PREP_HOVERNET {
 process INFER_HOVERNET {
 
     tag "$sample_id"
-    label 'process_hovernet'
+    label 'process_post_hovernet'
     memory { 30.GB + (Float.valueOf(size) / 1000.0).round(2) * params.memory_scale_factor * 12.GB }
     maxRetries 0
     errorStrategy  { task.attempt <= maxRetries  ? 'retry' : 'finish' }

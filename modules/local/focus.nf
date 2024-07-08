@@ -18,6 +18,6 @@ process CHECK_FOCUS {
     """
     [ ! -d "output" ] && mkdir "output"
     
-    python3 /deepfocus/runDeepFocus.py --checkpoint-dir=/deepfocus/ --wsi-file="${image}" --output-dir="output/"
+    python3 /deepfocus/runDeepFocus.py --checkpoint-dir="${params.deepfocus_model_path}" --wsi-file="${image}" --output-dir="output/"
     """
 }

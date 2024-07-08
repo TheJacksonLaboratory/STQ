@@ -5,7 +5,7 @@ process CONVERT_TO_PYRAMIDAL_OME {
     label 'process_ome'
     maxRetries 1
     errorStrategy  { task.attempt <= maxRetries  ? 'retry' : 'finish' }
-    publishDir "${params.outdir}/${sample_id}", pattern: 'image.ome.tiff', mode: 'copy', overwrite: true
+    publishDir "${params.outdir}/${sample_id}", pattern: 'image.ome.tiff', mode: 'copy', overwrite: false
     
     input:
     tuple val(sample_id), path(image)
