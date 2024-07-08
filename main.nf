@@ -7,6 +7,10 @@ include { ONE } from './workflows/one_reference'
 include { TWO } from './workflows/two_references'
 include { XINDEX } from './subworkflows/xenome_index'
 
+include { EXPORT_PARAMETERS;
+          EXPORT_SAMPLEINFO;
+        } from './modules/local/load'
+
 workflow {
 
     Channel
@@ -14,6 +18,9 @@ workflow {
     .splitCsv(header:true, sep:',')
     .map( { it -> [ (it.sample), it ] } )
     .set{ samples }
+    
+    EXPORT_PARAMETERS ()
+    EXPORT_SAMPLEINFO ( samples )
 
     if ( params.workflow == "arbitrary_grid" ) {
         ARB ( samples )
