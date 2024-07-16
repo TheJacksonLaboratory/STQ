@@ -1,5 +1,16 @@
 ﻿# Nextflow Pipeline for Visium and H&E Data Processing
 
+
+**Publication citation:**
+> Domanskyi S, Srivastava A, Kaster J, Li H, Herlyn M, Rubinstein JC, Chuang JH. Nextflow pipeline for Visium and H&E data from patient-derived xenograft samples. Cell Rep Methods. 2024 May 20;4(5):100759. doi: 10.1016/j.crmeth.2024.100759. Epub 2024 Apr 15. PMID: 38626768; PMCID: PMC11133696.
+
+**Associated data and source code DOI:**
+> 1. Domanskyi, S., Srivastava, A., Kaster, J., Li, H., Herlyn, M., Rubinstein, J. C., & Chuang, J. H. (2024). Nextflow Pipeline for Visium and H&E Data from Patient-Derived Xenograft Samples (v0.2.0). Zenodo. https://doi.org/10.5281/zenodo.10839655
+
+> 2. Domanskyi, S., Srivastava, A., Kaster, J., Li, H., Herlyn, M., Rubinstein, J. C., & Chuang, J. H. (2024). WM4237 TE histology images, H&E stain [Data set]. Zenodo. https://doi.org/10.5281/zenodo.12746982
+
+> 3. Domanskyi, S. (2024). Demo 10x Visium dataset for STQ [Data set]. Zenodo. [https://doi.org/10.5281/zenodo.10654467](https://doi.org/10.5281/zenodo.10654467)
+
 - [Overview](#overview)
 - [Motivation](#Motivation)
 - [Documentation](#Documentation)
@@ -27,6 +38,7 @@
 ## Overview
 
 This repository contains the source code of the nextflow implementation of the 10x Visium Spatial Gene Expression data and full-resolution H&E-stained Whole Slide Images (WSI) processing developed at [The Jackson Laboratory](https://www.jax.org/ "The Jackson Laboratory"). The overview of the pipeline is shown above. The primary input consists of compressed FASTQ files, reference FASTA files, and a full-resolution image of the 10x Visium Slide sample. Additional required inputs include either pre-built Xenome indices or host and graft genome assemblies, mouse and human reference transcriptomes for reads mapping, DL pre-trained model weights, and singularity containers with software tools.
+
 
 ## Motivation
 
