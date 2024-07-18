@@ -116,8 +116,8 @@ def getGrid(x: int, y: int, grid_type: str = 'hex', factor: float = 64/39, magni
             if (temp_x + tile_size_pixels/2. <= x) and (temp_y + tile_size_pixels/2. <= y):
                 _grid.append([1, j, i, temp_y, temp_x])
                 
-    _grid = pd.DataFrame(_grid).T.set_index(0).T
-    _grid.index = 'tile-' + _grid.index.astype(str).str.pad(8, fillchar='0')
+    _grid = pd.DataFrame(columns=np.array(_grid[0]), data=np.array(_grid[1:]))
+    _grid.index = 'tile-' + (_grid.index+1).astype(str).str.pad(8, fillchar='0')
     _grid.index.name = 'barcode'
     
     if not savepath is None:

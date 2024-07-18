@@ -254,7 +254,7 @@ process GET_TISSUE_MASK {
     maxRetries 3
     errorStrategy  { task.attempt <= maxRetries  ? 'retry' : 'finish' }
     publishDir "${params.outdir}/${sample_id}", mode: 'copy', overwrite: true
-    memory { 3.GB + (Float.valueOf(size) / 1000.0).round(2) * params.memory_scale_factor * 3.GB }
+    memory { 3.GB + (Float.valueOf(size) / 1000.0).round(2) * params.memory_scale_factor * 6.GB * task.attempt }
     
     input:
     tuple val(sample_id), path(meta_grid_csv), path(meta_grid_json), path(tile_mask), val(size)
@@ -289,7 +289,7 @@ process TILE_WSI {
     maxRetries 3
     errorStrategy  { task.attempt <= maxRetries  ? 'retry' : 'finish' }
     publishDir "${params.outdir}/${sample_id}", mode: 'copy', overwrite: true
-    memory { 3.GB + (Float.valueOf(size) / 1000.0).round(2) * params.memory_scale_factor * 3.GB }
+    memory { 3.GB + (Float.valueOf(size) / 1000.0).round(2) * params.memory_scale_factor * 6.GB * task.attempt }
     
     input:
     tuple val(sample_id), path(image), path(meta_grid_csv), path(meta_grid_json), val(size), val(mpp)
@@ -369,7 +369,7 @@ process GET_TILE_MASK {
     maxRetries 3
     errorStrategy  { task.attempt <= maxRetries  ? 'retry' : 'finish' }
     publishDir "${params.outdir}/${sample_id}", mode: 'copy', overwrite: true
-    memory { 3.GB + (Float.valueOf(size) / 1000.0).round(2) * params.memory_scale_factor * 3.GB }
+    memory { 3.GB + (Float.valueOf(size) / 1000.0).round(2) * params.memory_scale_factor * 6.GB * task.attempt }
     
     input:
     tuple val(sample_id), path(low_res_image), path(pixel_mask_csv), path(grid_csv), path(grid_json), val(size)
