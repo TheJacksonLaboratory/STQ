@@ -5,6 +5,7 @@ include { LOAD_SAMPLE_INFO;
           COLOR_NORMALIZATION;
           STAIN_NORMALIZATION;
           CONVERT_TO_TILED_TIFF;
+          RESIZE_IMAGE;
           GET_THUMB;
           GET_PIXEL_MASK;
           TILE_WSI;
@@ -77,17 +78,22 @@ workflow IMG {
             
             EXTRACT_ROI ( LOAD_SAMPLE_INFO.out.main
                           .join(GET_IMAGE_SIZE.out) )
+                          
+            RESIZE_IMAGE ( EXTRACT_ROI.out.image )
+            
+            imageroi = RESIZE_IMAGE.out.full
+            imagesize = RESIZE_IMAGE.out.size
     
             if ( params.stain_normalization ) {
                 if ( params.macenko_normalization ) {
-                    STAIN_NORMALIZATION ( EXTRACT_ROI.out.image
-                                          .join(GET_IMAGE_SIZE.out) )
+                    STAIN_NORMALIZATION ( imageroi
+                                          .join(imagesize) )
                     
                     normimage = STAIN_NORMALIZATION.out
                     }
                 else {
-                    COLOR_NORMALIZATION ( EXTRACT_ROI.out.image
-                                          .join(GET_IMAGE_SIZE.out) )
+                    COLOR_NORMALIZATION ( imageroi
+                                          .join(imagesize) )
                     
                     normimage = COLOR_NORMALIZATION.out
                     }
@@ -95,11 +101,10 @@ workflow IMG {
                 CONVERT_TO_TILED_TIFF ( normimage )
                 }
             else
-                CONVERT_TO_TILED_TIFF ( EXTRACT_ROI.out.image )
+                CONVERT_TO_TILED_TIFF ( imageroi )
             
             convertedimage = CONVERT_TO_TILED_TIFF.out.full
             thumbimage = CONVERT_TO_TILED_TIFF.out.thumb
-            imagesize = CONVERT_TO_TILED_TIFF.out.size
             
             if ( params.export_image ) {
                 CONVERT_TO_PYRAMIDAL_OME ( convertedimage )
@@ -187,7 +192,7 @@ workflow IMG {
             }
         }
 
-        if ( params.do_nuclear_sementation ) {
+        if ( params.do_nuclear_segmentation ) {
         
             GET_TISSUE_MASK ( TILE_WSI.out.grid
                       .join(GET_TILE_MASK.out.mask)

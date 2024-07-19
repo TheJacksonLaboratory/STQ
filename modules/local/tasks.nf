@@ -103,10 +103,10 @@ process COLOR_NORMALIZATION {
     memory { 6.GB + (Float.valueOf(size) / 1000.0).round(2) * params.memory_scale_factor * 30.GB }
 
     input:
-    tuple val(sample_id), path("outfile.tiff"), val(mpp), val(size)
+    tuple val(sample_id), path("outfile.tiff"), val(size)
     
     output:
-    tuple val(sample_id), file("output_images/outfile.tiff"), val(mpp)
+    tuple val(sample_id), file("output_images/outfile.tiff")
 
     script:    
     """
@@ -129,10 +129,10 @@ process STAIN_NORMALIZATION {
     memory { 6.GB + (Float.valueOf(size) / 1000.0).round(2) * params.memory_scale_factor * 12.GB }
 
     input:
-    tuple val(sample_id), path("outfile.tiff"), val(mpp), val(size)
+    tuple val(sample_id), path("outfile.tiff"), val(size)
     
     output:
-    tuple val(sample_id), file("output_images/outfile.tiff"), val(mpp)
+    tuple val(sample_id), file("output_images/outfile.tiff")
 
     script:    
     """
@@ -147,6 +147,34 @@ process STAIN_NORMALIZATION {
 }
 
 
+process RESIZE_IMAGE {
+
+    tag "$sample_id"
+    label 'vips_process'
+    maxRetries 3
+    errorStrategy  { task.attempt <= maxRetries  ? 'retry' : 'finish' }
+    
+    input:
+    tuple val(sample_id), path(image), val(mpp)
+    
+    output:
+    tuple val(sample_id), file("tempfile.tiff"), emit: full
+    tuple val(sample_id), env(size), emit: size
+
+    script:    
+    """
+    f=`echo ${mpp} / ${params.target_mpp} | bc -l`
+    vips resize ${image} tempfile.tiff \$f
+
+    w=`vipsheader -f width tempfile.tiff`
+    h=`vipsheader -f height tempfile.tiff`
+    
+    size=`echo "\$w * \$h / 1000000" | bc -l`
+    size=`echo "\$size/1" | bc`
+    """
+}
+
+
 process CONVERT_TO_TILED_TIFF {
 
     tag "$sample_id"
@@ -156,30 +184,18 @@ process CONVERT_TO_TILED_TIFF {
     publishDir "${params.outdir}/${sample_id}", pattern: 'thumbnail.tiff', mode: 'copy', overwrite: true
     
     input:
-    tuple val(sample_id), path(image), val(mpp)
+    tuple val(sample_id), path(image)
     
     output:
     tuple val(sample_id), file("converted/outfile.tiff"), emit: full
     tuple val(sample_id), file("thumbnail.tiff"), emit: thumb
-    tuple val(sample_id), env(size), emit: size
-    tuple val(sample_id), val(mpp), emit: mpp
 
     script:    
     """
-    f=`echo ${mpp} / ${params.target_mpp} | bc -l`
-    echo vips resize ${image} tempfile.tiff \$f
-    vips resize ${image} tempfile.tiff \$f
     [ ! -d "converted" ] && mkdir "converted"
     
-    vips resize tempfile.tiff thumbnail.tiff ${params.thumbnail_downsample_factor}
-    vips tiffsave tempfile.tiff converted/outfile.tiff --compression none --tile --tile-width ${params.tiled_tiff_tile_size} --tile-height ${params.tiled_tiff_tile_size} --bigtiff
-    rm tempfile.tiff
-    
-    w=`vipsheader -f width converted/outfile.tiff`
-    h=`vipsheader -f height converted/outfile.tiff`
-    
-    size=`echo "\$w * \$h / 1000000" | bc -l`
-    size=`echo "\$size/1" | bc`
+    vips resize ${image} thumbnail.tiff ${params.thumbnail_downsample_factor}
+    vips tiffsave ${image} converted/outfile.tiff --compression none --tile --tile-width ${params.tiled_tiff_tile_size} --tile-height ${params.tiled_tiff_tile_size} --bigtiff
     """
 }
 
