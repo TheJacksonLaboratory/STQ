@@ -14,6 +14,7 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument("--fileslide", type=str, required=True, help="")
     parser.add_argument("--roifile", type=str, required=True, help="")
+    parser.add_argument('--wholeside', default=False, action=argparse.BooleanOptionalAction, help="")
     parser.add_argument('--sizefile', type=str, default="size.txt", help="")
     parser.add_argument('--outfile', type=str, default="outfile.tiff", help="")
     parser.add_argument('--extract', type=str, default="False", help="")
@@ -38,8 +39,12 @@ if __name__ == '__main__':
     size = int(dims0[0] * info['0']['size']), int(dims0[1] * info['1']['size'])
     print(dims0, '\t', icoords, '\t', size)
     
-    with open(args.sizefile, 'w') as tempfile:
+    if args.wholeside:
+        sizegp = round(dims0[0] * dims0[1] / 10**6)
+    else:
         sizegp = round(size[0] * size[1] / 10**6)
+
+    with open(args.sizefile, 'w') as tempfile:
         tempfile.write(str(sizegp))
     
     if args.extract=="True":

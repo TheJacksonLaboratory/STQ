@@ -66,7 +66,7 @@ process GET_IMAGE_SIZE {
     
     script:
     """  
-    python -u ${projectDir}/bin/extractROI.py --fileslide="${fileslide}" --roifile="${roifile}" --sizefile="size.txt"
+    python -u ${projectDir}/bin/extractROI.py --fileslide="${fileslide}" --roifile="${roifile}" --sizefile="size.txt" --wholeside
     size=`cat size.txt`
     """
 }
