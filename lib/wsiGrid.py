@@ -37,14 +37,15 @@ wsiGrid.plotGrid(grid, *slide_dimensions, size=tile_size, show_spot_labels=False
 
 import os
 import json
-import pandas as pd
-import numpy as np
 
 from matplotlib import cm
 import matplotlib.pyplot as plt
 import matplotlib.patheffects as path_effects
 from matplotlib.patches import Circle, Rectangle
 from matplotlib.collections import PatchCollection
+
+import pandas as pd
+import numpy as np
 
 def getGrid(x: int, y: int, grid_type: str = 'hex', factor: float = 64/39, magnification: float = 40.0,
                resolution: float = 294/65, spot_diamter: float = 65, spot_horizontal_spacing: float = 100,

@@ -232,6 +232,32 @@ process GET_THUMB {
 }
 
 
+process MAKE_TINY_THUMB {
+
+    tag "$sample_id"
+    label 'process_extract'
+    maxRetries 0
+    errorStrategy  { task.attempt <= maxRetries  ? 'retry' : 'finish' }
+    memory { 2.GB }
+    publishDir "${params.outdir}/${sample_id}", pattern: 'thumbnail.jpeg', mode: 'copy', overwrite: true
+    
+    input:
+    tuple val(sample_id), path(image)
+    
+    output:
+    tuple val(sample_id), file("thumbnail.jpeg")
+
+    script:    
+    """
+    #!/usr/bin/env python
+    
+    import tifffile
+    img = tifffile.imread("${image}")
+    tifffile.imwrite("thumbnail.jpeg", img, compression=('jpeg', 85), bigtiff=False)
+    """
+}
+
+
 process GET_PIXEL_MASK {
 
     tag "$sample_id"

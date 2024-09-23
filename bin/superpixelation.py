@@ -97,7 +97,7 @@ if __name__ == '__main__':
         
             # There are less than 1000 superpixels in each patch, less than 1000 patches
             # Make each superpixel id unique
-            seg_patch += ipatch * 1000
+            seg_patch += ipatch * 10000
             
             segmentation[r[0][i]:r[0][i+1], r[1][j]:r[1][j+1]] = seg_patch
         except Exception as exception:
@@ -106,7 +106,7 @@ if __name__ == '__main__':
         try:
             plot_all_spx_nf(img[r[0][i]:r[0][i+1], r[1][j]:r[1][j+1], :], 
                          segmentation[r[0][i]:r[0][i+1], r[1][j]:r[1][j+1]],
-                         seg_id=ipatch * 1000)
+                         seg_id=ipatch * 10000)
         except Exception as exception:
             print('Superpixel plot ERROR:', exception)
             

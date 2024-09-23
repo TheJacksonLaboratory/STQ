@@ -7,6 +7,7 @@ include { LOAD_SAMPLE_INFO;
           CONVERT_TO_TILED_TIFF;
           RESIZE_IMAGE;
           GET_THUMB;
+          MAKE_TINY_THUMB;
           GET_PIXEL_MASK;
           TILE_WSI;
           GET_TILE_MASK;
@@ -110,7 +111,8 @@ workflow IMG {
                 CONVERT_TO_PYRAMIDAL_OME ( convertedimage )
             }
         }
-
+        
+        MAKE_TINY_THUMB ( thumbimage )
 
         if ( params.check_focus ) {
             CHECK_FOCUS ( convertedimage

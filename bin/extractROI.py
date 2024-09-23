@@ -28,9 +28,9 @@ if __name__ == '__main__':
     except Exception as exception:
         print(exception)
         # If the slide is too large openslide may fail to read
-        temptif = TiffFile(fileslide)
-        dims0 = temptif.pages[0].shape
-        temptif.close()
+        with TiffFile(fileslide) as imgh:
+            dims0 = imgh.pages[0].tags[256].value, imgh.pages[0].tags[257].value
+            print(dims0)
     
     with open(args.roifile, 'r') as tempfile:
         info = json.load(tempfile)
