@@ -34,9 +34,16 @@ workflow {
         TWO ( samples )
     }
 
-    if ( params.workflow == "xenome_indices" ) {
-        if ( !file("${params.xenome_indices_path}/${params.xenome_indices_name}-both.kmers.low-bits.lwr").exists() ) {
-            XINDEX ( )
+    if ( params.workflow == "deconvolution_indices" ) {
+        if ( params.deconvolution_tool == "xenome" ) {
+            if ( !file("${params.deconvolution_indices_path}/${params.deconvolution_indices_name}-both.kmers.low-bits.lwr").exists() ) {
+                XINDEX ( )
+            }
+        }
+        else if ( params.deconvolution_tool == "xengsort" ) {
+            if ( !file("${params.deconvolution_indices_path}/${params.deconvolution_indices_name}-xind.hash").exists() ) {
+                XINDEX ( )
+            }        
         }
     }
 

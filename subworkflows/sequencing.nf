@@ -1,7 +1,11 @@
 
 include { LOAD_SAMPLE_INFO } from '../modules/local/load'
-include { GUNZIP as UNPACK_FASTQ } from '../modules/local/gunzip'
-include { DECONVOLUTION;
+
+include { GUNZIP as UNPACK_FASTQ;
+        } from '../modules/local/gunzip'
+        
+include { DECONVOLUTION_XENOME;
+          DECONVOLUTION_XENGSORT;
           SORT_FASTQ as SORT_FASTQ_MOUSE;
           SORT_FASTQ as SORT_FASTQ_HUMAN;
         } from '../modules/local/deconvolution'
@@ -42,17 +46,31 @@ workflow SEQ {
         LOAD_SAMPLE_INFO ( samples
                            .join(fastqs)
                            .join(images) )
-
+                           
         UNPACK_FASTQ ( LOAD_SAMPLE_INFO.out.fastq )
+
+        if ( params.deconvolution_tool == "xenome" ) {
+            DECONVOLUTION_XENOME ( UNPACK_FASTQ.out,
+                                  file("${params.deconvolution_indices_path}"),
+                                  params.deconvolution_indices_name )
+
+            deconvolution_human = DECONVOLUTION_XENOME.out.human
+            deconvolution_mouse = DECONVOLUTION_XENOME.out.mouse
+        }
+        else if (params.deconvolution_tool == "xengsort") {
+            DECONVOLUTION_XENGSORT ( UNPACK_FASTQ.out,
+                                    file("${params.deconvolution_indices_path}"),
+                                    params.deconvolution_indices_name )
+
+            deconvolution_human = DECONVOLUTION_XENGSORT.out.human
+            deconvolution_mouse = DECONVOLUTION_XENGSORT.out.mouse            
+            
+        }
+
         
-        DECONVOLUTION ( UNPACK_FASTQ.out,
-                        file("${params.xenome_indices_path}"),
-                        params.xenome_indices_name )
-        
-        
-        SORT_FASTQ_MOUSE ( DECONVOLUTION.out.mouse )     
+        SORT_FASTQ_MOUSE ( deconvolution_mouse )     
          
-        SORT_FASTQ_HUMAN ( DECONVOLUTION.out.human )
+        SORT_FASTQ_HUMAN ( deconvolution_human )
 
 
         SPACERANGER_MOUSE ( SORT_FASTQ_MOUSE.out

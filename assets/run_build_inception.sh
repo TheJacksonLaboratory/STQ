@@ -1,1 +1,0 @@
-sbatch run_build.sb container-singularity-inception-py.def /projects/chuang-lab/USERS/domans/containers/container-singularity-inception-py.sif

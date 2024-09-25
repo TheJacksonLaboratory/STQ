@@ -1,8 +1,20 @@
 # Nextflow Pipeline for Visium and H&E Data Processing
 
+
+**Publication citation:**
+> Domanskyi S, Srivastava A, Kaster J, Li H, Herlyn M, Rubinstein JC, Chuang JH. Nextflow pipeline for Visium and H&E data from patient-derived xenograft samples. Cell Rep Methods. 2024 May 20;4(5):100759. doi: 10.1016/j.crmeth.2024.100759. Epub 2024 Apr 15. PMID: 38626768; PMCID: PMC11133696.
+
+**Associated data and source code DOI:**
+> 1. Domanskyi, S., Srivastava, A., Kaster, J., Li, H., Herlyn, M., Rubinstein, J. C., & Chuang, J. H. (2024). Nextflow Pipeline for Visium and H&E Data from Patient-Derived Xenograft Samples (v0.2.0). Zenodo. https://doi.org/10.5281/zenodo.10839655
+
+> 2. Domanskyi, S., Srivastava, A., Kaster, J., Li, H., Herlyn, M., Rubinstein, J. C., & Chuang, J. H. (2024). WM4237 TE histology images, H&E stain [Data set]. Zenodo. https://doi.org/10.5281/zenodo.12746982
+
+> 3. Domanskyi, S. (2024). Demo 10x Visium dataset for STQ [Data set]. Zenodo. [https://doi.org/10.5281/zenodo.10654467](https://doi.org/10.5281/zenodo.10654467)
+
 - [Overview](#overview)
 - [Motivation](#Motivation)
 - [Documentation](#Documentation)
+- [Output](#Output)
 - [Running the piepline](#running-the-piepline)
 - [Tools used in the pipeline](#tools-used-in-the-pipeline)
   * fastq-tools
@@ -27,20 +39,10 @@
 
 This repository contains the source code of the nextflow implementation of the 10x Visium Spatial Gene Expression data and full-resolution H&E-stained Whole Slide Images (WSI) processing developed at [The Jackson Laboratory](https://www.jax.org/ "The Jackson Laboratory"). The overview of the pipeline is shown above. The primary input consists of compressed FASTQ files, reference FASTA files, and a full-resolution image of the 10x Visium Slide sample. Additional required inputs include either pre-built Xenome indices or host and graft genome assemblies, mouse and human reference transcriptomes for reads mapping, DL pre-trained model weights, and singularity containers with software tools.
 
-<p>
-    <img src="docs/Scheme_NF3.png" width="1000"/>
-</p>
-
-
-<p>
-    <img src="docs/Scheme NF2.png" width="700"/>
-</p>
-
-
 
 ## Motivation
 
-Most of the steps implemented in our pipeline are computationally expensive and must be carried out on high-performance computer (HPC) systems. The most computationally intensive pipeline steps include RNA-seq reads mapping, full-resolution image alignment, preprocessing for RNA-velocity calculation, and preprocessing for RNA-based CNV inference, deep learning imaging features, and nuclear morphometrics data extraction. The pipeline generates a standardized set of files that can be used for downstream analysis using R-based Seurat of Python-based Scanpy or any other available environments.
+Most of the steps implemented in our pipeline are computationally expensive and must be carried out on high-performance computer (HPC) systems. The most computationally intensive pipeline steps include RNA-seq reads mapping, full-resolution image alignment, preprocessing for RNA-velocity calculation, and preprocessing for RNA-based CNV inference, deep learning imaging features, and nuclear morphometrics data extraction. The pipeline generates a standardized set of files (see Section "Output") that can be used for downstream analysis using R-based Seurat of Python-based Scanpy or any other available environments.
 
 ## Documentation
 
@@ -48,21 +50,61 @@ The description of the pipeline components, parameters, analysis routes, require
 
 ## Running the piepline
 
-##### Prerequisites
-+ HPC environment with sufficient CPU and RAM and temporary storage resources
+<details closed><summary>Animated workflow steps</summary><p>
+
+![Flow](docs/flow.gif)
+
+</p></details>
+
+
+<details open><summary>Summary of all workflow steps</summary><p>
+
+<img src="docs/flow-static.png" width="1200"/>
+
+</p></details>
+
+<br>
+
+##### Demo data
+
+Once the pipeline and all the prerequisite software are installed, the demo can be executed on a small dataset (https://zenodo.org/records/10654467). To get a copy of the data, modify the `savePath` below to a meaningful location on your computing system and execute the lines. We recommend using an absolute path since it is required to generate a proper samplesheet file. Modify the STQ run.sh file to point input samplesheet to `samplesheet_demo_local.csv`. Demo run is a good test that the software is installed properly and can take approximately 30 minutes to complete.
+
+    savePath="/path/to/save/demodata"
+
+    cd $savePath
+    wget https://zenodo.org/records/10654467/files/SC2200092.tiff
+    wget https://zenodo.org/records/10654467/files/fastq.tar
+    tar -xvf fastq.tar
+
+    echo -e "sample,fastq,image,grid,roifile,mpp\nDemo_S1,${savePath}/fastq/,${savePath}/SC2200092.tiff,,,0.22075" > samplesheet_demo_local.csv
+
+<br>
+
+##### Installation
++ HPC environment with sufficient CPU and RAM and storage resources
 
 Processing 1 sample requires approximately 100+ CPU hours of computing time. Some of the processes need 1 CPU others need 4 CPUs or 8 CPUs as specified in the `nexflow.config` file. The temporary storage requires roughly 250 GB per sample for the pipeline to run. For example, if 32 samples are processed simultaneously, about 8TB of storage will be used until the pipeline completes.
 
 + Nextflow <img src="https://www.nextflow.io/img/nextflow2014_no-bg.png" height="30"/>
 
-      https://www.nextflow.io/docs/latest/getstarted.html#installation
+      # https://www.nextflow.io/docs/latest/getstarted.html#installation
+
+      wget -qO- https://get.nextflow.io | bash
+      chmod +x nextflow
+      mv nextflow ~/bin
 
 + Singularity <img src="https://docs.sylabs.io/guides/3.0/user-guide/_static/logo.png" height="30"/>
 
       https://docs.sylabs.io/guides/3.0/user-guide/installation.html
 
++ Git (most likely it is already available on your system)
 
-+ The pipeline source code <img src="https://github.githubassets.com/images/modules/logos_page/Octocat.png" height="30"/> (this repository)
+      # https://git-scm.com/
+      # On Debian one can install git with
+
+      apt-get install -y git
+
++ Get the pipeline source code (this repository)
 
       mkdir my-piepline-run
       cd my-piepline-run
@@ -75,12 +117,65 @@ The singularity containers used in our pipeline can be downloaded or built with 
 
 > ***Note*** 10x Genomics requires that any software containers with Space Ranger are not shared publicly. We provide an example of a definition file for building a Space Ranger container with singularity: [assets/container-singularity-spaceranger.def](conf/container-singularity-spaceranger.def) that pulls a standard `debian:buster-slim` container from docker and installs all necessary Linux libraries. After that, a copy of Space Ranger is downloaded and installed from the 10x Genomics download portal. To obtain a download link for a specific version of Space Ranger user must navigate to https://www.10xgenomics.com/support/software/space-ranger/downloads, register, review, and accept any required user agreements from 10x, and copy the download link. Next, paste the link to a copy of the `def` file. Finally, build a container with any desired resource, for example, https://cloud.sylabs.io/builder.
 
-+ Reference genomes for mouse and human (see tool `spaceranger count` below)
-
-+ Deconvolution indices (see tool `xenome classify` below) or graft and host reference FASTA files.
 
 
+<details closed><summary>Click to see the commands used to upload singularity-built containers to quay.io</summary><p>
 
+    singularity remote login -u <user> docker://quay.io
+
+    singularity push /projects/chuang-lab/USERS/domans/containers/local/mamba-xenomake.sif oras://quay.io/jaxcompsci/xenomake:v1.0.0
+    singularity push /projects/chuang-lab/USERS/domans/containers/container-mamba-inception.sif oras://quay.io/jaxcompsci/inception:v1.0.0
+    singularity push /projects/chuang-lab/USERS/domans/containers/container-singularity-hovernet-py.sif oras://quay.io/jaxcompsci/hovernet:v1.0.0
+    singularity push /projects/chuang-lab/USERS/domans/containers/container-singularity-stainnet.sif oras://quay.io/jaxcompsci/stainnet:v1.0.0
+    singularity push /projects/chuang-lab/USERS/domans/containers/container-singularity-staintools.sif oras://quay.io/jaxcompsci/staintools:v1.0.0
+    singularity push /projects/chuang-lab/USERS/domans/containers/container-singularity-vips.sif oras://quay.io/jaxcompsci/vips:v1.0.0
+    singularity push /projects/chuang-lab/USERS/domans/containers/container-singularity-fastqtools.sif oras://quay.io/jaxcompsci/fastqtools:v1.0.0
+    singularity push /projects/chuang-lab/USERS/domans/containers/container-singularity-bafextract.sif oras://quay.io/jaxcompsci/bafextract:v1.0.0
+    singularity push /projects/chuang-lab/USERS/domans/containers/container-singularity-velocyto.sif oras://quay.io/jaxcompsci/velocyto:v1.0.0
+    singularity push /projects/chuang-lab/USERS/domans/containers/container-singularity-python.sif oras://quay.io/jaxcompsci/pythonlow:v1.0.0
+
+</p></details>
+
+
+To download containers for use with the pipeline: change directory to the desirable download location and run the commands below:
+
+    singularity pull docker://quay.io/jaxcompsci/xenome:1.0.1
+    singularity pull oras://quay.io/jaxcompsci/xenomake:v1.0.0
+    singularity pull oras://quay.io/jaxcompsci/inception:v1.0.0
+    singularity pull oras://quay.io/jaxcompsci/hovernet:v1.0.0
+    singularity pull oras://quay.io/jaxcompsci/stainnet:v1.0.0
+    singularity pull oras://quay.io/jaxcompsci/staintools:v1.0.0
+    singularity pull oras://quay.io/jaxcompsci/vips:v1.0.0
+    singularity pull oras://quay.io/jaxcompsci/fastqtools:v1.0.0
+    singularity pull oras://quay.io/jaxcompsci/bafextract:v1.0.0
+    singularity pull oras://quay.io/jaxcompsci/velocyto:v1.0.0
+    singularity pull oras://quay.io/jaxcompsci/pythonlow:v1.0.0
+
+<details closed><summary>Click to get a template for conf/containers.config file:</summary><p>
+
+    container_inception        = "${params.container_dir}/inception_v1.0.0.sif"
+    container_hovernet         = "${params.container_dir}/hovernet_v1.0.0.sif"
+    container_stainnet         = "${params.container_dir}/stainnet_v1.0.0.sif"
+    container_staintools       = "${params.container_dir}/staintools_v1.0.0.sif"
+    container_vips             = "${params.container_dir}/vips_v1.0.0.sif"
+    container_xenome           = "${params.container_dir}/xenome_v1.0.1.sif"
+    container_xengsort         = "${params.container_dir}/xenomake_v1.0.0.sif"
+    container_fastqtools       = "${params.container_dir}/fastqtools_v1.0.0.sif"
+    container_spaceranger      = "${params.container_dir}/spaceranger_v1.0.0.sif"
+    container_bafextract       = "${params.container_dir}/bafextract_v1.0.0.sif"
+    container_python           = "${params.container_dir}/python_v1.0.0.sif"
+    container_velocyto         = "${params.container_dir}/velocyto_v1.0.0.sif"
+
+</p></details>
+
+
++ Reference packages for mouse and human (see tool `spaceranger count` below).
+
++ Custom graft and host reference FASTA files to use with reads classification tools.
+
++ If you plan to use StainNet within the pipeline, download the checkpoint from: 
+
+      wget https://github.com/khtao/StainNet/blob/master/checkpoints/aligned_histopathology_dataset/StainNet-Public_layer3_ch32.pth
 
 
 ##### Samplesheet
@@ -110,12 +205,10 @@ The column "mpp" is used to specify WSI resolution in microns per pixel. The rec
 
 ##### Configure the pipeline
 
-Edit file `nextflow.config` to specify paths to singularity containers, reference genome sequences, and deconvolution indices. If necessary, adjust any of the resources allowed to be allocated to the pipeline processes.
+Edit any (or all) of the files in `conf` to specify paths to containers, reference genome sequences, deconvolution indices and analysis parameters. See description of the analysis parameters in [conf/README.md](conf/README.md).
 
-Check the defaults or edit the file `conf/analysis.config` to adjust any customizable parameters. See file `conf/README.md` for the description of each parameter.
-
-For JAX users, preparation of the pipeline can be done by editing the file `submit.sb` and modifying the following lines:
-+ workflow="two_references" ### "two_references" "one_reference" "arbitrary_grid" "xenome_indices"
+For JAX users, preparation of the pipeline can be done by editing the file `run.sh` and modifying the following lines:
++ workflow="two_references" ### "two_references" "one_reference" "arbitrary_grid" "deconvolution_indices"
 + samplesheet="/path/to/samplesheet.csv"
 + workdir="/flashscratch/[jaxuser]/some_work_run"
 + outdir="/path/to/results_my_analysis"
@@ -126,35 +219,102 @@ For JAX users, preparation of the pipeline can be done by editing the file `subm
 
 ##### Run the pipeline
 
-###### Interactive mode (this mode use is discouraged)
+If the "two_references" workflow will be used, first generate the xenome/xengsort index files: edit `run.sh` to specify the workflow "deconvolution_indices", and execute as exemplified below, in the detached mode.
 
-For JAX users, start an interactive session and run the script:
-
-        srun -p compute -q batch -t 6:00:00 --cpus-per-task=1 --mem=2G -J ijob --pty /bin/bash
-        cd my-piepline-run/STQ/
-        ./submit.sb
-
-> ***Note*** The exemplified command above requests 6 hours of wall-time; this can be adjusted to a specific necessary run time.
-
-> ***Tip*** Submitting via srun interactive session will show interactively updated progress of the pipeline run. We do not recommend using srun for our pipeline since any network interruption will cause the ssh connection to drop and the pipeline to fail. In such an unfortunate case user can rerun the pipeline. However, any previously unfinished processes will restart, while all finished processes resume from cached data.
+> ***Note*** The workflow "deconvolution_indices" takes about 10 min for "xengsort", and 60 min for "xenome".
 
 ###### Detached mode (preferred)
 
-For JAX users use any HPC node (login node use is acceptable too) and submit the script to slurm:
+Use any HPC node and submit the script to slurm:
 
        cd my-piepline-run/STQ/
-       sbatch submit.sb
+       run.sh
 
 In this detached mode, the above command submits the pipeline to the HPC slurm system, which creates a low resource but long wall time job (duration specified in the submit.sb file), which manages the nextflow pipeline run. Nextflow manages all the pipeline processes and monitors the execution progress. Users can periodically monitor the contents of the `slurm-*.out` file to see progress:
 
        tail -n 50 slurm-<your_job_id>.out
 
 
+###### Interactive mode (this mode use is discouraged)
+
+On an HPC, start an interactive session, edit "run.sh" to remove word "sbatch" and run the script:
+
+        srun -p compute -q batch -t 6:00:00 --cpus-per-task=1 --mem=2G -J ijob --pty /bin/bash
+        cd my-piepline-run/STQ/
+        run.sh
+
+> ***Note*** The exemplified command above requests 6 hours of wall-time; this can be adjusted to a specific necessary run time.
+
+> ***Tip*** Submitting via srun interactive session will show interactively updated progress of the pipeline run. We do not recommend using srun for our pipeline since any network interruption will cause the ssh connection to drop and the pipeline to fail. In such a case user can rerun the pipeline. However, any previously unfinished processes will restart, while all finished processes resume from cached data.
+
+
+## Output
+
+Example output directory structure is shown below. Directories are highlighted in bold. "pipeline_info" contains the reports of used resources, execution timeline and identifiers of the temporary directories.
+For each row in the samplesheet (except the header) there is a directory in the output, e.g., **WM4237_TE_S1_ST** below, containing gene expression matrix, spatial image registration data, reads classification, RNA velocity data, and H&E quantification data. Depending on the pipeline parameters, some of the files listed below may not be generated, e.g., when a ceratin tool or subworkflow is turned off.
+
+<pre>
+.
+├── <b>pipeline_info</b>
+│   ├── <i>execution_report_2024-02-09_10-57-36.html</i>
+│   ├── <i>execution_timeline_2024-02-09_10-57-36.html</i>
+│   ├── <i>execution_trace_2024-02-09_10-57-36.txt</i>
+│   └── <i>pipeline_dag_2024-02-09_10-57-36.svg</i>
+│
+└── <b>WM4237_TE_S1_ST</b>
+    ├── <b>raw_feature_bc_matrix</b>
+    │   ├── barcodes.tsv.gz
+    │   ├── features.tsv.gz
+    │   └── matrix.mtx.gz
+    ├── <b>spatial</b>
+    │   ├── aligned_fiducials.jpg
+    │   ├── detected_tissue_image.jpg
+    │   ├── scalefactors_json.json
+    │   ├── tissue_hires_image.png
+    │   ├── tissue_lowres_image.png
+    │   └── tissue_positions_list.csv
+    │
+    ├── xenome.summary.txt
+    ├── <b>human</b>
+    │   ├── extracted.baf
+    │   ├── metrics_summary.csv
+    │   ├── velocyto.loom
+    │   └── web_summary.html
+    ├── <b>mouse</b>
+    │   ├── extracted.baf
+    │   ├── metrics_summary.csv
+    │   ├── velocyto.loom
+    │   └── web_summary.html
+    │
+    ├── <b>grid</b>
+    │   ├── grid.csv
+    │   └── grid.json
+    ├── <b>mask</b>
+    │   ├── pixel_mask.csv
+    │   ├── tile_mask.csv
+    │   ├── tile_mask.png
+    │   └── tissue_mask.png
+    ├── <b>features</b>
+    │   └── inception_features.tsv.gz
+    ├── <b>nucseg</b>
+    │   ├── outfile.json.gz
+    │   ├── per_nucleus_data.csv.gz
+    │   ├── per_nucleus_data.csv.gz.csv
+    │   └── per_spot_data.csv
+    |
+    ├── data.csv.gz
+    └── thumbnail.tiff
+</pre>
+
+
+
+
+
 ## Tools used in the pipeline
 
 1. **`fastq-tools`** (https://github.com/dcjones/fastq-tools)
 
-2. **`xenome classify`** (https://github.com/data61/gossamer)
+2. (A). **`xenome classify`** (https://github.com/data61/gossamer)
 
 > Conway T, Wazny J, Bromage A, et al. Xenome--a tool for classifying reads from xenograft samples. Bioinformatics (Oxford, England). 2012 Jun;28(12):i172-8. DOI: 10.1093/bioinformatics/bts236. PMID: 22689758; PMCID: PMC3371868.
 
@@ -162,11 +322,20 @@ In this detached mode, the above command submits the pipeline to the HPC slurm s
 
 `xenome classify` requires indices generated by `xenome index` as an input. The indices used in our analysis were built with `-K 35`, `-H Custom_Genomes/R84-REL1505/NOD_ShiLtJ/NOD_ShiLtJ.fa`, and `-G GCA_009914755.4_T2T-CHM13v2.0_genomic.fna`.
 
+
+2. (B). **`xengsort classify`** (https://gitlab.com/genomeinformatics/xengsort) 
+
+`xengsort` is conceptually similar to xenome, however, engeneered to be faster and more efficient using Numba JIT and Python.
+
+> Zentgraf J, Rahmann S. Fast lightweight accurate xenograft sorting. Algorithms Mol Biol. 2021 Apr 2;16(1):2. doi: 10.1186/s13015-021-00181-w. PMID: 33810805; PMCID: PMC8017614.
+
+
+
 3. **`spaceranger count`** (https://support.10xgenomics.com/spatial-gene-expression/software/pipelines/latest/using/count) is a pipeline developed by 10x Genomics based on a Martian pipeline (https://martian-lang.org/). 
 
 > Martian pipeline is implemented in GOYACC (https://pkg.go.dev/golang.org/x/tools/cmd/goyacc), i.e., YACC (Yet Another Compiler-Compiler) for GO (https://go.dev/). We build `spaceranger count` pipeline into our pipeline as a nextflow process. 
 
-`space ranger count` is designed to process one capture area of a Visium Spatial Gene Expression Slide for fresh frozen (FF) and formalin fixed paraffin embedded FFPE tissue samples. We use automatic capture area image alignment, where fiducials and the grid are detected by SpaceRanger. Note the image alignment is independent of the reference transcriptome or any sequencing parameters. The image alignment result is generated in the sample output folder under `spatial` and contains six files:
+`spaceranger count` is designed to process one capture area of a Visium Spatial Gene Expression Slide for fresh frozen (FF) and formalin fixed paraffin embedded FFPE tissue samples. We use automatic capture area image alignment, where fiducials and the grid are detected by SpaceRanger. Note the image alignment is independent of the reference transcriptome or any sequencing parameters. The image alignment result is generated in the sample output folder under `spatial` and contains six files:
 + `aligned_fiducials.jpg`
 + `detected_tissue_image.jpg`
 + `scalefactors_json.json`
@@ -207,11 +376,6 @@ BAFextract is a tool designed by the authors of CaSpER and is intended to extrac
 
 BAFextract includes DNA scaffolds and mitochondrion (MT) DNA if those are present in the species genome reference. The output is a file `extracted.baf` generated in the human and mouse sub-directories of the sample output directory.
 
-The schema of using BAFextract in our pipeline is depicted below:
-
-<p>
-    <img src="docs/BAF_extract_scheme.png" width="1000"/>
-</p>
 
 > ***Note*** CaSpER RNA-based CNV-inference is outside the scope of this pipeline and is carried out in the downstream steps.
 
@@ -260,9 +424,18 @@ Execution of the pipeline and data flow through processes enable generating the 
 
 ![Dag Arb](docs/dag-two.svg)
 
+<details closed><summary>Directed Acyclic Graph for one-reference workflow</summary><p>
+
 ![Dag Two](docs/dag-one.svg)
 
+</p></details>
+
+
+<details closed><summary>Directed Acyclic Graph for arbitrary grid workflow</summary><p>
+
 ![Dag Two](docs/dag-arb.svg)
+
+</p></details>
 
 
 > ***Note*** DAG is generated during each pipeline run and is determined by the configuration and input parameters of the pipeline. For example, if specific optional processes are toggled "off," those processes and relevant graph connections will not show in the DAG.
