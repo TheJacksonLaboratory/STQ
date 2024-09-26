@@ -1,0 +1,18 @@
+bootstrap: docker
+from: alpine:3.18.2
+
+%environment
+    export PATH="/bftools:$PATH"
+
+%post
+    set -eu
+
+    apk update && \
+    apk add unzip \
+        openjdk17 \
+        bash \
+        procps
+
+    wget https://downloads.openmicroscopy.org/bio-formats/7.2.0/artifacts/bftools.zip
+    unzip bftools.zip
+    rm bftools.zip
