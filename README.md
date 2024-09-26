@@ -23,8 +23,11 @@
   * velocyto
   * bafextract
   * Inception v3
+  * CTransPath
   * HoVer-Net
   * Stardist
+  * DeepFocus
+  * scanpy
 - [Nextflow pipeline data flow](#nextflow-pipeline-data-flow)
 - [Nextflow pipeline resources](#nextflow-pipeline-resources)
 - [Glossary of Terms](#glossary-of-terms)
@@ -42,7 +45,8 @@ This repository contains the source code of the nextflow implementation of the 1
 
 ## Motivation
 
-Most of the steps implemented in our pipeline are computationally expensive and must be carried out on high-performance computer (HPC) systems. The most computationally intensive pipeline steps include RNA-seq reads mapping, full-resolution image alignment, preprocessing for RNA-velocity calculation, and preprocessing for RNA-based CNV inference, deep learning imaging features, and nuclear morphometrics data extraction. The pipeline generates a standardized set of files (see Section "Output") that can be used for downstream analysis using R-based Seurat of Python-based Scanpy or any other available environments.
+Most of the steps implemented in our pipeline are computationally expensive and must be carried out on high-performance computer (HPC) systems. The most computationally intensive pipeline steps include RNA-seq reads mapping, full-resolution image alignment, preprocessing for RNA-velocity calculation, and preprocessing for RNA-based CNV inference, deep learning imaging features, and nuclear morphometrics data extraction. The pipeline generates a standardized set of files (see Section "Output") that can be used for downstream analysis using R-based Seurat of Python-based Scanpy or any other available environments. The pipeline can be used with a variety of formats of stand-alone WSI to perform conversion and handling image QC, focus checking, stain normalization, nuclear segmentation, and feature extraction.
+
 
 ## Documentation
 
@@ -256,6 +260,7 @@ For each row in the samplesheet (except the header) there is a directory in the 
 <pre>
 .
 ├── <b>pipeline_info</b>
+│   ├── <i>parameters.json</i>
 │   ├── <i>execution_report_2024-02-09_10-57-36.html</i>
 │   ├── <i>execution_timeline_2024-02-09_10-57-36.html</i>
 │   ├── <i>execution_trace_2024-02-09_10-57-36.txt</i>
@@ -294,16 +299,37 @@ For each row in the samplesheet (except the header) there is a directory in the 
     │   ├── tile_mask.csv
     │   ├── tile_mask.png
     │   └── tissue_mask.png
+    ├── <b>focus</b>
+    │   ├── outfile.tiff-f289868-o24116.csv
+    │   ├── outfile.tiff-f289868-o24116.png
+    │   └── outfile.tiff.tissue.png
     ├── <b>features</b>
-    │   └── inception_features.tsv.gz
+    │   ├── false-1-ctranspath_features.tsv.gz
+    │   └── ...
     ├── <b>nucseg</b>
     │   ├── outfile.json.gz
     │   ├── per_nucleus_data.csv.gz
     │   ├── per_nucleus_data.csv.gz.csv
     │   └── per_spot_data.csv
+    ├── <b>tiles</b>
+    │   ├── classes.csv.gz
+    │   ├── tile-00002793.png
+    │   └── ...
+    ├── <b>figures</b>
+    │   ├── cluster.png
+    │   ├── spatial_plot_classification.png
+    │   ├── spatial_plot_morphometric.png
+    │   ├── umap_plot_classification.png
+    │   ├── umap_plot_cluster.png
+    │   └── umap_plot_morphometric.png
     |
-    ├── data.csv.gz
-    └── thumbnail.tiff
+    ├── thumbnail.jpeg
+    ├── thumbnail.tiff
+    ├── image.ome.tiff
+    ├── img.data.ctranspath-2.h5ad
+    ├── metadata.ome.xml
+    ├── roi.json
+    └── run.json
 </pre>
 
 
@@ -388,14 +414,36 @@ Inception v3 is a convolutional neural network model developed and trained by Go
     <img src="docs/mones-per-tile.png" width="450"/>
 </p>
 
-The default setting is to generate a grid that has the same geometry as 10x Visium Slide, except that tiles are set to be square instead of the round shape of ST spots. Note, in this default setting, tiles are not covering the image entirely. Users can change grid parameters in the `analysis.config` file.
+The default setting is to generate a grid that has the same geometry as 10x Visium Slide, except that tiles are set to be square instead of the round shape of ST spots. In this default setting, tiles are not covering the image entirely. Users can change grid parameters in the `analysis.config` file.
 
 
 <p>
     <img src="docs/example ST wsi.png" width="600"/>
 </p>
 
-7. **`HoVer-Net`** (https://github.com/vqdang/hover_net)
+Inspired by SAMPLER work, the imaging feature extraction is done in multiple scales in a single pipeline run. 
+
+<p>
+    <img src="docs/multiscale-features.png" width="600"/>
+</p>
+
+> *Publication:* Patience Mukashyaka, Todd B. Sheridan, Ali Foroughi pour, and Jeffrey H. Chuang. SAMPLER: unsupervised representations for rapid analysis of whole slide tissue images. EBioMedicine. 2024 Jan;99:104908. doi: 10.1016/j.ebiom.2023.104908. Epub 2023 Dec 14. PMID: 38101298; PMCID: PMC10733087.
+
+There is also an experimental option for subtiling of the tiles for imaging feature extraction.
+
+<p>
+    <img src="docs/sub-tiling.png" width="600"/>
+</p>
+
+
+7. **`CTransPath`** (https://github.com/Xiyue-Wang/TransPath)
+
+CTransPath is a Transformer-based Unsupervised Contrastive Learning for Histopathological Image Classification. 
+
+> *Publication:* Xiyue Wang, Sen Yang, Jun Zhang, Minghui Wang, Jing Zhang, Wei Yang, Junzhou Huang, Xiao Han. Transformer-based unsupervised contrastive learning for histopathological image classification. Med Image Anal. 2022 Oct;81:102559. doi: 10.1016/j.media.2022.102559. Epub 2022 Jul 30. PMID: 35952419.
+
+
+8. **`HoVer-Net`** (https://github.com/vqdang/hover_net)
 
 HoVer-Net nuclear segmentation and classification inference step was originally designed for GPU devices, but in our pipeline, is optimized for CPU. This pipeline step is computationally demanding.
 
@@ -413,9 +461,28 @@ In-tissue mask:
 > ***Note*** The PanNuke dataset and the derived weights for HoVer-Net is licensed under Attribution-NonCommercial-ShareAlike 4.0 International.
 
 
-8. **`StarDist`** (https://github.com/stardist/stardist)
+9. **`StarDist`** (https://github.com/stardist/stardist)
 
 StarDist is a method for the detection of star-convex-shaped objects from images. We use a pre-trained StarDist 2D model generated by the developers of StarDist.
+
+
+10. **`DeepFocus`** (https://github.com/cialab/DeepFocus)
+
+DeepFocus a deep learning based software called which can automatically detect and segment blurry areas in digital whole slide images (WSI).
+
+> *Publication:* Caglar Senaras, M. Khalid Khan Niazi, Gerard Lozanski, Metin N. Gurcan (2018) DeepFocus: Detection of out-of-focus regions in whole slide digital images using deep learning. PLoS ONE 13(10): e0205387. https://doi.org/10.1371/journal.pone.0205387
+
+
+10. **`scanpy`** (https://github.com/scverse/scanpy)
+
+
+A representative scale of imaging features as well as nuclear morphometric features are processed in scanpy framework and visualized. Below is the example WSI from PeCan collection where imaging features of tiles are clustered at scale F=2.
+
+https://pecan.stjude.cloud/histology/sample/SJHGS012410_X1#zoom1=2.9859839999999997&x1=0.9020688782830134&y1=0.08206838921811285
+
+<p>
+    <img src="docs/imaging-clustering.png" width="600"/>
+</p>
 
 
 ## Nextflow pipeline data flow
