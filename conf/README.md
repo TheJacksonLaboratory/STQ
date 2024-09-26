@@ -17,11 +17,17 @@ To find out the default value for each parameter, see `conf/analysis.config`.
 
 + **`human_reference_genome`** Path to the human reference genome for Space Ranger reads alignment in two-reference analysis route.
 
-+ **`xenome_reference_graft`** Path to a graft (e.g., human) reference genome (e.g., *.fa, *.fna, *.fa.gz, *.fna.gz) to build xenome indices. If the indices supplied in `nextflow.config` already exits, then this parameter is ignored.
++ **`deconvolution_reference_graft`** Path to a graft (e.g., human) reference genome (e.g., *.fa, *.fna, *.fa.gz, *.fna.gz) to build xenome or xengsort indices. If the indices supplied in `nextflow.config` already exits, then this parameter is ignored.
 
-+ **`xenome_reference_host`** Path to a host (e.g., mouse) reference genome (e.g., *.fa, *.fna, *.fa.gz, *.fna.gz) to build xenome indices. If the indices supplied in `nextflow.config` already exits, then this parameter is ignored.
++ **`deconvolution_reference_host`** Path to a host (e.g., mouse) reference genome (e.g., *.fa, *.fna, *.fa.gz, *.fna.gz) to build xenome or xengsort indices. If the indices supplied in `nextflow.config` already exits, then this parameter is ignored.
 
-+ **`xenome_kmer_size`** K-mer size for building xenome indices. See https://github.com/data61/gossamer/blob/master/docs/xenome.md for a detailed description.
++ **`deconvolution_kmer_size`** K-mer size for building xenome or xengsort indices. See https://github.com/data61/gossamer/blob/master/docs/xenome.md for a detailed description.
+
++ **`deconvolution_indices_path`** Path to save deconvolution indices.
+
++ **`deconvolution_indices_name`** Name of the indices.
+
++ **`xengsort_n`** Xengsort-specific parameter. See https://gitlab.com/genomeinformatics/xengsort for details.
 
 
 ##### See https://github.com/akdess/BAFExtract for the description of the following filtering parameters:
@@ -41,6 +47,8 @@ To find out the default value for each parameter, see `conf/analysis.config`.
 
 + **`do_img_subworkflow`** Run the imaging sub-workflow to generate imaging and nuclear morphometric features for each spot on the grid.
 
++ **`short_workflow`** Run short imaging workflow instead of the full imaging workflow. See config for details.
+
 + **`do_imaging_anndata`** Create an AnnData object (e.g., for use with Scanpy) from the *.csv.gz data file with imaging and nuclear morphometric features
 
 + **`do_nuclear_sementation`** Perform nuclear segmentation (use either HoVer-Net or StarDist to segment nuclei) of the entire WSI.
@@ -51,7 +59,15 @@ To find out the default value for each parameter, see `conf/analysis.config`.
 
 + **`thumbnail_downsample_factor`** A factor used to reduce the WSI dimensions to create a low-resolution slide representation.
 
++ **`check_focus`** Run DeepFocus module to assess focus (blurryness) of the whole slide image.
+
++ **`deepfocus_model_path`** Path to DeepFocus checkpoint to use.
+
+
+
 + **`stain_normalization`** Whether to do any stain or color normalization.
+
++ **`stainnet`** Path to checkpoint for stain normalization model.
 
 + **`macenko_normalization`** If true, then use Macenko stain normalization. If false, use StainNet color normalization. This parameter is ignored if `stain_normalization` is false.
 
@@ -85,6 +101,8 @@ To find out the default value for each parameter, see `conf/analysis.config`.
 
 + **`hovernet_segmentation`** Do HoVer-Net segmetation. If false do StarDist segmentation. 
 
++ **`nuclei_segmentation_dir`** name of directory to save segmentation.
+
 + **`hovernet_batch_size`** Parameter of HoVer-Net segmetation. This parameter is ignored when segmentation is done with StarDist.
 
 + **`hovernet_num_inference_workers`** Parameter of HoVer-Net segmetation. This parameter is ignored when segmentation is done with StarDist.
@@ -93,6 +111,12 @@ To find out the default value for each parameter, see `conf/analysis.config`.
 
 + **`hovernet_tile_size`** Parameter of HoVer-Net segmetation. This parameter is ignored when segmentation is done with StarDist.
 
++ **`stardist_model`** Path to checkpoint of stardist model.
+
++ **`stardist_block_size`** Size of the image block to run segmentation. Blocks are merged internally at the end of segmentation.
+
++ **`stardist_expand_size`** Size of cytoplasm arouhd nucleus in pixels.
+
 
 
 + **`hovernet_spot_assignment_factor`** Used for either HoVer-Net or StarDist segmentation postprocessing. Scaling factor of the boundary limiting the inclusion of nuclei to an ST spot. A value of 1 means the boundary size equals ST spot size.
@@ -100,3 +124,76 @@ To find out the default value for each parameter, see `conf/analysis.config`.
 + **`hovernet_spot_assignment_shape`** Used for either HoVer-Net or StarDist segmentation postprocessing. The shape of the boundary, either square or disk.
 
 + **`hovernet_min_cell_type_prob`** Used for either HoVer-Net or StarDist segmentation postprocessing. This filtering parameteris used to remove nuclei assigned with low confidence.
+
+
++ **`extract_tile_features`** Extract (generate) imaging features for all tiles.
+
++ **`extract_inception_features`** If `extract_tile_features` then do Inception V3 features.
+
++ **`extract_transpath_features`** If `extract_tile_features` then do TransPath features.
+
++ **`transpath_features_model`** One of 'CTransPath' or 'MoCoV3'.
+
+
+
++ **`do_superpixels`** Do superpixel segmentation using SNIC algorithm.
+
++ **`export_superpixels_contours`** If true, export superpixel contours in JSON format.
+
++ **`superpixel_compactness`** Superpixel compactness parameter, see details of SNIC algorithm.
+
++ **`pixels_per_segment`** Number of pixels per superpixel segment, i.e., superpixel size.
+
++ **`superpixel_patch_size`** Superpixel patch size. Warning: patches boundaries are kept flat.
+
++ **`superpixel_downsampling_factor`** Superpixel downsampling factor for the input image downsampling .
+
++ **`od_block_size`** Block size for OD calculation.
+
++ **`expand_nuclei_distance`** Distance in pixels to expand the nuclei mask.
+
+
+
+
++ **`export_image`** Export the resized and normalized image in OME-TIFF format.
+
++ **`export_image_metadata`** Export input image metadata in OME-XML format.
+
++ **`compression`** Compression library to use with OME-TIFF, e.g., 'LZW'.
+
+
++ **`downsample_expanded_tile`** Downsample expanded tile.
+
++ **`expansion_factor`** Tile is read from expanded area around the tile center.
+
++ **`subtiling`** If true, split tile into subtiles, then extract features and compute average across the subtiles.
+
++ **`subcoords_factor`** Factor that defines the size of subtiles.
+
++ **`subcoords_list`** Centers of the subtiles within a tile.
+
+
+
++ **`do_clustering`** Do dimensionality reduction and clustering. Generate spatial and UMAP plots of imaging feature clusters as well as nucler morphometric features and classification results.
+
++ **`expansion_factor_for_clustering`** Features of the specified expansion factor are used for clustering.
+
++ **`suffix_for_clustering`** Features of this type are used for clustering.
+
++ **`plot_dpi`** DPI (dots per inch) of the figures.
+
+
+
++ **`hovernet_device_mode`** GPU or CPU device for use with HoVer-Net.
+
++ **`ctranspath_device_mode`** GPU or CPU device for use with TransPath inference models.
+
+
+
++ **`sample_tiles_subworkflow`** Run a subworkflow where a small number of tiles is saved, along with the HoVer-Net classification data.
+
++ **`tiles_per_slide`** Number of randomly selected tiles to use in the sampling tiles subworkflow.
+
+
+
++ **`do_segmentation_anndata`**   DEPRECATED parameter, will be removed in future.
