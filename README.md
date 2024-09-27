@@ -129,7 +129,7 @@ The singularity containers used in our pipeline can be downloaded or built with 
 
     singularity push /projects/chuang-lab/USERS/domans/containers/local/mamba-xenomake.sif oras://quay.io/jaxcompsci/xenomake:v1.0.0
     singularity push /projects/chuang-lab/USERS/domans/containers/container-mamba-inception.sif oras://quay.io/jaxcompsci/inception:v1.0.0
-    singularity push /projects/chuang-lab/USERS/domans/containers/container-singularity-hovernet-py.sif oras://quay.io/jaxcompsci/hovernet:v1.0.0
+    singularity push /projects/chuang-lab/USERS/domans/containers/local/container-singularity-hovernet-py.sif oras://quay.io/jaxcompsci/hovernet:v2.0.0
     singularity push /projects/chuang-lab/USERS/domans/containers/container-singularity-stainnet.sif oras://quay.io/jaxcompsci/stainnet:v1.0.0
     singularity push /projects/chuang-lab/USERS/domans/containers/container-singularity-staintools.sif oras://quay.io/jaxcompsci/staintools:v1.0.0
     singularity push /projects/chuang-lab/USERS/domans/containers/container-singularity-vips.sif oras://quay.io/jaxcompsci/vips:v1.0.0
@@ -149,7 +149,7 @@ To download containers for use with the pipeline: change directory to the desira
     singularity pull docker://quay.io/jaxcompsci/xenome:1.0.1
     singularity pull oras://quay.io/jaxcompsci/xenomake:v1.0.0
     singularity pull oras://quay.io/jaxcompsci/inception:v1.0.0
-    singularity pull oras://quay.io/jaxcompsci/hovernet:v1.0.0
+    singularity pull oras://quay.io/jaxcompsci/hovernet:v2.0.0
     singularity pull oras://quay.io/jaxcompsci/stainnet:v1.0.0
     singularity pull oras://quay.io/jaxcompsci/staintools:v1.0.0
     singularity pull oras://quay.io/jaxcompsci/vips:v1.0.0
@@ -164,7 +164,7 @@ To download containers for use with the pipeline: change directory to the desira
 <details closed><summary>Click to get a template for conf/containers.config file:</summary><p>
 
     container_inception        = "${params.container_dir}/inception_v1.0.0.sif"
-    container_hovernet         = "${params.container_dir}/hovernet_v1.0.0.sif"
+    container_hovernet         = "${params.container_dir}/hovernet_v2.0.0.sif"
     container_stainnet         = "${params.container_dir}/stainnet_v1.0.0.sif"
     container_staintools       = "${params.container_dir}/staintools_v1.0.0.sif"
     container_vips             = "${params.container_dir}/vips_v1.0.0.sif"
