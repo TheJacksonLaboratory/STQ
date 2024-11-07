@@ -16,6 +16,8 @@ include { LOAD_SAMPLE_INFO;
           GET_INCEPTION_FEATURES_TILES;
           GET_INCEPTION_FEATURES;
           GET_CTRANSPATH_FEATURES;
+          GET_UNI_FEATURES;
+          GET_CONCH_FEATURES;
         } from '../modules/local/tasks'
 
 include { CHECK_FOCUS;
@@ -159,17 +161,7 @@ workflow IMG {
         }
       
         
-        if ( params.extract_tile_features ) {        
-            if (params.extract_inception_features) {
-                GET_INCEPTION_FEATURES ( convertedimage
-                                         .join(GET_TILE_MASK.out.mask)
-                                         .join(TILE_WSI.out.grid)
-                                         .join(LOAD_SAMPLE_INFO.out.grid)
-                                         .join(imagesize)
-                                         .combine(Channel.fromList(params.expansion_factor)) )
-                
-                features_out = GET_INCEPTION_FEATURES.out
-            }
+        if ( params.extract_tile_features ) {
 
             if (params.extract_transpath_features) {                   
                 GET_CTRANSPATH_FEATURES ( convertedimage
@@ -179,12 +171,53 @@ workflow IMG {
                                          .join(imagesize)
                                          .combine(Channel.fromList(params.expansion_factor)) )
                 
-                if (params.extract_inception_features) {
-                    features_out = features_out.concat( GET_CTRANSPATH_FEATURES.out )
-                }
-                else {
-                    features_out = GET_CTRANSPATH_FEATURES.out
-                }
+                ctranspath_features_out = GET_CTRANSPATH_FEATURES.out
+            }
+
+            if (params.extract_inception_features) {
+                GET_INCEPTION_FEATURES ( convertedimage
+                                         .join(GET_TILE_MASK.out.mask)
+                                         .join(TILE_WSI.out.grid)
+                                         .join(LOAD_SAMPLE_INFO.out.grid)
+                                         .join(imagesize)
+                                         .combine(Channel.fromList(params.expansion_factor)) )
+                
+                inception_features_out = GET_INCEPTION_FEATURES.out
+            }
+
+            if (params.extract_uni_features) {                   
+                GET_UNI_FEATURES ( convertedimage
+                                         .join(GET_TILE_MASK.out.mask)
+                                         .join(TILE_WSI.out.grid)
+                                         .join(LOAD_SAMPLE_INFO.out.grid)
+                                         .join(imagesize)
+                                         .combine(Channel.fromList(params.expansion_factor)) )
+                
+                uni_features_out = GET_UNI_FEATURES.out
+            }
+
+            if (params.extract_conch_features) {                   
+                GET_CONCH_FEATURES ( convertedimage
+                                         .join(GET_TILE_MASK.out.mask)
+                                         .join(TILE_WSI.out.grid)
+                                         .join(LOAD_SAMPLE_INFO.out.grid)
+                                         .join(imagesize)
+                                         .combine(Channel.fromList(params.expansion_factor)) )
+                
+                conch_features_out = GET_CONCH_FEATURES.out
+            }           
+
+            // Default features
+            features_out = ctranspath_features_out
+
+            if (params.extract_inception_features) {
+                features_out = features_out.concat( inception_features_out )
+            }
+            if (params.extract_uni_features) {
+                features_out = features_out.concat( uni_features_out )
+            }
+            if (params.extract_conch_features) {
+                features_out = features_out.concat( conch_features_out )
             }
             
             if ( params.do_imaging_anndata ) {

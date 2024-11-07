@@ -529,6 +529,94 @@ process GET_CTRANSPATH_FEATURES {
     """   
 }
 
+process GET_UNI_FEATURES {
+
+    tag "$sample_id"
+    label 'process_uni'
+    maxRetries 0
+    errorStrategy  { task.attempt <= maxRetries  ? 'retry' : 'finish' }
+    memory { 56.GB + (Float.valueOf(size) / 1000.0).round(2) * params.memory_scale_factor * 16.GB }
+    publishDir "${params.outdir}/${sample_id}/features", pattern: 'features/*.tsv.gz', saveAs: { filename -> "${params.subtiling}-${expansion_factor}-${filename.split("/")[filename.split("/").length - 1]}" }, mode: 'copy', overwrite: true
+    
+    input:
+    tuple val(sample_id), path(image), path(tile_mask), path(grid_csv), path(grid_json), path(meta_grid_csv), path(meta_grid_json), val(size), val(expansion_factor)
+    
+    output:
+    tuple val(sample_id), file("features/uni_features.tsv.gz"), val(expansion_factor), val("uni"), optional: true
+    
+    script:
+    """    
+    # If the grid from SpaceRanger, then don't owerwrite the tile mask with my mask
+    filesize=`wc -c <"${meta_grid_csv}"`
+    if [ \$filesize -ge 10 ];
+    then
+        vtilemask=None
+    else
+        vtilemask="${tile_mask}"
+    fi
+    
+    [ ! -d "features" ] && mkdir "features"
+
+    python -u ${projectDir}/bin/run-uni.py \
+    --wsi-file="${image}" \
+    --positions-list-file="${grid_csv}" \
+    --tile-mask="\${vtilemask}" \
+    --scalefactors-json-file="${grid_json}" \
+    --output-path="features/uni_features" \
+    --expansion-factor=${expansion_factor} \
+    --downsample-expanded=${params.downsample_expanded_tile} \
+    --subtiling=${params.subtiling} \
+    --subcoords-factor=${params.subcoords_factor} \
+    --subcoords-list="${params.subcoords_list}" \
+    --model-checkpoint-path=${params.uni_model_checkpoint} \
+    """   
+}
+
+
+process GET_CONCH_FEATURES {
+
+    tag "$sample_id"
+    label 'process_conch'
+    maxRetries 0
+    errorStrategy  { task.attempt <= maxRetries  ? 'retry' : 'finish' }
+    memory { 56.GB + (Float.valueOf(size) / 1000.0).round(2) * params.memory_scale_factor * 16.GB }
+    publishDir "${params.outdir}/${sample_id}/features", pattern: 'features/*.tsv.gz', saveAs: { filename -> "${params.subtiling}-${expansion_factor}-${filename.split("/")[filename.split("/").length - 1]}" }, mode: 'copy', overwrite: true
+    
+    input:
+    tuple val(sample_id), path(image), path(tile_mask), path(grid_csv), path(grid_json), path(meta_grid_csv), path(meta_grid_json), val(size), val(expansion_factor)
+    
+    output:
+    tuple val(sample_id), file("features/conch_features.tsv.gz"), val(expansion_factor), val("conch"), optional: true
+    
+    script:
+    """    
+    # If the grid from SpaceRanger, then don't owerwrite the tile mask with my mask
+    filesize=`wc -c <"${meta_grid_csv}"`
+    if [ \$filesize -ge 10 ];
+    then
+        vtilemask=None
+    else
+        vtilemask="${tile_mask}"
+    fi
+    
+    [ ! -d "features" ] && mkdir "features"
+
+    python -u ${projectDir}/bin/run-conch.py \
+    --wsi-file="${image}" \
+    --positions-list-file="${grid_csv}" \
+    --tile-mask="\${vtilemask}" \
+    --scalefactors-json-file="${grid_json}" \
+    --output-path="features/conch_features" \
+    --expansion-factor=${expansion_factor} \
+    --downsample-expanded=${params.downsample_expanded_tile} \
+    --subtiling=${params.subtiling} \
+    --subcoords-factor=${params.subcoords_factor} \
+    --subcoords-list="${params.subcoords_list}" \
+    --model-checkpoint-path=${params.conch_model_checkpoint} \
+    --use-conch-normalizer=${params.use_conch_normalizer}
+    """   
+}
+
 
 process SELECT_SAVE_TILES {
 

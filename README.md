@@ -23,7 +23,7 @@
   * velocyto
   * bafextract
   * Inception v3
-  * CTransPath
+  * CTransPath, UNI, CONCH
   * HoVer-Net
   * Stardist
   * DeepFocus
@@ -445,12 +445,21 @@ There is also an experimental option for subtiling of the tiles for imaging feat
 </p>
 
 
-7. **`CTransPath`** (https://github.com/Xiyue-Wang/TransPath)
+7. **`CTransPath, UNI, CONCH`**
 
-CTransPath is a Transformer-based Unsupervised Contrastive Learning for Histopathological Image Classification. 
+CTransPath (https://github.com/Xiyue-Wang/TransPath) is a Transformer-based Unsupervised Contrastive Learning for Histopathological Image Classification. 
 
 > *Publication:* Xiyue Wang, Sen Yang, Jun Zhang, Minghui Wang, Jing Zhang, Wei Yang, Junzhou Huang, Xiao Han. Transformer-based unsupervised contrastive learning for histopathological image classification. Med Image Anal. 2022 Oct;81:102559. doi: 10.1016/j.media.2022.102559. Epub 2022 Jul 30. PMID: 35952419.
 
+UNI (https://huggingface.co/MahmoodLab/UNI) 
+
+> *Publication:* Chen RJ, Ding T, Lu MY, Williamson DFK, Jaume G, Song AH, Chen B, Zhang A, Shao D, Shaban M, Williams M, Oldenburg L, Weishaupt LL, Wang JJ, Vaidya A, Le LP, Gerber G, Sahai S, Williams W, Mahmood F. Towards a general-purpose foundation model for computational pathology. Nat Med. 2024 Mar;30(3):850-862. doi: 10.1038/s41591-024-02857-3. Epub 2024 Mar 19. PMID: 38504018; PMCID: PMC11403354.
+
+CONCH (https://huggingface.co/MahmoodLab/CONCH)
+
+> *Publication:* Lu MY, Chen B, Williamson DFK, Chen RJ, Liang I, Ding T, Jaume G, Odintsov I, Le LP, Gerber G, Parwani AV, Zhang A, Mahmood F. A visual-language foundation model for computational pathology. Nat Med. 2024 Mar;30(3):863-874. doi: 10.1038/s41591-024-02856-4. Epub 2024 Mar 19. PMID: 38504017; PMCID: PMC11384335.
+
+Both UNI and CONCH checkpoints download require User registration and agreement to the use restrictions. Download the `pytorch_model.bin` checkpoints and adjust the pipleine parameters accordingly.
 
 8. **`HoVer-Net`** (https://github.com/vqdang/hover_net)
 

@@ -132,7 +132,17 @@ To find out the default value for each parameter, see `conf/analysis.config`.
 
 + **`extract_transpath_features`** If `extract_tile_features` then do TransPath features.
 
++ **`extract_uni_features`** If `extract_tile_features` then do UNI features.
+
++ **`extract_conch_features`** If `extract_tile_features` then do CONCH features.
+
 + **`transpath_features_model`** One of 'CTransPath' or 'MoCoV3'.
+
++ **`use_conch_normalizer`** Use specialized CONCH normalizer, instead of the standard normalizer used with UNI and CTransPath.
+
++ **`uni_model_checkpoint`** Path to downloaded CONCH checkpoint. Download requires registration https://huggingface.co/MahmoodLab/UNI/blob/main/pytorch_model.bin.
+
++ **`conch_model_checkpoint`** Path to downloaded CONCH checkpoint. Download requires registration https://huggingface.co/MahmoodLab/CONCH/blob/main/pytorch_model.bin.
 
 
 
