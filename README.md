@@ -140,6 +140,8 @@ The singularity containers used in our pipeline can be downloaded or built with 
     singularity push /projects/chuang-lab/USERS/domans/containers/deepfocus.sif oras://quay.io/jaxcompsci/deepfocus:v1.0.0
     singularity push /projects/chuang-lab/USERS/domans/containers/local/ome.sif oras://quay.io/jaxcompsci/ome:v1.0.0
     singularity push /projects/chuang-lab/USERS/domans/containers/local/mamba-timm.sif oras://quay.io/jaxcompsci/timm:v1.0.0
+    singularity push /projects/chuang-lab/USERS/domans/containers/hf-uni-conch.sif oras://quay.io/jaxcompsci/hfconch:v1.0.0
+
 
 </p></details>
 
@@ -160,6 +162,7 @@ To download containers for use with the pipeline: change directory to the desira
     singularity pull oras://quay.io/jaxcompsci/deepfocus:v1.0.0
     singularity pull oras://quay.io/jaxcompsci/ome:v1.0.0
     singularity pull oras://quay.io/jaxcompsci/timm:v1.0.0
+    singularity pull oras://quay.io/jaxcompsci/hfconch:v1.0.0
 
 <details closed><summary>Click to get a template for conf/containers.config file:</summary><p>
 
@@ -178,6 +181,7 @@ To download containers for use with the pipeline: change directory to the desira
     container_deepfocus         = "${params.container_dir}/deepfocus_v1.0.0.sif"
     container_ome              = "${params.container_dir}/ome_v1.0.0.sif"
     container_timm             = "${params.container_dir}/timm_v1.0.0.sif"
+    container_conch             = "${params.container_dir}/hfconch_v1.0.0.sif"
 
 </p></details>
 
