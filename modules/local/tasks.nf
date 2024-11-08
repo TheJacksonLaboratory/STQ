@@ -218,16 +218,38 @@ process GET_THUMB {
     script:    
     """
     #!/usr/bin/env python
-    
-    import openslide
-    s = openslide.open_slide("${image}")
-    
-    f = ${params.thumbnail_downsample_factor}
-    x, y = int(s.dimensions[0] * f), int(s.dimensions[1] * f)
-    print(x, y)
 
-    img = s.get_thumbnail((x, y))
-    img.save("thumbnail.tiff")
+    import tifffile
+    from tifffile import TiffFile
+    import numpy as np
+    import cv2
+
+    with TiffFile("${image}") as imgh:
+        dims0 = imgh.pages[0].tags[256].value, imgh.pages[0].tags[257].value
+        print(dims0)
+
+    # Try reading level 2 image and resize it to thumbnail
+    # If that doesn't work, read level 0, downsample it and resize it to thumbnail
+    try:
+        img = tifffile.imread("${image}", level=2)
+
+        # Adjust order of dimensions from OME-TIFF input
+        if img.shape[0] == 3:
+            img = np.moveaxis(img, 0, -1)
+    except Exception as exception:
+        print('Reading level 2 failed:', exception)
+        img = tifffile.imread("${image}")
+
+        assert img.shape[2] == 3
+        f = 10
+        img = img[::f, ::f, :]
+
+    f = ${params.thumbnail_downsample_factor}
+    target_dims = tuple((np.array(dims0) * f).astype(int))
+    thumb = cv2.resize(img, dsize=target_dims, interpolation=cv2.INTER_CUBIC)
+    print(thumb.shape)
+
+    tifffile.imwrite("thumbnail.tiff", thumb, bigtiff=False)
     """
 }
 
@@ -445,7 +467,7 @@ process GET_INCEPTION_FEATURES {
     errorStrategy  { task.attempt <= maxRetries  ? 'retry' : 'finish' }
     memory { 36.GB + (Float.valueOf(size) / 1000.0).round(2) * params.memory_scale_factor * 14.GB }
     //publishDir "${params.outdir}/${sample_id}", pattern: 'features/*.tsv.gz', mode: 'copy', overwrite: true
-    publishDir "${params.outdir}/${sample_id}/features", pattern: 'features/*.tsv.gz', saveAs: { filename -> "${expansion_factor}-${filename.split("/")[filename.split("/").length - 1]}" }, mode: 'copy', overwrite: true
+    publishDir "${params.outdir}/${sample_id}/features", pattern: 'features/*.tsv.gz', saveAs: { filename -> "${params.subtiling}-${expansion_factor}-${filename.split("/")[filename.split("/").length - 1]}" }, mode: 'copy', overwrite: true
     
     input:
     tuple val(sample_id), path(image), path(tile_mask), path(grid_csv), path(grid_json), path(meta_grid_csv), path(meta_grid_json), val(size), val(expansion_factor)
@@ -496,12 +518,6 @@ process GET_CTRANSPATH_FEATURES {
     
     script:
     """
-    CUDEV=""
-    if [[ "${params.ctranspath_device_mode}" == "gpu" ]];
-    then
-        CUDEV="\$CUDA_VISIBLE_DEVICES"
-    fi
-    
     # If the grid from SpaceRanger, then don't owerwrite the tile mask with my mask
     filesize=`wc -c <"${meta_grid_csv}"`
     if [ \$filesize -ge 10 ];
@@ -524,10 +540,58 @@ process GET_CTRANSPATH_FEATURES {
     --subtiling=${params.subtiling} \
     --subcoords-factor=${params.subcoords_factor} \
     --subcoords-list="${params.subcoords_list}" \
-    --model=${params.transpath_features_model} \
+    --model="CTransPath" \
+    --cuda-visible-devices=""
+    """   
+}
+
+
+process GET_MOCOV3_FEATURES {
+
+    tag "$sample_id"
+    label 'process_mocov3'
+    maxRetries 1
+    errorStrategy  { task.attempt <= maxRetries  ? 'retry' : 'finish' }
+    memory { 56.GB + (Float.valueOf(size) / 1000.0).round(2) * params.memory_scale_factor * 16.GB }
+    publishDir "${params.outdir}/${sample_id}/features", pattern: 'features/*.tsv.gz', saveAs: { filename -> "${params.subtiling}-${expansion_factor}-${filename.split("/")[filename.split("/").length - 1]}" }, mode: 'copy', overwrite: true
+    
+    input:
+    tuple val(sample_id), path(image), path(tile_mask), path(grid_csv), path(grid_json), path(meta_grid_csv), path(meta_grid_json), val(size), val(expansion_factor)
+    
+    output:
+    tuple val(sample_id), file("features/mocov3_features.tsv.gz"), val(expansion_factor), val("mocov3"), optional: true
+    
+    script:
+    """
+    CUDEV="\$CUDA_VISIBLE_DEVICES"
+    
+    # If the grid from SpaceRanger, then don't owerwrite the tile mask with my mask
+    filesize=`wc -c <"${meta_grid_csv}"`
+    if [ \$filesize -ge 10 ];
+    then
+        vtilemask=None
+    else
+        vtilemask="${tile_mask}"
+    fi
+    
+    [ ! -d "features" ] && mkdir "features"
+
+    python -u ${projectDir}/bin/run-ctranspath.py \
+    --wsi-file="${image}" \
+    --positions-list-file="${grid_csv}" \
+    --tile-mask="\${vtilemask}" \
+    --scalefactors-json-file="${grid_json}" \
+    --output-path="features/mocov3_features" \
+    --expansion-factor=${expansion_factor} \
+    --downsample-expanded=${params.downsample_expanded_tile} \
+    --subtiling=${params.subtiling} \
+    --subcoords-factor=${params.subcoords_factor} \
+    --subcoords-list="${params.subcoords_list}" \
+    --model="MoCoV3" \
     --cuda-visible-devices="\$CUDEV"
     """   
 }
+
 
 process GET_UNI_FEATURES {
 
