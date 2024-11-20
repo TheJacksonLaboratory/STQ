@@ -220,8 +220,11 @@ workflow IMG {
             }           
 
             // Default features
-            features_out = ctranspath_features_out
+            features_out = channel.empty()
 
+            if (params.extract_transpath_features) {
+                features_out = features_out.concat( ctranspath_features_out )
+            }
             if (params.extract_mocov3_features) {
                 features_out = features_out.concat( mocov3_features_out )
             }
