@@ -5,7 +5,7 @@ process CONVERT_SEGMENTATION_DATA {
     label 'python_low_process'
     maxRetries 1
     errorStrategy  { task.attempt <= maxRetries  ? 'retry' : 'finish' }
-    publishDir "${params.outdir}/${sample_id}", mode: 'copy', overwrite: true
+    publishDir "${params.outdir}/${sample_id}", mode: 'copy', overwrite: params.overwrite_files_on_publish
     memory { 1.GB + (Float.valueOf(size) / 1000.0).round(2) * params.memory_scale_factor * 3.GB }
     
     input:
@@ -40,7 +40,7 @@ process CONVERT_CSV_TO_ANNDATA {
 
     tag "$sample_id"
     label "python_low_process"
-    publishDir "${params.outdir}/${sample_id}", mode: 'copy', overwrite: true
+    publishDir "${params.outdir}/${sample_id}", mode: 'copy', overwrite: params.overwrite_files_on_publish
 
     input:
     tuple val(sample_id), path(data_csv), val(expansion_factor), val(suffix)
@@ -77,7 +77,7 @@ process MERGE_MTX {
 
     tag "$sample_id"
     label "python_low_process"
-    publishDir "${params.outdir}/${sample_id}", mode: 'copy', overwrite: true
+    publishDir "${params.outdir}/${sample_id}", mode: 'copy', overwrite: params.overwrite_files_on_publish
 
     input:
     tuple val(sample_id), path('mtx_mouse/*'), path('mtx_human/*')
@@ -130,7 +130,7 @@ process RETURN_MTX {
 
     tag "$sample_id"
     label "python_low_process"
-    publishDir "${params.outdir}/${sample_id}", mode: 'copy', overwrite: true
+    publishDir "${params.outdir}/${sample_id}", mode: 'copy', overwrite: params.overwrite_files_on_publish
 
     input:
     tuple val(sample_id), path('mtx/*')

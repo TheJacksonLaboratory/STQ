@@ -44,7 +44,7 @@ process CHECK_MASK {
 
     tag "$sample_id"
     label 'process_hovernet_low'
-    publishDir "${params.outdir}/${sample_id}", mode: 'copy', overwrite: true
+    publishDir "${params.outdir}/${sample_id}", mode: 'copy', overwrite: params.overwrite_files_on_publish
     errorStrategy 'finish'
     
     input:
@@ -225,7 +225,7 @@ process INFER_HOVERNET_TILES {
     label 'process_hovernet'
     maxRetries 1
     errorStrategy  { task.attempt <= maxRetries  ? 'retry' : 'finish' }
-    publishDir "${params.outdir}/${sample_id}/tiles", pattern: 'temp/overlay/*.png', saveAs: { filename -> "${filename.split("/")[filename.split("/").length - 1]}" }, mode: 'copy', overwrite: true
+    publishDir "${params.outdir}/${sample_id}/tiles", pattern: 'temp/overlay/*.png', saveAs: { filename -> "${filename.split("/")[filename.split("/").length - 1]}" }, mode: 'copy', overwrite: params.overwrite_files_on_publish
     memory { 16.GB }
     
     input:
@@ -269,7 +269,7 @@ process GET_NUCLEI_TYPE_COUNTS {
     tag "$sample_id"
     label 'process_hovernet_low'
     errorStrategy 'ignore'
-    publishDir "${params.outdir}/${sample_id}", mode: 'copy', overwrite: true
+    publishDir "${params.outdir}/${sample_id}", mode: 'copy', overwrite: params.overwrite_files_on_publish
     
     input:
     tuple val(sample_id), path("json/")
@@ -390,7 +390,7 @@ process COMPRESS_JSON_FILE {
     label 'vips_process'
     maxRetries 3
     errorStrategy  { task.attempt <= maxRetries  ? 'retry' : 'finish' }
-    publishDir "${params.outdir}/${sample_id}", mode: 'copy', overwrite: true
+    publishDir "${params.outdir}/${sample_id}", mode: 'copy', overwrite: params.overwrite_files_on_publish
     
     input:
     tuple val(sample_id), path(json_file)
@@ -412,7 +412,7 @@ process COMPUTE_SEGMENTATION_DATA {
     label 'python_process_low'
     maxRetries 3
     errorStrategy  { task.attempt <= maxRetries  ? 'retry' : 'finish' }
-    publishDir "${params.outdir}/${sample_id}", mode: 'copy', overwrite: true
+    publishDir "${params.outdir}/${sample_id}", mode: 'copy', overwrite: params.overwrite_files_on_publish
     memory { 6.GB * task.attempt + (Float.valueOf(size) / 1000.0).round(2) * params.memory_scale_factor * 6.GB * task.attempt }
     
     input:
@@ -444,7 +444,7 @@ process GENERATE_PERSPOT_SEGMENTATION_DATA {
     label 'python_process_low'
     maxRetries 3
     errorStrategy  { task.attempt <= maxRetries  ? 'retry' : 'finish' }
-    publishDir "${params.outdir}/${sample_id}", mode: 'copy', overwrite: true
+    publishDir "${params.outdir}/${sample_id}", mode: 'copy', overwrite: params.overwrite_files_on_publish
     memory { 4.GB * task.attempt + (Float.valueOf(size) / 1000.0).round(2) * params.memory_scale_factor * 4.GB * task.attempt }
     
     input:

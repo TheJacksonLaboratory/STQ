@@ -6,7 +6,7 @@ process SUPERPIXELATION {
     maxRetries 1
     errorStrategy  { task.attempt <= maxRetries  ? 'retry' : 'finish' }
     memory { 6.GB + (Float.valueOf(size) / 1000.0).round(2) * params.memory_scale_factor * 12.GB }
-    publishDir "${params.outdir}/${sample_id}/superpixels", pattern: "superpixelation_*.png", mode: 'copy', overwrite: true
+    publishDir "${params.outdir}/${sample_id}/superpixels", pattern: "superpixelation_*.png", mode: 'copy', overwrite: params.overwrite_files_on_publish
     cpus 1
     
     input:
@@ -36,7 +36,7 @@ process EXPORT_DOWN_IMAGE_FOR_CONTOURS {
     maxRetries 1
     errorStrategy  { task.attempt <= maxRetries  ? 'retry' : 'finish' }
     memory { 6.GB + (Float.valueOf(size) / 1000.0).round(2) * params.memory_scale_factor * 5.GB }
-    publishDir "${params.outdir}/${sample_id}", mode: 'copy', overwrite: true
+    publishDir "${params.outdir}/${sample_id}", mode: 'copy', overwrite: params.overwrite_files_on_publish
     cpus 1
     
     input:
@@ -69,7 +69,7 @@ process EXPORT_SUPERPIXELATION_CONTOURS {
     maxRetries 1
     errorStrategy  { task.attempt <= maxRetries  ? 'retry' : 'finish' }
     memory { 6.GB + (Float.valueOf(size) / 1000.0).round(2) * params.memory_scale_factor * 3.GB }
-    publishDir "${params.outdir}/${sample_id}", mode: 'copy', overwrite: true
+    publishDir "${params.outdir}/${sample_id}", mode: 'copy', overwrite: params.overwrite_files_on_publish
     cpus 1
     
     input:
@@ -181,7 +181,7 @@ process ASSIGN_NUCLEI_TO_SUPERPIXELS {
     label 'process_inception'
     maxRetries 1
     errorStrategy  { task.attempt <= maxRetries  ? 'retry' : 'finish' }
-    publishDir "${params.outdir}/${sample_id}", mode: 'copy', overwrite: true
+    publishDir "${params.outdir}/${sample_id}", mode: 'copy', overwrite: params.overwrite_files_on_publish
     memory { 3.GB + (Float.valueOf(size) / 1000.0).round(2) * params.memory_scale_factor * 3.GB }
     cpus 1
     

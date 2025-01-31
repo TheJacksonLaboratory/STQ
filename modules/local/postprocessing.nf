@@ -5,7 +5,7 @@ process DIMRED_CLUSTER_MORPH {
     label 'python_low_process'
     maxRetries 2
     errorStrategy  { task.attempt <= maxRetries  ? 'retry' : 'finish' }
-    publishDir "${params.outdir}/${sample_id}/figures", pattern: 'figures/*/*.png', saveAs: { filename -> "${filename.split("/")[filename.split("/").length - 1]}" }, mode: 'copy', overwrite: true
+    publishDir "${params.outdir}/${sample_id}/figures", pattern: 'figures/*/*.png', saveAs: { filename -> "${filename.split("/")[filename.split("/").length - 1]}" }, mode: 'copy', overwrite: params.overwrite_files_on_publish
     memory { 1.GB + (Float.valueOf(size) / 1000.0).round(2) * params.memory_scale_factor * 3.GB }
     
     input:
@@ -118,7 +118,7 @@ process DIMRED_CLUSTER {
     label 'python_low_process'
     maxRetries 2
     errorStrategy  { task.attempt <= maxRetries  ? 'retry' : 'finish' }
-    publishDir "${params.outdir}/${sample_id}/figures", pattern: 'figures/*/*.png', saveAs: { filename -> "${filename.split("/")[filename.split("/").length - 1]}" }, mode: 'copy', overwrite: true
+    publishDir "${params.outdir}/${sample_id}/figures", pattern: 'figures/*/*.png', saveAs: { filename -> "${filename.split("/")[filename.split("/").length - 1]}" }, mode: 'copy', overwrite: params.overwrite_files_on_publish
     memory { 1.GB + (Float.valueOf(size) / 1000.0).round(2) * params.memory_scale_factor * 3.GB }
     
     input:

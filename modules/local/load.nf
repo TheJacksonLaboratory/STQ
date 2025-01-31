@@ -20,7 +20,7 @@ process LOAD_SAMPLE_INFO {
 
 process EXPORT_PARAMETERS {
 
-    publishDir "${params.tracedir}", pattern: '{*.json}', mode: 'copy', overwrite: true
+    publishDir "${params.tracedir}", pattern: '{*.json}', mode: 'copy', overwrite: params.overwrite_files_on_publish
 
     output:
     path 'parameters.json'
@@ -32,7 +32,7 @@ process EXPORT_PARAMETERS {
 
 process EXPORT_SAMPLEINFO {
 
-    publishDir "${params.outdir}/${sample_id}", pattern: '{*.json}', mode: 'copy', overwrite: true
+    publishDir "${params.outdir}/${sample_id}", pattern: '{*.json}', mode: 'copy', overwrite: params.overwrite_files_on_publish
 
     input:
     tuple val(sample_id), val(meta)

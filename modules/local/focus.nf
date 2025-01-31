@@ -6,7 +6,7 @@ process CHECK_FOCUS {
     maxRetries 3
     errorStrategy  { task.attempt <= maxRetries  ? 'retry' : 'finish' }
     memory { 12.GB + (Float.valueOf(size) / 1000.0).round(2) * params.memory_scale_factor * 12.GB }
-    publishDir "${params.outdir}/${sample_id}/focus", pattern: 'output/*', saveAs: { "${file(it).getFileName()}" }, mode: 'copy', overwrite: true
+    publishDir "${params.outdir}/${sample_id}/focus", pattern: 'output/*', saveAs: { "${file(it).getFileName()}" }, mode: 'copy', overwrite: params.overwrite_files_on_publish
     
     input:
     tuple val(sample_id), path(image), val(size)

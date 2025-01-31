@@ -181,7 +181,7 @@ process CONVERT_TO_TILED_TIFF {
     label 'vips_process'
     maxRetries 3
     errorStrategy  { task.attempt <= maxRetries  ? 'retry' : 'finish' }
-    publishDir "${params.outdir}/${sample_id}", pattern: 'thumbnail.tiff', mode: 'copy', overwrite: true
+    publishDir "${params.outdir}/${sample_id}", pattern: 'thumbnail.tiff', mode: 'copy', overwrite: params.overwrite_files_on_publish
     
     input:
     tuple val(sample_id), path(image)
@@ -207,7 +207,7 @@ process GET_THUMB {
     maxRetries 0
     errorStrategy  { task.attempt <= maxRetries  ? 'retry' : 'finish' }
     memory { 64.GB }
-    publishDir "${params.outdir}/${sample_id}", pattern: 'thumbnail.tiff', mode: 'copy', overwrite: true
+    publishDir "${params.outdir}/${sample_id}", pattern: 'thumbnail.tiff', mode: 'copy', overwrite: params.overwrite_files_on_publish
     
     input:
     tuple val(sample_id), path(image)
@@ -226,18 +226,19 @@ process GET_THUMB {
 
     with TiffFile("${image}") as imgh:
         dims0 = imgh.pages[0].tags[256].value, imgh.pages[0].tags[257].value
-        print(dims0)
+        num_levels = len(imgh.series[0].levels)
+        print(dims0, num_levels)
 
-    # Try reading level 2 image and resize it to thumbnail
+    # Try reading the smallest level of the image and resize it to thumbnail
     # If that doesn't work, read level 0, downsample it and resize it to thumbnail
     try:
-        img = tifffile.imread("${image}", level=2)
+        img = tifffile.imread("${image}", level=num_levels-1)
 
         # Adjust order of dimensions from OME-TIFF input
         if img.shape[0] == 3:
             img = np.moveaxis(img, 0, -1)
     except Exception as exception:
-        print('Reading level 2 failed:', exception)
+        print('Reading last level failed:', exception)
         img = tifffile.imread("${image}")
 
         assert img.shape[2] == 3
@@ -261,7 +262,7 @@ process MAKE_TINY_THUMB {
     maxRetries 0
     errorStrategy  { task.attempt <= maxRetries  ? 'retry' : 'finish' }
     memory { 2.GB }
-    publishDir "${params.outdir}/${sample_id}", pattern: 'thumbnail.jpeg', mode: 'copy', overwrite: true
+    publishDir "${params.outdir}/${sample_id}", pattern: 'thumbnail.jpeg', mode: 'copy', overwrite: params.overwrite_files_on_publish
     
     input:
     tuple val(sample_id), path(image)
@@ -286,7 +287,7 @@ process GET_PIXEL_MASK {
     label 'python_process_low'
     maxRetries 3
     errorStrategy  { task.attempt <= maxRetries  ? 'retry' : 'finish' }
-    publishDir "${params.outdir}/${sample_id}", mode: 'copy', overwrite: true
+    publishDir "${params.outdir}/${sample_id}", mode: 'copy', overwrite: params.overwrite_files_on_publish
     memory { 3.GB + (Float.valueOf(size) / 1000.0).round(2) * params.memory_scale_factor * 3.GB }
     
     input:
@@ -317,7 +318,7 @@ process GET_TISSUE_MASK {
     label 'python_process_low'
     maxRetries 3
     errorStrategy  { task.attempt <= maxRetries  ? 'retry' : 'finish' }
-    publishDir "${params.outdir}/${sample_id}", mode: 'copy', overwrite: true
+    publishDir "${params.outdir}/${sample_id}", mode: 'copy', overwrite: params.overwrite_files_on_publish
     memory { 3.GB + (Float.valueOf(size) / 1000.0).round(2) * params.memory_scale_factor * 6.GB * task.attempt }
     
     input:
@@ -352,7 +353,7 @@ process TILE_WSI {
     label 'python_process_low'
     maxRetries 3
     errorStrategy  { task.attempt <= maxRetries  ? 'retry' : 'finish' }
-    publishDir "${params.outdir}/${sample_id}", mode: 'copy', overwrite: true
+    publishDir "${params.outdir}/${sample_id}", mode: 'copy', overwrite: params.overwrite_files_on_publish
     memory { 3.GB + (Float.valueOf(size) / 1000.0).round(2) * params.memory_scale_factor * 6.GB * task.attempt }
     
     input:
@@ -432,7 +433,7 @@ process GET_TILE_MASK {
     label 'python_process_low'
     maxRetries 3
     errorStrategy  { task.attempt <= maxRetries  ? 'retry' : 'finish' }
-    publishDir "${params.outdir}/${sample_id}", mode: 'copy', overwrite: true
+    publishDir "${params.outdir}/${sample_id}", mode: 'copy', overwrite: params.overwrite_files_on_publish
     memory { 3.GB + (Float.valueOf(size) / 1000.0).round(2) * params.memory_scale_factor * 6.GB * task.attempt }
     
     input:
@@ -463,11 +464,11 @@ process GET_INCEPTION_FEATURES {
 
     tag "$sample_id"
     label 'process_inception'
-    maxRetries 1
+    maxRetries 2
     errorStrategy  { task.attempt <= maxRetries  ? 'retry' : 'finish' }
     memory { 36.GB + (Float.valueOf(size) / 1000.0).round(2) * params.memory_scale_factor * 14.GB }
     //publishDir "${params.outdir}/${sample_id}", pattern: 'features/*.tsv.gz', mode: 'copy', overwrite: true
-    publishDir "${params.outdir}/${sample_id}/features", pattern: 'features/*.tsv.gz', saveAs: { filename -> "${params.subtiling}-${expansion_factor}-${filename.split("/")[filename.split("/").length - 1]}" }, mode: 'copy', overwrite: true
+    publishDir "${params.outdir}/${sample_id}/features", pattern: 'features/*.tsv.gz', saveAs: { filename -> "${params.subtiling}-${expansion_factor}-${filename.split("/")[filename.split("/").length - 1]}" }, mode: 'copy', overwrite: params.overwrite_files_on_publish
     
     input:
     tuple val(sample_id), path(image), path(tile_mask), path(grid_csv), path(grid_json), path(meta_grid_csv), path(meta_grid_json), val(size), val(expansion_factor)
@@ -504,11 +505,11 @@ process GET_CTRANSPATH_FEATURES {
 
     tag "$sample_id"
     label 'process_ctranspath'
-    maxRetries 1
+    maxRetries 2
     errorStrategy  { task.attempt <= maxRetries  ? 'retry' : 'finish' }
     memory { 56.GB + (Float.valueOf(size) / 1000.0).round(2) * params.memory_scale_factor * 16.GB }
     //publishDir "${params.outdir}/${sample_id}", pattern: 'features/*.tsv.gz', mode: 'copy', overwrite: true
-    publishDir "${params.outdir}/${sample_id}/features", pattern: 'features/*.tsv.gz', saveAs: { filename -> "${params.subtiling}-${expansion_factor}-${filename.split("/")[filename.split("/").length - 1]}" }, mode: 'copy', overwrite: true
+    publishDir "${params.outdir}/${sample_id}/features", pattern: 'features/*.tsv.gz', saveAs: { filename -> "${params.subtiling}-${expansion_factor}-${filename.split("/")[filename.split("/").length - 1]}" }, mode: 'copy', overwrite: params.overwrite_files_on_publish
     
     input:
     tuple val(sample_id), path(image), path(tile_mask), path(grid_csv), path(grid_json), path(meta_grid_csv), path(meta_grid_json), val(size), val(expansion_factor)
@@ -550,10 +551,10 @@ process GET_MOCOV3_FEATURES {
 
     tag "$sample_id"
     label 'process_mocov3'
-    maxRetries 1
+    maxRetries 0
     errorStrategy  { task.attempt <= maxRetries  ? 'retry' : 'finish' }
     memory { 56.GB + (Float.valueOf(size) / 1000.0).round(2) * params.memory_scale_factor * 16.GB }
-    publishDir "${params.outdir}/${sample_id}/features", pattern: 'features/*.tsv.gz', saveAs: { filename -> "${params.subtiling}-${expansion_factor}-${filename.split("/")[filename.split("/").length - 1]}" }, mode: 'copy', overwrite: true
+    publishDir "${params.outdir}/${sample_id}/features", pattern: 'features/*.tsv.gz', saveAs: { filename -> "${params.subtiling}-${expansion_factor}-${filename.split("/")[filename.split("/").length - 1]}" }, mode: 'copy', overwrite: params.overwrite_files_on_publish
     
     input:
     tuple val(sample_id), path(image), path(tile_mask), path(grid_csv), path(grid_json), path(meta_grid_csv), path(meta_grid_json), val(size), val(expansion_factor)
@@ -597,10 +598,10 @@ process GET_UNI_FEATURES {
 
     tag "$sample_id"
     label 'process_uni'
-    maxRetries 0
+    maxRetries 2
     errorStrategy  { task.attempt <= maxRetries  ? 'retry' : 'finish' }
     memory { 56.GB + (Float.valueOf(size) / 1000.0).round(2) * params.memory_scale_factor * 16.GB }
-    publishDir "${params.outdir}/${sample_id}/features", pattern: 'features/*.tsv.gz', saveAs: { filename -> "${params.subtiling}-${expansion_factor}-${filename.split("/")[filename.split("/").length - 1]}" }, mode: 'copy', overwrite: true
+    publishDir "${params.outdir}/${sample_id}/features", pattern: 'features/*.tsv.gz', saveAs: { filename -> "${params.subtiling}-${expansion_factor}-${filename.split("/")[filename.split("/").length - 1]}" }, mode: 'copy', overwrite: params.overwrite_files_on_publish
     
     input:
     tuple val(sample_id), path(image), path(tile_mask), path(grid_csv), path(grid_json), path(meta_grid_csv), path(meta_grid_json), val(size), val(expansion_factor)
@@ -641,10 +642,10 @@ process GET_CONCH_FEATURES {
 
     tag "$sample_id"
     label 'process_conch'
-    maxRetries 0
+    maxRetries 2
     errorStrategy  { task.attempt <= maxRetries  ? 'retry' : 'finish' }
-    memory { 56.GB + (Float.valueOf(size) / 1000.0).round(2) * params.memory_scale_factor * 16.GB }
-    publishDir "${params.outdir}/${sample_id}/features", pattern: 'features/*.tsv.gz', saveAs: { filename -> "${params.subtiling}-${expansion_factor}-${filename.split("/")[filename.split("/").length - 1]}" }, mode: 'copy', overwrite: true
+    memory { 60.GB + (Float.valueOf(size) / 1000.0).round(2) * params.memory_scale_factor * 16.GB }
+    publishDir "${params.outdir}/${sample_id}/features", pattern: 'features/*.tsv.gz', saveAs: { filename -> "${params.subtiling}-${expansion_factor}-${filename.split("/")[filename.split("/").length - 1]}" }, mode: 'copy', overwrite: params.overwrite_files_on_publish
     
     input:
     tuple val(sample_id), path(image), path(tile_mask), path(grid_csv), path(grid_json), path(meta_grid_csv), path(meta_grid_json), val(size), val(expansion_factor)
@@ -688,7 +689,7 @@ process SELECT_SAVE_TILES {
     label 'python_process_low'
     maxRetries 3
     errorStrategy  { task.attempt <= maxRetries  ? 'retry' : 'finish' }
-    publishDir "${params.outdir}/${sample_id}", pattern: 'tiles/*.csv', mode: 'copy', overwrite: true
+    publishDir "${params.outdir}/${sample_id}", pattern: 'tiles/*.csv', mode: 'copy', overwrite: params.overwrite_files_on_publish
     memory { 2.GB }
     
     input:
@@ -738,7 +739,7 @@ process GET_INCEPTION_FEATURES_TILES {
     label 'process_inception'
     maxRetries 3
     errorStrategy  { task.attempt <= maxRetries  ? 'retry' : 'finish' }
-    publishDir "${params.outdir}/${sample_id}", pattern: 'tiles/*.csv.gz', mode: 'copy', overwrite: true
+    publishDir "${params.outdir}/${sample_id}", pattern: 'tiles/*.csv.gz', mode: 'copy', overwrite: params.overwrite_files_on_publish
     memory { 4.GB }
     
     input:

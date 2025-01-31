@@ -39,7 +39,7 @@ process SPACERANGER {
 process RETURN_SPACERANGER_ALIGNMENT {
 
     tag "$sample_id"
-    publishDir "${params.outdir}/${sample_id}", mode: 'copy', overwrite: true
+    publishDir "${params.outdir}/${sample_id}", mode: 'copy', overwrite: params.overwrite_files_on_publish
 
     input:
     tuple val(sample_id), file("in_mouse/*"), file("in_human/*"), file("in_spatial/*")
@@ -59,7 +59,7 @@ process RETURN_SPACERANGER_ALIGNMENT {
 process RETURN_SPACERANGER_ALIGNMENT_SINGLE {
 
     tag "$sample_id"
-    publishDir "${params.outdir}/${sample_id}", mode: 'copy', overwrite: true
+    publishDir "${params.outdir}/${sample_id}", mode: 'copy', overwrite: params.overwrite_files_on_publish
 
     input:
     tuple val(sample_id), file("in_spacerangerqc/*"), file("in_spatial/*")

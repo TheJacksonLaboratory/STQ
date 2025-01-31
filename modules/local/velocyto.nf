@@ -21,7 +21,7 @@ process SPLICING_QUANTIFICATION {
 
     tag "$sample_id"
     label "splicing_quantification"
-    publishDir "${params.outdir}/${sample_id}", mode: 'copy', overwrite: true
+    publishDir "${params.outdir}/${sample_id}", mode: 'copy', overwrite: params.overwrite_files_on_publish
 
     input:
     tuple val(sample_id), path("sample/outs/*"), path("sample/outs/*"), path("sample/outs/filtered_feature_bc_matrix/*")
