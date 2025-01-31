@@ -1,1 +1,0 @@
-sbatch run_build.sb container-singularity-hovernet-py.def /projects/chuang-lab/USERS/domans/containers/container-singularity-hovernet-py.sif

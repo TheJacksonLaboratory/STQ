@@ -10,6 +10,7 @@ process LOAD_SAMPLE_INFO {
     tuple val(sample_id), file(image), file("roifile.json"), env(mpp), emit: main
     tuple val(sample_id), file("tissue_positions_list.csv"), file("scalefactors_json.json"), emit: grid
     tuple val(sample_id), env(mpp), emit: mpp
+    tuple val(sample_id), file(image), emit: image
     
     script:
     """
@@ -65,7 +66,7 @@ process GET_IMAGE_SIZE {
     
     script:
     """  
-    python -u ${projectDir}/bin/extractROI.py --fileslide="${fileslide}" --roifile="${roifile}" --sizefile="size.txt"
+    python -u ${projectDir}/bin/extractROI.py --fileslide="${fileslide}" --roifile="${roifile}" --sizefile="size.txt" --wholeside
     size=`cat size.txt`
     """
 }
@@ -77,7 +78,7 @@ process EXTRACT_ROI {
     label 'process_extract'
     maxRetries 1
     errorStrategy  { task.attempt <= maxRetries  ? 'retry' : 'finish' }
-    memory { 6.GB + (Float.valueOf(size) / 1000.0).round(2) * params.memory_scale_factor * 12.GB }
+    memory { 6.GB + (Float.valueOf(size) / 1000.0).round(2) * params.memory_scale_factor * 18.GB }
 
     input:
     tuple val(sample_id), path(fileslide), path(roifile), val(mpp), val(size)
@@ -102,10 +103,10 @@ process COLOR_NORMALIZATION {
     memory { 6.GB + (Float.valueOf(size) / 1000.0).round(2) * params.memory_scale_factor * 30.GB }
 
     input:
-    tuple val(sample_id), path("outfile.tiff"), val(mpp), val(size)
+    tuple val(sample_id), path("outfile.tiff"), val(size)
     
     output:
-    tuple val(sample_id), file("output_images/outfile.tiff"), val(mpp)
+    tuple val(sample_id), file("output_images/outfile.tiff")
 
     script:    
     """
@@ -128,10 +129,10 @@ process STAIN_NORMALIZATION {
     memory { 6.GB + (Float.valueOf(size) / 1000.0).round(2) * params.memory_scale_factor * 12.GB }
 
     input:
-    tuple val(sample_id), path("outfile.tiff"), val(mpp), val(size)
+    tuple val(sample_id), path("outfile.tiff"), val(size)
     
     output:
-    tuple val(sample_id), file("output_images/outfile.tiff"), val(mpp)
+    tuple val(sample_id), file("output_images/outfile.tiff")
 
     script:    
     """
@@ -146,39 +147,136 @@ process STAIN_NORMALIZATION {
 }
 
 
+process RESIZE_IMAGE {
+
+    tag "$sample_id"
+    label 'vips_process'
+    maxRetries 3
+    errorStrategy  { task.attempt <= maxRetries  ? 'retry' : 'finish' }
+    
+    input:
+    tuple val(sample_id), path(image), val(mpp)
+    
+    output:
+    tuple val(sample_id), file("tempfile.tiff"), emit: full
+    tuple val(sample_id), env(size), emit: size
+
+    script:    
+    """
+    f=`echo ${mpp} / ${params.target_mpp} | bc -l`
+    vips resize ${image} tempfile.tiff \$f
+
+    w=`vipsheader -f width tempfile.tiff`
+    h=`vipsheader -f height tempfile.tiff`
+    
+    size=`echo "\$w * \$h / 1000000" | bc -l`
+    size=`echo "\$size/1" | bc`
+    """
+}
+
+
 process CONVERT_TO_TILED_TIFF {
 
     tag "$sample_id"
     label 'vips_process'
     maxRetries 3
     errorStrategy  { task.attempt <= maxRetries  ? 'retry' : 'finish' }
-    publishDir "${params.outdir}/${sample_id}", pattern: 'thumbnail.tiff', mode: 'copy', overwrite: true
+    publishDir "${params.outdir}/${sample_id}", pattern: 'thumbnail.tiff', mode: 'copy', overwrite: params.overwrite_files_on_publish
     
     input:
-    tuple val(sample_id), path(image), val(mpp)
+    tuple val(sample_id), path(image)
     
     output:
     tuple val(sample_id), file("converted/outfile.tiff"), emit: full
     tuple val(sample_id), file("thumbnail.tiff"), emit: thumb
-    tuple val(sample_id), env(size), emit: size
-    tuple val(sample_id), val(mpp), emit: mpp
 
     script:    
     """
-    f=`echo ${mpp} / ${params.target_mpp} | bc -l`
-    echo vips resize ${image} tempfile.tiff \$f
-    vips resize ${image} tempfile.tiff \$f
     [ ! -d "converted" ] && mkdir "converted"
     
-    vips resize tempfile.tiff thumbnail.tiff ${params.thumbnail_downsample_factor}
-    vips tiffsave tempfile.tiff converted/outfile.tiff --compression none --tile --tile-width ${params.tiled_tiff_tile_size} --tile-height ${params.tiled_tiff_tile_size} --bigtiff
-    rm tempfile.tiff
+    vips resize ${image} thumbnail.tiff ${params.thumbnail_downsample_factor}
+    vips tiffsave ${image} converted/outfile.tiff --compression none --tile --tile-width ${params.tiled_tiff_tile_size} --tile-height ${params.tiled_tiff_tile_size} --bigtiff
+    """
+}
+
+
+process GET_THUMB {
+
+    tag "$sample_id"
+    label 'process_extract'
+    maxRetries 0
+    errorStrategy  { task.attempt <= maxRetries  ? 'retry' : 'finish' }
+    memory { 64.GB }
+    publishDir "${params.outdir}/${sample_id}", pattern: 'thumbnail.tiff', mode: 'copy', overwrite: params.overwrite_files_on_publish
     
-    w=`vipsheader -f width converted/outfile.tiff`
-    h=`vipsheader -f height converted/outfile.tiff`
+    input:
+    tuple val(sample_id), path(image)
     
-    size=`echo "\$w * \$h / 1000000" | bc -l`
-    size=`echo "\$size/1" | bc`
+    output:
+    tuple val(sample_id), file("thumbnail.tiff")
+
+    script:    
+    """
+    #!/usr/bin/env python
+
+    import tifffile
+    from tifffile import TiffFile
+    import numpy as np
+    import cv2
+
+    with TiffFile("${image}") as imgh:
+        dims0 = imgh.pages[0].tags[256].value, imgh.pages[0].tags[257].value
+        num_levels = len(imgh.series[0].levels)
+        print(dims0, num_levels)
+
+    # Try reading the smallest level of the image and resize it to thumbnail
+    # If that doesn't work, read level 0, downsample it and resize it to thumbnail
+    try:
+        img = tifffile.imread("${image}", level=num_levels-1)
+
+        # Adjust order of dimensions from OME-TIFF input
+        if img.shape[0] == 3:
+            img = np.moveaxis(img, 0, -1)
+    except Exception as exception:
+        print('Reading last level failed:', exception)
+        img = tifffile.imread("${image}")
+
+        assert img.shape[2] == 3
+        f = 10
+        img = img[::f, ::f, :]
+
+    f = ${params.thumbnail_downsample_factor}
+    target_dims = tuple((np.array(dims0) * f).astype(int))
+    thumb = cv2.resize(img, dsize=target_dims, interpolation=cv2.INTER_CUBIC)
+    print(thumb.shape)
+
+    tifffile.imwrite("thumbnail.tiff", thumb, bigtiff=False)
+    """
+}
+
+
+process MAKE_TINY_THUMB {
+
+    tag "$sample_id"
+    label 'process_extract'
+    maxRetries 0
+    errorStrategy  { task.attempt <= maxRetries  ? 'retry' : 'finish' }
+    memory { 2.GB }
+    publishDir "${params.outdir}/${sample_id}", pattern: 'thumbnail.jpeg', mode: 'copy', overwrite: params.overwrite_files_on_publish
+    
+    input:
+    tuple val(sample_id), path(image)
+    
+    output:
+    tuple val(sample_id), file("thumbnail.jpeg")
+
+    script:    
+    """
+    #!/usr/bin/env python
+    
+    import tifffile
+    img = tifffile.imread("${image}")
+    tifffile.imwrite("thumbnail.jpeg", img, compression=('jpeg', 85), bigtiff=False)
     """
 }
 
@@ -189,7 +287,7 @@ process GET_PIXEL_MASK {
     label 'python_process_low'
     maxRetries 3
     errorStrategy  { task.attempt <= maxRetries  ? 'retry' : 'finish' }
-    publishDir "${params.outdir}/${sample_id}", mode: 'copy', overwrite: true
+    publishDir "${params.outdir}/${sample_id}", mode: 'copy', overwrite: params.overwrite_files_on_publish
     memory { 3.GB + (Float.valueOf(size) / 1000.0).round(2) * params.memory_scale_factor * 3.GB }
     
     input:
@@ -220,8 +318,8 @@ process GET_TISSUE_MASK {
     label 'python_process_low'
     maxRetries 3
     errorStrategy  { task.attempt <= maxRetries  ? 'retry' : 'finish' }
-    publishDir "${params.outdir}/${sample_id}", mode: 'copy', overwrite: true
-    memory { 3.GB + (Float.valueOf(size) / 1000.0).round(2) * params.memory_scale_factor * 3.GB }
+    publishDir "${params.outdir}/${sample_id}", mode: 'copy', overwrite: params.overwrite_files_on_publish
+    memory { 3.GB + (Float.valueOf(size) / 1000.0).round(2) * params.memory_scale_factor * 6.GB * task.attempt }
     
     input:
     tuple val(sample_id), path(meta_grid_csv), path(meta_grid_json), path(tile_mask), val(size)
@@ -255,8 +353,8 @@ process TILE_WSI {
     label 'python_process_low'
     maxRetries 3
     errorStrategy  { task.attempt <= maxRetries  ? 'retry' : 'finish' }
-    publishDir "${params.outdir}/${sample_id}", mode: 'copy', overwrite: true
-    memory { 3.GB + (Float.valueOf(size) / 1000.0).round(2) * params.memory_scale_factor * 3.GB }
+    publishDir "${params.outdir}/${sample_id}", mode: 'copy', overwrite: params.overwrite_files_on_publish
+    memory { 3.GB + (Float.valueOf(size) / 1000.0).round(2) * params.memory_scale_factor * 6.GB * task.attempt }
     
     input:
     tuple val(sample_id), path(image), path(meta_grid_csv), path(meta_grid_json), val(size), val(mpp)
@@ -335,8 +433,8 @@ process GET_TILE_MASK {
     label 'python_process_low'
     maxRetries 3
     errorStrategy  { task.attempt <= maxRetries  ? 'retry' : 'finish' }
-    publishDir "${params.outdir}/${sample_id}", mode: 'copy', overwrite: true
-    memory { 3.GB + (Float.valueOf(size) / 1000.0).round(2) * params.memory_scale_factor * 3.GB }
+    publishDir "${params.outdir}/${sample_id}", mode: 'copy', overwrite: params.overwrite_files_on_publish
+    memory { 3.GB + (Float.valueOf(size) / 1000.0).round(2) * params.memory_scale_factor * 6.GB * task.attempt }
     
     input:
     tuple val(sample_id), path(low_res_image), path(pixel_mask_csv), path(grid_csv), path(grid_json), val(size)
@@ -366,16 +464,17 @@ process GET_INCEPTION_FEATURES {
 
     tag "$sample_id"
     label 'process_inception'
-    maxRetries 3
+    maxRetries 2
     errorStrategy  { task.attempt <= maxRetries  ? 'retry' : 'finish' }
-    memory { 6.GB + (Float.valueOf(size) / 1000.0).round(2) * params.memory_scale_factor * 14.GB }
-    publishDir "${params.outdir}/${sample_id}", pattern: 'features/*.tsv.gz', mode: 'copy', overwrite: true
+    memory { 36.GB + (Float.valueOf(size) / 1000.0).round(2) * params.memory_scale_factor * 14.GB }
+    //publishDir "${params.outdir}/${sample_id}", pattern: 'features/*.tsv.gz', mode: 'copy', overwrite: true
+    publishDir "${params.outdir}/${sample_id}/features", pattern: 'features/*.tsv.gz', saveAs: { filename -> "${params.subtiling}-${expansion_factor}-${filename.split("/")[filename.split("/").length - 1]}" }, mode: 'copy', overwrite: params.overwrite_files_on_publish
     
     input:
-    tuple val(sample_id), path(image), path(tile_mask), path(grid_csv), path(grid_json), path(meta_grid_csv), path(meta_grid_json), val(size)
+    tuple val(sample_id), path(image), path(tile_mask), path(grid_csv), path(grid_json), path(meta_grid_csv), path(meta_grid_json), val(size), val(expansion_factor)
     
     output:
-    tuple val(sample_id), file("features/inception_features.tsv.gz"), optional: true
+    tuple val(sample_id), file("features/inception_features.tsv.gz"), val(expansion_factor), val("inception"), optional: true
     
     script:
     """
@@ -396,8 +495,263 @@ process GET_INCEPTION_FEATURES {
     --tile-mask="\${vtilemask}" \
     --scalefactors-json-file="${grid_json}" \
     --output-path="features/inception_features" \
-    --expansion-factor=1 \
-    --downsample-expanded=false
+    --expansion-factor=${expansion_factor} \
+    --downsample-expanded=${params.downsample_expanded_tile}
     """   
 }
 
+
+process GET_CTRANSPATH_FEATURES {
+
+    tag "$sample_id"
+    label 'process_ctranspath'
+    maxRetries 2
+    errorStrategy  { task.attempt <= maxRetries  ? 'retry' : 'finish' }
+    memory { 56.GB + (Float.valueOf(size) / 1000.0).round(2) * params.memory_scale_factor * 16.GB }
+    //publishDir "${params.outdir}/${sample_id}", pattern: 'features/*.tsv.gz', mode: 'copy', overwrite: true
+    publishDir "${params.outdir}/${sample_id}/features", pattern: 'features/*.tsv.gz', saveAs: { filename -> "${params.subtiling}-${expansion_factor}-${filename.split("/")[filename.split("/").length - 1]}" }, mode: 'copy', overwrite: params.overwrite_files_on_publish
+    
+    input:
+    tuple val(sample_id), path(image), path(tile_mask), path(grid_csv), path(grid_json), path(meta_grid_csv), path(meta_grid_json), val(size), val(expansion_factor)
+    
+    output:
+    tuple val(sample_id), file("features/ctranspath_features.tsv.gz"), val(expansion_factor), val("ctranspath"), optional: true
+    
+    script:
+    """
+    # If the grid from SpaceRanger, then don't owerwrite the tile mask with my mask
+    filesize=`wc -c <"${meta_grid_csv}"`
+    if [ \$filesize -ge 10 ];
+    then
+        vtilemask=None
+    else
+        vtilemask="${tile_mask}"
+    fi
+    
+    [ ! -d "features" ] && mkdir "features"
+
+    python -u ${projectDir}/bin/run-ctranspath.py \
+    --wsi-file="${image}" \
+    --positions-list-file="${grid_csv}" \
+    --tile-mask="\${vtilemask}" \
+    --scalefactors-json-file="${grid_json}" \
+    --output-path="features/ctranspath_features" \
+    --expansion-factor=${expansion_factor} \
+    --downsample-expanded=${params.downsample_expanded_tile} \
+    --subtiling=${params.subtiling} \
+    --subcoords-factor=${params.subcoords_factor} \
+    --subcoords-list="${params.subcoords_list}" \
+    --model="CTransPath" \
+    --cuda-visible-devices=""
+    """   
+}
+
+
+process GET_MOCOV3_FEATURES {
+
+    tag "$sample_id"
+    label 'process_mocov3'
+    maxRetries 0
+    errorStrategy  { task.attempt <= maxRetries  ? 'retry' : 'finish' }
+    memory { 56.GB + (Float.valueOf(size) / 1000.0).round(2) * params.memory_scale_factor * 16.GB }
+    publishDir "${params.outdir}/${sample_id}/features", pattern: 'features/*.tsv.gz', saveAs: { filename -> "${params.subtiling}-${expansion_factor}-${filename.split("/")[filename.split("/").length - 1]}" }, mode: 'copy', overwrite: params.overwrite_files_on_publish
+    
+    input:
+    tuple val(sample_id), path(image), path(tile_mask), path(grid_csv), path(grid_json), path(meta_grid_csv), path(meta_grid_json), val(size), val(expansion_factor)
+    
+    output:
+    tuple val(sample_id), file("features/mocov3_features.tsv.gz"), val(expansion_factor), val("mocov3"), optional: true
+    
+    script:
+    """
+    CUDEV="\$CUDA_VISIBLE_DEVICES"
+    
+    # If the grid from SpaceRanger, then don't owerwrite the tile mask with my mask
+    filesize=`wc -c <"${meta_grid_csv}"`
+    if [ \$filesize -ge 10 ];
+    then
+        vtilemask=None
+    else
+        vtilemask="${tile_mask}"
+    fi
+    
+    [ ! -d "features" ] && mkdir "features"
+
+    python -u ${projectDir}/bin/run-ctranspath.py \
+    --wsi-file="${image}" \
+    --positions-list-file="${grid_csv}" \
+    --tile-mask="\${vtilemask}" \
+    --scalefactors-json-file="${grid_json}" \
+    --output-path="features/mocov3_features" \
+    --expansion-factor=${expansion_factor} \
+    --downsample-expanded=${params.downsample_expanded_tile} \
+    --subtiling=${params.subtiling} \
+    --subcoords-factor=${params.subcoords_factor} \
+    --subcoords-list="${params.subcoords_list}" \
+    --model="MoCoV3" \
+    --cuda-visible-devices="\$CUDEV"
+    """   
+}
+
+
+process GET_UNI_FEATURES {
+
+    tag "$sample_id"
+    label 'process_uni'
+    maxRetries 2
+    errorStrategy  { task.attempt <= maxRetries  ? 'retry' : 'finish' }
+    memory { 56.GB + (Float.valueOf(size) / 1000.0).round(2) * params.memory_scale_factor * 16.GB }
+    publishDir "${params.outdir}/${sample_id}/features", pattern: 'features/*.tsv.gz', saveAs: { filename -> "${params.subtiling}-${expansion_factor}-${filename.split("/")[filename.split("/").length - 1]}" }, mode: 'copy', overwrite: params.overwrite_files_on_publish
+    
+    input:
+    tuple val(sample_id), path(image), path(tile_mask), path(grid_csv), path(grid_json), path(meta_grid_csv), path(meta_grid_json), val(size), val(expansion_factor)
+    
+    output:
+    tuple val(sample_id), file("features/uni_features.tsv.gz"), val(expansion_factor), val("uni"), optional: true
+    
+    script:
+    """    
+    # If the grid from SpaceRanger, then don't owerwrite the tile mask with my mask
+    filesize=`wc -c <"${meta_grid_csv}"`
+    if [ \$filesize -ge 10 ];
+    then
+        vtilemask=None
+    else
+        vtilemask="${tile_mask}"
+    fi
+    
+    [ ! -d "features" ] && mkdir "features"
+
+    python -u ${projectDir}/bin/run-uni.py \
+    --wsi-file="${image}" \
+    --positions-list-file="${grid_csv}" \
+    --tile-mask="\${vtilemask}" \
+    --scalefactors-json-file="${grid_json}" \
+    --output-path="features/uni_features" \
+    --expansion-factor=${expansion_factor} \
+    --downsample-expanded=${params.downsample_expanded_tile} \
+    --subtiling=${params.subtiling} \
+    --subcoords-factor=${params.subcoords_factor} \
+    --subcoords-list="${params.subcoords_list}" \
+    --model-checkpoint-path=${params.uni_model_checkpoint} \
+    """   
+}
+
+
+process GET_CONCH_FEATURES {
+
+    tag "$sample_id"
+    label 'process_conch'
+    maxRetries 2
+    errorStrategy  { task.attempt <= maxRetries  ? 'retry' : 'finish' }
+    memory { 60.GB + (Float.valueOf(size) / 1000.0).round(2) * params.memory_scale_factor * 16.GB }
+    publishDir "${params.outdir}/${sample_id}/features", pattern: 'features/*.tsv.gz', saveAs: { filename -> "${params.subtiling}-${expansion_factor}-${filename.split("/")[filename.split("/").length - 1]}" }, mode: 'copy', overwrite: params.overwrite_files_on_publish
+    
+    input:
+    tuple val(sample_id), path(image), path(tile_mask), path(grid_csv), path(grid_json), path(meta_grid_csv), path(meta_grid_json), val(size), val(expansion_factor)
+    
+    output:
+    tuple val(sample_id), file("features/conch_features.tsv.gz"), val(expansion_factor), val("conch"), optional: true
+    
+    script:
+    """    
+    # If the grid from SpaceRanger, then don't owerwrite the tile mask with my mask
+    filesize=`wc -c <"${meta_grid_csv}"`
+    if [ \$filesize -ge 10 ];
+    then
+        vtilemask=None
+    else
+        vtilemask="${tile_mask}"
+    fi
+    
+    [ ! -d "features" ] && mkdir "features"
+
+    python -u ${projectDir}/bin/run-conch.py \
+    --wsi-file="${image}" \
+    --positions-list-file="${grid_csv}" \
+    --tile-mask="\${vtilemask}" \
+    --scalefactors-json-file="${grid_json}" \
+    --output-path="features/conch_features" \
+    --expansion-factor=${expansion_factor} \
+    --downsample-expanded=${params.downsample_expanded_tile} \
+    --subtiling=${params.subtiling} \
+    --subcoords-factor=${params.subcoords_factor} \
+    --subcoords-list="${params.subcoords_list}" \
+    --model-checkpoint-path=${params.conch_model_checkpoint} \
+    --use-conch-normalizer=${params.use_conch_normalizer}
+    """   
+}
+
+
+process SELECT_SAVE_TILES {
+
+    tag "$sample_id"
+    label 'python_process_low'
+    maxRetries 3
+    errorStrategy  { task.attempt <= maxRetries  ? 'retry' : 'finish' }
+    publishDir "${params.outdir}/${sample_id}", pattern: 'tiles/*.csv', mode: 'copy', overwrite: params.overwrite_files_on_publish
+    memory { 2.GB }
+    
+    input:
+    tuple val(sample_id), path(image), path(grid_csv), path(grid_json), path(tile_mask)
+    
+    output:
+    tuple val(sample_id), file("tiles/*.tif"), emit: tiles
+    
+    script:
+    """
+    #!/usr/bin/env python
+    
+    import os
+    import pandas as pd
+    import numpy as np
+    import json
+    import openslide
+    import PIL
+    import PIL.Image
+    PIL.Image.MAX_IMAGE_PIXELS = None
+    
+    if not os.path.exists('tiles/'):
+        os.makedirs('tiles/')
+     
+    se_mask = pd.read_csv("${tile_mask}", index_col=1, header=None)[0].xs(1)
+    np.random.seed(0)
+    sel_tiles = se_mask.sample(min(${params.tiles_per_slide}, se_mask.shape[0]))
+    sel_tiles.to_csv('tiles/tiles.csv', index=False, header=False)
+    
+    df_grid = pd.read_csv("${grid_csv}", index_col=0, header=None)[[4, 5]].loc[sel_tiles.values]
+    
+    with open("${grid_json}", 'r') as tempfile:
+        s = int(json.loads(tempfile.read())['spot_diameter_fullres'])
+    
+    slide = openslide.open_slide("${image}")  
+    for id in df_grid.index:
+        cy, cx = df_grid.loc[id]
+        print(id, s, cx, cy)
+        slide.read_region((int(cx - s / 2), int(cy - s / 2)), 0, (int(s), int(s))).convert('RGB').save('tiles/%s.tif' % id)
+    """
+}
+
+
+process GET_INCEPTION_FEATURES_TILES {
+
+    tag "$sample_id"
+    label 'process_inception'
+    maxRetries 3
+    errorStrategy  { task.attempt <= maxRetries  ? 'retry' : 'finish' }
+    publishDir "${params.outdir}/${sample_id}", pattern: 'tiles/*.csv.gz', mode: 'copy', overwrite: params.overwrite_files_on_publish
+    memory { 4.GB }
+    
+    input:
+    tuple val(sample_id), path("tiles/")
+    
+    output:
+    tuple val(sample_id), file("tiles/features.csv.gz")
+    
+    script:
+    """
+    python -u ${projectDir}/bin/run-inception-v3-tiles.py \
+    --input-path="tiles/" \
+    --output-path="tiles/features.csv.gz"
+    """   
+}

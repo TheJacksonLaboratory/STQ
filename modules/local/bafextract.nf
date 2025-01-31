@@ -52,7 +52,7 @@ process GET_SNV_FROM_PILEUP {
 
     tag "$sample_id"
     label "bafextract"
-    publishDir "${params.outdir}/${sample_id}", mode: 'copy', overwrite: true
+    publishDir "${params.outdir}/${sample_id}", mode: 'copy', overwrite: params.overwrite_files_on_publish
 
     input:
     tuple val(sample_id), path(bam_pileup)

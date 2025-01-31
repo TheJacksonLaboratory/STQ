@@ -1,0 +1,26 @@
+bootstrap: docker
+from: condaforge/mambaforge:23.3.1-1
+
+%environment
+    export DEBIAN_FRONTEND=noninteractive
+
+%post
+    echo 'debconf debconf/frontend select Noninteractive' | debconf-set-selections
+
+    apt-get update
+    apt-get install -y dialog apt-utils
+    apt-get install -y openslide-tools
+    apt-get install -y git
+    apt-get install -y procps
+
+    /opt/conda/bin/mamba install python=3.10
+    /opt/conda/bin/mamba install -y -c anaconda pip numpy pandas pyarrow scipy
+    /opt/conda/bin/mamba install -y -c conda-forge pillow openslide-python
+
+    # Clone the repository at SHA of August 2024
+    git clone https://github.com/mahmoodlab/CONCH.git
+    cd CONCH
+    git reset --hard 02d6ac59cc20874bff0f581de258c2b257f69a84
+
+    /opt/conda/bin/pip install --upgrade pip
+    /opt/conda/bin/pip install -e .

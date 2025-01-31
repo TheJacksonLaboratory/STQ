@@ -90,7 +90,7 @@ process DECONVOLUTION_XENOME {
 process DECONVOLUTION_XENGSORT {
 
     tag "$sample_id"
-    publishDir "${params.outdir}/${sample_id}", pattern: '.command.out', saveAs: { filename -> "xengsort.summary.txt" }, mode: 'copy', overwrite: true
+    publishDir "${params.outdir}/${sample_id}", pattern: '.command.out', saveAs: { filename -> "xengsort.summary.txt" }, mode: 'copy', overwrite: params.overwrite_files_on_publish
 
     input:
     tuple val(sample_id), path(fastq)

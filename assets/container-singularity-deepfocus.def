@@ -1,0 +1,49 @@
+bootstrap: docker
+from: centos/python-36-centos7:latest
+
+%labels
+    Author Sergii Domanskyi
+
+%environment
+    export PYTHONPATH="${PYTHONPATH}:/usr/local/lib64/python3.6/site-packages/:/usr/local/lib/python3.6/site-packages:/usr/lib/python3.6/site-packages"
+
+%post
+    set -eu
+
+    yum -y update && \
+    yum -y install \
+        redhat-lsb-core \
+        epel-release \
+
+    lsb_release -a
+
+    yum-config-manager --enable epel
+
+    yum -y install \
+        bzip2 \
+        openslide \
+        python3-devel.x86_64 \
+        wget \
+        bash \
+        inkscape \
+        librsvg2 \
+        gcc \
+        libssl-dev \
+        openssl \
+        procps
+
+    python3 -m pip install --upgrade pip==21.3.1
+    python3 -m pip install grpcio==1.48.2 tflearn==0.3.2 tensorflow==1.13.1 tqdm==4.28.1 numpy==1.15.3 packaging==16.8 pandas==0.23.4 wheel==0.29.0 matplotlib==3.3.4 scikit-image==0.17.2
+    python3 -m pip install openslide-python
+    
+    python3 -m pip list
+    
+    git clone https://github.com/sdomanskyi/deepfocus.git
+    
+
+%runscript
+    exec python3 "$@"
+
+%help
+    The container is built on CentOS 7.9.2009
+    Python 3.6.8

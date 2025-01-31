@@ -1,12 +1,15 @@
 
-workflow="two_references" ### "two_references" "one_reference" "arbitrary_grid" "deconvolution_indices"
-samplesheet="./assets/samplesheet_demo.csv"
+workflow="arbitrary_grid" ### "two_references" "one_reference" "arbitrary_grid" "deconvolution_indices"
+samplesheet="./assets/samplesheet_test.csv"
 workdir="./work"
 outdir="./results"
 binddir="/projects/"
 
 #----------------------------------------------------------------------------------------------------
 
+./check.sh
+
 SLURM_SUBMIT_DIR=`pwd`
 
-sbatch submit.sb $workflow "$samplesheet" "$workdir" "$outdir" "$binddir"
+sbatch \
+submit.sb $workflow "$samplesheet" "$workdir" "$outdir" "$binddir"

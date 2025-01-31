@@ -1,1 +1,0 @@
-sbatch run_build.sb container-singularity-stainnet.def /projects/chuang-lab/USERS/domans/containers/container-singularity-stainnet.sif
