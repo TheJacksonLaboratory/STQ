@@ -1,8 +1,8 @@
 
 workflow="arbitrary_grid" ### "two_references" "one_reference" "arbitrary_grid" "deconvolution_indices"
-samplesheet="./assets/samplesheet_test.csv"
-workdir="./work"
-outdir="./results"
+samplesheet="./assets/samplesheet-kidney-wedge-test.csv"
+workdir="/flashscratch/domans/work"
+outdir="../results-test"
 binddir="/projects/"
 
 #----------------------------------------------------------------------------------------------------
