@@ -49,6 +49,6 @@ process EXTRACT_IMAGE_METADATA {
 
     script:    
     """
-    showinf -omexml-only -nopix "${fileslide}" >> "metadata.ome.xml"
+    showinf -omexml-only -nopix ${fileslide} >> "metadata.ome.xml"
     """
 }
