@@ -5,7 +5,7 @@ v0.3.0
 + Added multiscale feature extraction inspired by SAMPLER work (PMID: 37577691).
 + Added experimental option of sub-tiling for use with feature extraction.
 + Added slide focus checking.
-+ Added CTransPath as an extractor of imaging features.
++ Added CTransPath, MoCoV3, UNI, CONCH as an extractors of imaging features.
 + Added subworkflow for sampling of tiles.
 + Optimized HoVer-Net segmentation steps. Added option for GPU-based segmentation.
 + Added postprocessing step to visualize outputs.
