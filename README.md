@@ -23,7 +23,7 @@
   * velocyto
   * bafextract
   * Inception v3
-  * CTransPath, UNI, CONCH
+  * CTransPath, UNI, CONCH, etc.
   * HoVer-Net
   * Stardist
   * DeepFocus
@@ -37,6 +37,13 @@
 <p>
     <img src="docs/route-map.png" width="800"/>
 </p>
+
+
+The imaging sub-workflow is dedicated to H&E-stained image analysis, and includes several disctinct components:
+<p>
+    <img src="docs/STQ-imaging.svg" width="500"/>
+</p>
+
 
 ## Overview
 
