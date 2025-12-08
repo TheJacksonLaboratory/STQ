@@ -21,6 +21,9 @@ include { LOAD_SAMPLE_INFO;
           GET_CONCH_FEATURES;
         } from '../modules/local/tasks'
 
+include { GET_UNI2_FEATURES;
+        } from '../modules/local/features'
+
 include { CHECK_FOCUS;
         } from '../modules/local/focus'
                 
@@ -208,6 +211,17 @@ workflow IMG {
                 uni_features_out = GET_UNI_FEATURES.out
             }
 
+            if (params.extract_uni2_features) {                   
+                GET_UNI2_FEATURES ( convertedimage
+                                         .join(GET_TILE_MASK.out.mask)
+                                         .join(TILE_WSI.out.grid)
+                                         .join(LOAD_SAMPLE_INFO.out.grid)
+                                         .join(imagesize)
+                                         .combine(Channel.fromList(params.expansion_factor)) )
+                
+                uni2_features_out = GET_UNI2_FEATURES.out
+            }
+
             if (params.extract_conch_features) {                   
                 GET_CONCH_FEATURES ( convertedimage
                                          .join(GET_TILE_MASK.out.mask)
@@ -233,6 +247,9 @@ workflow IMG {
             }
             if (params.extract_uni_features) {
                 features_out = features_out.concat( uni_features_out )
+            }
+            if (params.extract_uni2_features) {
+                features_out = features_out.concat( uni2_features_out )
             }
             if (params.extract_conch_features) {
                 features_out = features_out.concat( conch_features_out )
