@@ -4,7 +4,7 @@ process SUPERPIXELATION {
     tag "$sample_id"
     label 'process_inception'
     maxRetries 1
-    errorStrategy  { task.attempt <= maxRetries  ? 'retry' : 'finish' }
+    errorStrategy  { task.attempt <= 1  ? 'retry' : 'finish' }
     memory { 6.GB + (Float.valueOf(size) / 1000.0).round(2) * params.memory_scale_factor * 12.GB }
     publishDir "${params.outdir}/${sample_id}/superpixels", pattern: "superpixelation_*.png", mode: 'copy', overwrite: params.overwrite_files_on_publish
     cpus 1
@@ -34,7 +34,7 @@ process EXPORT_DOWN_IMAGE_FOR_CONTOURS {
     tag "$sample_id"
     label 'process_inception'
     maxRetries 1
-    errorStrategy  { task.attempt <= maxRetries  ? 'retry' : 'finish' }
+    errorStrategy  { task.attempt <= 1  ? 'retry' : 'finish' }
     memory { 6.GB + (Float.valueOf(size) / 1000.0).round(2) * params.memory_scale_factor * 5.GB }
     publishDir "${params.outdir}/${sample_id}", mode: 'copy', overwrite: params.overwrite_files_on_publish
     cpus 1
@@ -67,7 +67,7 @@ process EXPORT_SUPERPIXELATION_CONTOURS {
     tag "$sample_id"
     label 'process_inception'
     maxRetries 1
-    errorStrategy  { task.attempt <= maxRetries  ? 'retry' : 'finish' }
+    errorStrategy  { task.attempt <= 1  ? 'retry' : 'finish' }
     memory { 6.GB + (Float.valueOf(size) / 1000.0).round(2) * params.memory_scale_factor * 3.GB }
     publishDir "${params.outdir}/${sample_id}", mode: 'copy', overwrite: params.overwrite_files_on_publish
     cpus 1
@@ -105,7 +105,7 @@ process CALCULATE_CELLS_OD {
     tag "$sample_id"
     label 'process_inception'
     maxRetries 0
-    errorStrategy  { task.attempt <= maxRetries  ? 'retry' : 'finish' }
+    errorStrategy  { task.attempt <= 0  ? 'retry' : 'finish' }
     memory { 3.GB + (Float.valueOf(size) / 1000.0).round(2) * params.memory_scale_factor * 11.GB }
     cpus 1
     
@@ -180,7 +180,7 @@ process ASSIGN_NUCLEI_TO_SUPERPIXELS {
     tag "$sample_id"
     label 'process_inception'
     maxRetries 1
-    errorStrategy  { task.attempt <= maxRetries  ? 'retry' : 'finish' }
+    errorStrategy  { task.attempt <= 1  ? 'retry' : 'finish' }
     publishDir "${params.outdir}/${sample_id}", mode: 'copy', overwrite: params.overwrite_files_on_publish
     memory { 3.GB + (Float.valueOf(size) / 1000.0).round(2) * params.memory_scale_factor * 3.GB }
     cpus 1

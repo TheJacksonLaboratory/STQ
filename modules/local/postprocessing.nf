@@ -4,7 +4,7 @@ process DIMRED_CLUSTER_MORPH {
     tag "$sample_id"
     label 'python_low_process'
     maxRetries 2
-    errorStrategy  { task.attempt <= maxRetries  ? 'retry' : 'finish' }
+    errorStrategy  { task.attempt <= 2  ? 'retry' : 'finish' }
     publishDir "${params.outdir}/${sample_id}/figures", pattern: 'figures/*/*.png', saveAs: { filename -> "${filename.split("/")[filename.split("/").length - 1]}" }, mode: 'copy', overwrite: params.overwrite_files_on_publish
     memory { 1.GB + (Float.valueOf(size) / 1000.0).round(2) * params.memory_scale_factor * 3.GB }
     
@@ -117,7 +117,7 @@ process DIMRED_CLUSTER {
     tag "$sample_id"
     label 'python_low_process'
     maxRetries 2
-    errorStrategy  { task.attempt <= maxRetries  ? 'retry' : 'finish' }
+    errorStrategy  { task.attempt <= 2  ? 'retry' : 'finish' }
     publishDir "${params.outdir}/${sample_id}/figures", pattern: 'figures/*/*.png', saveAs: { filename -> "${filename.split("/")[filename.split("/").length - 1]}" }, mode: 'copy', overwrite: params.overwrite_files_on_publish
     memory { 1.GB + (Float.valueOf(size) / 1000.0).round(2) * params.memory_scale_factor * 3.GB }
     
