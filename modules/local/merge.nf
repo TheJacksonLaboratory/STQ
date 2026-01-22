@@ -3,7 +3,6 @@ process CONVERT_SEGMENTATION_DATA {
 
     tag "$sample_id"
     label 'python_low_process'
-    maxRetries 1
     errorStrategy  { task.attempt <= 1  ? 'retry' : 'finish' }
     publishDir "${params.outdir}/${sample_id}", mode: 'copy', overwrite: params.overwrite_files_on_publish
     memory { 1.GB + (Float.valueOf(size) / 1000.0).round(2) * params.memory_scale_factor * 3.GB }

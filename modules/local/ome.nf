@@ -3,7 +3,6 @@ process CONVERT_TO_PYRAMIDAL_OME {
 
     tag "$sample_id"
     label 'process_ome'
-    maxRetries 1
     errorStrategy  { task.attempt <= 1  ? 'retry' : 'finish' }
     publishDir "${params.outdir}/${sample_id}", pattern: 'image.ome.tiff', mode: 'copy', overwrite: params.overwrite_files_on_publish
     
@@ -36,7 +35,6 @@ process EXTRACT_IMAGE_METADATA {
 
     tag "$sample_id"
     label 'process_ome'
-    maxRetries 1
     errorStrategy  { task.attempt <= 1  ? 'retry' : 'finish' }
     publishDir "${params.outdir}/${sample_id}", pattern: 'metadata.ome.xml', mode: 'copy', overwrite: params.overwrite_files_on_publish
     memory { 4.GB + (Float.valueOf(size) / 1000.0).round(2) * params.memory_scale_factor * 0.GB }

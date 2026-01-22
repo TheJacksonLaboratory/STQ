@@ -71,7 +71,6 @@ process INFER_PREP_HOVERNET {
     tag "$sample_id"
     label 'process_hovernet'
     memory { 30.GB + (Float.valueOf(size) / 1000.0).round(2) * params.memory_scale_factor * 12.GB }
-    maxRetries 0
     errorStrategy  { task.attempt <= 0  ? 'retry' : 'finish' }
     
     input:
@@ -119,7 +118,6 @@ process INFER_HOVERNET {
     tag "$sample_id"
     label 'process_post_hovernet'
     memory { 30.GB + (Float.valueOf(size) / 1000.0).round(2) * params.memory_scale_factor * 12.GB }
-    maxRetries 0
     errorStrategy  { task.attempt <= 0  ? 'retry' : 'finish' }
     
     input:
@@ -167,7 +165,6 @@ process GET_NUCLEI_MASK_FROM_HOVERNET_JSON {
 
     tag "$sample_id"
     label 'python_process_low'
-    maxRetries 2
     errorStrategy  { task.attempt <= 2  ? 'retry' : 'finish' }
     memory { 6.GB + (Float.valueOf(size) / 1000.0).round(2) * params.memory_scale_factor * task.attempt * 6.GB }
     
@@ -223,7 +220,6 @@ process INFER_HOVERNET_TILES {
 
     tag "$sample_id"
     label 'process_hovernet'
-    maxRetries 1
     errorStrategy  { task.attempt <= 1  ? 'retry' : 'finish' }
     publishDir "${params.outdir}/${sample_id}/tiles", pattern: 'temp/overlay/*.png', saveAs: { filename -> "${filename.split("/")[filename.split("/").length - 1]}" }, mode: 'copy', overwrite: params.overwrite_files_on_publish
     memory { 16.GB }
@@ -318,7 +314,6 @@ process INFER_STARDIST {
 
     tag "$sample_id"
     label 'process_stardist'
-    maxRetries 3
     errorStrategy  { task.attempt <= 3  ? 'retry' : 'finish' }
     memory { 6.GB + (Float.valueOf(size) / 1000.0).round(2) * params.memory_scale_factor * 16.GB }
     
@@ -388,7 +383,6 @@ process COMPRESS_JSON_FILE {
 
     tag "$sample_id"
     label 'vips_process'
-    maxRetries 3
     errorStrategy  { task.attempt <= 3  ? 'retry' : 'finish' }
     publishDir "${params.outdir}/${sample_id}", mode: 'copy', overwrite: params.overwrite_files_on_publish
     
@@ -410,7 +404,6 @@ process COMPUTE_SEGMENTATION_DATA {
 
     tag "$sample_id"
     label 'python_process_low'
-    maxRetries 3
     errorStrategy  { task.attempt <= 3  ? 'retry' : 'finish' }
     publishDir "${params.outdir}/${sample_id}", mode: 'copy', overwrite: params.overwrite_files_on_publish
     memory { 6.GB * task.attempt + (Float.valueOf(size) / 1000.0).round(2) * params.memory_scale_factor * 6.GB * task.attempt }
@@ -442,7 +435,6 @@ process GENERATE_PERSPOT_SEGMENTATION_DATA {
 
     tag "$sample_id"
     label 'python_process_low'
-    maxRetries 3
     errorStrategy  { task.attempt <= 3  ? 'retry' : 'finish' }
     publishDir "${params.outdir}/${sample_id}", mode: 'copy', overwrite: params.overwrite_files_on_publish
     memory { 4.GB * task.attempt + (Float.valueOf(size) / 1000.0).round(2) * params.memory_scale_factor * 4.GB * task.attempt }

@@ -55,7 +55,6 @@ process GET_IMAGE_SIZE {
 
     tag "$sample_id"
     label 'process_estimate_size'
-    maxRetries 1
     errorStrategy  { task.attempt <= 1  ? 'retry' : 'finish' }
 
     input:
@@ -76,7 +75,6 @@ process EXTRACT_ROI {
 
     tag "$sample_id"
     label 'process_extract'
-    maxRetries 1
     errorStrategy  { task.attempt <= 1  ? 'retry' : 'finish' }
     memory { 6.GB + (Float.valueOf(size) / 1000.0).round(2) * params.memory_scale_factor * 18.GB }
 
@@ -98,7 +96,6 @@ process COLOR_NORMALIZATION {
 
     tag "$sample_id"
     label 'color_normalization_process'
-    maxRetries 3
     errorStrategy  { task.attempt <= 3  ? 'retry' : 'finish' }
     memory { 6.GB + (Float.valueOf(size) / 1000.0).round(2) * params.memory_scale_factor * 30.GB }
 
@@ -124,7 +121,6 @@ process STAIN_NORMALIZATION {
 
     tag "$sample_id"
     label 'stain_normalization_process'
-    maxRetries 1
     errorStrategy  { task.attempt <= 1  ? 'retry' : 'finish' }
     memory { 6.GB + (Float.valueOf(size) / 1000.0).round(2) * params.memory_scale_factor * 12.GB }
 
@@ -151,7 +147,6 @@ process RESIZE_IMAGE {
 
     tag "$sample_id"
     label 'vips_process'
-    maxRetries 3
     errorStrategy  { task.attempt <= 3  ? 'retry' : 'finish' }
     
     input:
@@ -179,7 +174,6 @@ process CONVERT_TO_TILED_TIFF {
 
     tag "$sample_id"
     label 'vips_process'
-    maxRetries 3
     errorStrategy  { task.attempt <= 3  ? 'retry' : 'finish' }
     publishDir "${params.outdir}/${sample_id}", pattern: 'thumbnail.tiff', mode: 'copy', overwrite: params.overwrite_files_on_publish
     
@@ -204,7 +198,6 @@ process GET_THUMB {
 
     tag "$sample_id"
     label 'process_extract'
-    maxRetries 0
     errorStrategy  { task.attempt <= 0  ? 'retry' : 'finish' }
     memory { 64.GB }
     publishDir "${params.outdir}/${sample_id}", pattern: 'thumbnail.tiff', mode: 'copy', overwrite: params.overwrite_files_on_publish
@@ -259,7 +252,6 @@ process MAKE_TINY_THUMB {
 
     tag "$sample_id"
     label 'process_extract'
-    maxRetries 0
     errorStrategy  { task.attempt <= 0  ? 'retry' : 'finish' }
     memory { 2.GB }
     publishDir "${params.outdir}/${sample_id}", pattern: 'thumbnail.jpeg', mode: 'copy', overwrite: params.overwrite_files_on_publish
@@ -285,7 +277,6 @@ process GET_PIXEL_MASK {
 
     tag "$sample_id"
     label 'python_process_low'
-    maxRetries 3
     errorStrategy  { task.attempt <= 3  ? 'retry' : 'finish' }
     publishDir "${params.outdir}/${sample_id}", mode: 'copy', overwrite: params.overwrite_files_on_publish
     memory { 3.GB + (Float.valueOf(size) / 1000.0).round(2) * params.memory_scale_factor * 3.GB }
@@ -316,7 +307,6 @@ process GET_TISSUE_MASK {
 
     tag "$sample_id"
     label 'python_process_low'
-    maxRetries 3
     errorStrategy  { task.attempt <= 3  ? 'retry' : 'finish' }
     publishDir "${params.outdir}/${sample_id}", mode: 'copy', overwrite: params.overwrite_files_on_publish
     memory { 3.GB + (Float.valueOf(size) / 1000.0).round(2) * params.memory_scale_factor * 6.GB * task.attempt }
@@ -351,7 +341,6 @@ process TILE_WSI {
 
     tag "$sample_id"
     label 'python_process_low'
-    maxRetries 3
     errorStrategy  { task.attempt <= 3  ? 'retry' : 'finish' }
     publishDir "${params.outdir}/${sample_id}", mode: 'copy', overwrite: params.overwrite_files_on_publish
     memory { 3.GB + (Float.valueOf(size) / 1000.0).round(2) * params.memory_scale_factor * 6.GB * task.attempt }
@@ -431,7 +420,6 @@ process GET_TILE_MASK {
 
     tag "$sample_id"
     label 'python_process_low'
-    maxRetries 3
     errorStrategy  { task.attempt <= 3  ? 'retry' : 'finish' }
     publishDir "${params.outdir}/${sample_id}", mode: 'copy', overwrite: params.overwrite_files_on_publish
     memory { 3.GB + (Float.valueOf(size) / 1000.0).round(2) * params.memory_scale_factor * 6.GB * task.attempt }
@@ -464,7 +452,6 @@ process GET_INCEPTION_FEATURES {
 
     tag "$sample_id"
     label 'process_inception'
-    maxRetries 2
     errorStrategy  { task.attempt <= 2  ? 'retry' : 'finish' }
     memory { 36.GB + (Float.valueOf(size) / 1000.0).round(2) * params.memory_scale_factor * 14.GB }
     //publishDir "${params.outdir}/${sample_id}", pattern: 'features/*.tsv.gz', mode: 'copy', overwrite: true
@@ -505,7 +492,6 @@ process GET_CTRANSPATH_FEATURES {
 
     tag "$sample_id"
     label 'process_ctranspath'
-    maxRetries 2
     errorStrategy  { task.attempt <= 2  ? 'retry' : 'finish' }
     memory { 56.GB + (Float.valueOf(size) / 1000.0).round(2) * params.memory_scale_factor * 16.GB }
     //publishDir "${params.outdir}/${sample_id}", pattern: 'features/*.tsv.gz', mode: 'copy', overwrite: true
@@ -551,7 +537,6 @@ process GET_MOCOV3_FEATURES {
 
     tag "$sample_id"
     label 'process_mocov3'
-    maxRetries 0
     errorStrategy  { task.attempt <= 0  ? 'retry' : 'finish' }
     memory { 56.GB + (Float.valueOf(size) / 1000.0).round(2) * params.memory_scale_factor * 16.GB }
     publishDir "${params.outdir}/${sample_id}/features", pattern: 'features/*.tsv.gz', saveAs: { filename -> "${params.subtiling}-${expansion_factor}-${filename.split("/")[filename.split("/").length - 1]}" }, mode: 'copy', overwrite: params.overwrite_files_on_publish
@@ -598,7 +583,6 @@ process GET_UNI_FEATURES {
 
     tag "$sample_id"
     label 'process_uni'
-    maxRetries 2
     errorStrategy  { task.attempt <= 2  ? 'retry' : 'finish' }
     memory { 56.GB + (Float.valueOf(size) / 1000.0).round(2) * params.memory_scale_factor * 16.GB }
     publishDir "${params.outdir}/${sample_id}/features", pattern: 'features/*.tsv.gz', saveAs: { filename -> "${params.subtiling}-${expansion_factor}-${filename.split("/")[filename.split("/").length - 1]}" }, mode: 'copy', overwrite: params.overwrite_files_on_publish
@@ -642,7 +626,6 @@ process GET_CONCH_FEATURES {
 
     tag "$sample_id"
     label 'process_conch'
-    maxRetries 2
     errorStrategy  { task.attempt <= 2  ? 'retry' : 'finish' }
     memory { 60.GB + (Float.valueOf(size) / 1000.0).round(2) * params.memory_scale_factor * 16.GB }
     publishDir "${params.outdir}/${sample_id}/features", pattern: 'features/*.tsv.gz', saveAs: { filename -> "${params.subtiling}-${expansion_factor}-${filename.split("/")[filename.split("/").length - 1]}" }, mode: 'copy', overwrite: params.overwrite_files_on_publish
@@ -687,7 +670,6 @@ process SELECT_SAVE_TILES {
 
     tag "$sample_id"
     label 'python_process_low'
-    maxRetries 3
     errorStrategy  { task.attempt <= 3  ? 'retry' : 'finish' }
     publishDir "${params.outdir}/${sample_id}", pattern: 'tiles/*.csv', mode: 'copy', overwrite: params.overwrite_files_on_publish
     memory { 2.GB }
@@ -737,7 +719,6 @@ process GET_INCEPTION_FEATURES_TILES {
 
     tag "$sample_id"
     label 'process_inception'
-    maxRetries 3
     errorStrategy  { task.attempt <= 3  ? 'retry' : 'finish' }
     publishDir "${params.outdir}/${sample_id}", pattern: 'tiles/*.csv.gz', mode: 'copy', overwrite: params.overwrite_files_on_publish
     memory { 4.GB }
