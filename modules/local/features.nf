@@ -2,8 +2,7 @@ process GET_UNI2_FEATURES {
 
     tag "$sample_id"
     label 'process_uni2'
-    maxRetries 2
-    errorStrategy  { task.attempt <= maxRetries  ? 'retry' : 'finish' }
+    errorStrategy  { task.attempt <= 2  ? 'retry' : 'finish' }
     memory { 56.GB + (Float.valueOf(size) / 1000.0).round(2) * params.memory_scale_factor * 16.GB }
     publishDir "${params.outdir}/${sample_id}/features", pattern: 'features/*.tsv.gz', saveAs: { filename -> "${params.subtiling}-${expansion_factor}-${filename.split("/")[filename.split("/").length - 1]}" }, mode: 'copy', overwrite: params.overwrite_files_on_publish
     
