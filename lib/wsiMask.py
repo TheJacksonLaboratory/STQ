@@ -105,17 +105,27 @@ def plotMask(df, width: int = None, height: int = None, size: float = None,
     
     return
         
-def getInTissuePixelMask(low_res_image: str, low: float = 100, high: float = 200, savepath: str = None, sname: str = ''):
+def getInTissuePixelMask(low_res_image: str, low: float=None, max_color: int=255, sh: int=200,
+                        kernel_size: int=31, q: float=99, downsample: float=4.0,
+                        savepath: str = None, sname: str = ''):
 
-    """Plot mask as square tiles or disks/spots
+    """Geet mask of pixels in tissue using Otsu's method and morphological operations
     
     Parameters:
     low_res_image: path to file with low resolution image
     
     low: low threshold
-    
-    high: high threshold
 
+    max_color: maximum color value for the mask (default 255)
+
+    sh: size of the border to add around the image for morphological operations (default 200)
+
+    kernel_size: size of the kernel for Gaussian blur (default 31)
+
+    q: percentile for contrast enhancement (default 99)
+
+    downsample: factor to downsample the image for processing (default 4.0)
+    
     savepath: directory to save data files
 
     sname: identifier for saving data files
@@ -123,22 +133,72 @@ def getInTissuePixelMask(low_res_image: str, low: float = 100, high: float = 200
     Output:
     Pixel in tissue mask
     """
-     
-    v = plt.imread(low_res_image)[:, :, :3].mean(axis=2)
 
-    vc = v.copy()
-    v[vc < low] = 0
-    v[vc > high] = 0
-    v[(vc >= low) & (vc <= high)] = 1
-    
-    df = pd.DataFrame(v.T)
+    img_normalized = plt.imread(low_res_image)
+    fshape = img_normalized.shape
+    fimage = img_normalized.copy()
+
+    q99 = np.percentile(img_normalized, q)
+    img_normalized = np.clip(img_normalized.astype(int) + 255 - q99, 0, 255).astype(np.uint8)
+
+    img_normalized = cv2.resize(img_normalized, (0, 0), fx=1./downsample, fy=1./downsample)
+    print(f"Resized image from {fshape} to {img_normalized.shape} for processing.", flush=True)
+
+    # Convert the image to grayscale using the luminosity
+    img_normalized = (img_normalized.astype(np.float32) + 1) / 256
+    luminance = 0.2989 * img_normalized[:, :, 0] + \
+                0.5870 * img_normalized[:, :, 1] + \
+                0.1140 * img_normalized[:, :, 2]
+
+    # Apply optical density transformation
+    mask = (-np.log(luminance) * 255).astype(np.uint8)
+
+    if not low is None:
+        print('Using provided low threshold:', low, flush=True)
+    else:
+        # Use Otsu's method to find the optimal threshold
+        maskb = cv2.GaussianBlur(mask, (kernel_size,kernel_size), 0)
+        low = 0.5 * cv2.threshold(maskb, 0, 255, cv2.THRESH_BINARY+cv2.THRESH_OTSU)[0]
+        print('Using low threshold from Otsu:', low, flush=True)
+
+    mask[mask < low] = 0
+    mask[mask > 0] = max_color
+
+    extended_mask = np.zeros((mask.shape[0]+2*sh, mask.shape[1]+2*sh), np.uint8)
+    extended_mask[sh:-sh, sh:-sh] = mask
+    mask = extended_mask
+
+    mask = cv2.dilate(mask, None, iterations=2)
+    mask = cv2.erode(mask, None, iterations=2)
+    mask = cv2.dilate(mask, None, iterations=2)
+    mask = cv2.erode(mask, None, iterations=2)
+
+    mask = cv2.GaussianBlur(mask, (kernel_size,kernel_size), 0)
+    th, im_th = cv2.threshold(mask, 0, max_color, cv2.THRESH_BINARY+cv2.THRESH_OTSU)
+
+    h, w = im_th.shape[:2]
+    mask = np.zeros((h+2, w+2), np.uint8)
+
+    cv2.floodFill(im_th, mask, (0,0), max_color)
+    mask = cv2.bitwise_not(mask)[1:-1, 1:-1]
+    mask[mask<max_color] = 0
+
+    mask = cv2.dilate(mask, None, iterations=2)
+    mask = mask[sh:-sh, sh:-sh]
+
+    if mask.shape[0] != fshape[0] or mask.shape[1] != fshape[1]:
+        mask = cv2.resize(mask, (fshape[1], fshape[0]), interpolation=cv2.INTER_NEAREST)
+        print(f"Resized mask back to original image size: {mask.shape}", flush=True)
+
+    df = pd.DataFrame(mask>0).astype(int).T
     
     if not savepath is None:
         if not os.path.exists(savepath):
             os.makedirs(savepath)
-            
-        df.to_csv(savepath + '%s.csv' % sname, header=False, index=False)
-    
+        
+        filepath = os.path.join(savepath, f"{sname}.csv")
+        df.to_csv(filepath, header=False, index=False)
+
     return df
 
 def getInTissueTileMask(pixel_mask_csv: str, grid_csv: str, grid_json: str, low_res_image: str, plot_mask: bool = True,

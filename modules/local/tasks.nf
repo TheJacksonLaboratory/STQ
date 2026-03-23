@@ -297,7 +297,6 @@ process GET_PIXEL_MASK {
 
     getInTissuePixelMask(low_res_image = "${image}",
                          low = ${params.pixel_mask_threshold_low},
-                         high = ${params.pixel_mask_threshold_high},
                          savepath = 'mask/', sname = 'pixel_mask')
     """
 }
