@@ -216,6 +216,48 @@ process GET_NUCLEI_MASK_FROM_HOVERNET_JSON {
 }
 
 
+process INFER_HOVERNET_TILES_RAW {
+
+    tag "$sample_id"
+    label 'process_hovernet'
+    errorStrategy  { task.attempt <= 1  ? 'retry' : 'finish' }
+    memory { 16.GB }
+    
+    input:
+    tuple val(sample_id), path("tiles/")
+    
+    output:
+    tuple val(sample_id), file("temp/json/*.json"), emit: json
+    
+    script:
+    """ 
+    CUDEV=""
+    if [[ "${params.hovernet_device_mode}" == "gpu" ]];
+    then
+        CUDEV="\$CUDA_VISIBLE_DEVICES"
+    fi
+   
+    python /hover_net/run_infer.py \
+    --gpu="\$CUDEV" \
+    --device_mode="${params.hovernet_device_mode}" \
+    --cpu_count=${task.cpus} \
+    --model_mode=fast \
+    --nr_inference_workers=${params.hovernet_num_inference_workers} \
+    --nr_post_proc_workers=${task.cpus} \
+    --nr_types=6 \
+    --type_info_path=/hover_net/type_info.json \
+    --model_path=/hovernet_fast_pannuke_type_tf2pytorch.tar \
+    --batch_size=${params.hovernet_batch_size} \
+    tile \
+    --input_dir="tiles/" \
+    --output_dir="temp/" \
+    --mem_usage=0.2
+    
+    rm -R temp/mat/
+    """ 
+}
+
+
 process INFER_HOVERNET_TILES {
 
     tag "$sample_id"

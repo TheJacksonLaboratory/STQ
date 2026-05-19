@@ -20,13 +20,42 @@ process CONVERT_TO_PYRAMIDAL_OME {
 
     bfconvert -noflat -bigtiff -overwrite \
     -pyramid-resolutions 3 -pyramid-scale 4 -tilex ${params.tiled_tiff_tile_size} -tiley ${params.tiled_tiff_tile_size} \
-    -compression ${params.compression} "${image}" image.ome.tiff || \
+    -compression "${params.compression}" "${image}" image.ome.tiff || \
     bfconvert -noflat -bigtiff -overwrite \
     -pyramid-resolutions 2 -pyramid-scale 4 -tilex ${params.tiled_tiff_tile_size} -tiley ${params.tiled_tiff_tile_size} \
-    -compression ${params.compression} "${image}" image.ome.tiff || \
+    -compression "${params.compression}" "${image}" image.ome.tiff || \
     bfconvert -noflat -bigtiff -overwrite \
     -pyramid-resolutions 1 -pyramid-scale 4 -tilex ${params.tiled_tiff_tile_size} -tiley ${params.tiled_tiff_tile_size} \
-    -compression ${params.compression} "${image}" image.ome.tiff
+    -compression "${params.compression}" "${image}" image.ome.tiff
+    """
+}
+
+
+process TIFFFILE_OMETIFF {
+
+    tag "$sample_id"
+    label 'process_ome'
+    maxRetries 0
+    errorStrategy  { task.attempt <= maxRetries  ? 'retry' : 'finish' }
+    memory { 24.GB + (Float.valueOf(size) / 1024.0).round(2) * 32.GB }
+    publishDir "${params.outdir}/${sample_id}", pattern: 'image.ome.tiff', mode: 'copy', overwrite: params.overwrite_files_on_publish
+
+    input:
+        tuple val(sample_id), path(image), val(size)
+
+    output:
+        tuple val(sample_id), file("image.ome.tiff")
+    
+    script:
+    """
+    export PYTHONUNBUFFERED=1
+    python ${projectDir}/bin/generateometiff.py \
+        --inputImagePath "${image}" \
+        --outputImagePath "image.ome.tiff" \
+        --tileSize ${params.tiled_tiff_tile_size} \
+        --compression "${params.tifffile_compression}" \
+        --mpp ${params.target_mpp} \
+        --pyramidScale ${params.pyramid_scale}
     """
 }
 

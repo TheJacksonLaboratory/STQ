@@ -13,6 +13,8 @@ include { LOAD_SAMPLE_INFO;
           GET_TILE_MASK;
           GET_TISSUE_MASK;
           SELECT_SAVE_TILES;
+          SELECT_SAVE_TILES_RAW;
+          ASSEMBLE_TILES_CELLS;
           GET_INCEPTION_FEATURES_TILES;
           GET_INCEPTION_FEATURES;
           GET_CTRANSPATH_FEATURES;
@@ -36,6 +38,7 @@ include { SUPERPIXELATION;
 
 include { GET_NUCLEI_MASK_FROM_HOVERNET_JSON;  
           INFER_HOVERNET_TILES;
+          INFER_HOVERNET_TILES_RAW;
           GET_NUCLEI_TYPE_COUNTS;
           INFER_HOVERNET;
           INFER_PREP_HOVERNET;
@@ -45,7 +48,7 @@ include { GET_NUCLEI_MASK_FROM_HOVERNET_JSON;
           GENERATE_PERSPOT_SEGMENTATION_DATA;
         } from '../modules/local/hovernet'
 
-include { CONVERT_TO_PYRAMIDAL_OME;
+include { TIFFFILE_OMETIFF;
           EXTRACT_IMAGE_METADATA;
         } from '../modules/local/ome'
         
@@ -93,7 +96,15 @@ workflow IMG {
     
             if ( params.stain_normalization ) {
                 if ( params.macenko_normalization ) {
+                    SELECT_SAVE_TILES_RAW ( imageroi )
+                                                    
+                    INFER_HOVERNET_TILES_RAW ( SELECT_SAVE_TILES_RAW.out.tiles )
+
+                    ASSEMBLE_TILES_CELLS ( SELECT_SAVE_TILES_RAW.out.tiles
+                                            .join(INFER_HOVERNET_TILES_RAW.out.json) )
+
                     STAIN_NORMALIZATION ( imageroi
+                                          .join(ASSEMBLE_TILES_CELLS.out)
                                           .join(imagesize) )
                     
                     normimage = STAIN_NORMALIZATION.out
@@ -114,7 +125,8 @@ workflow IMG {
             thumbimage = CONVERT_TO_TILED_TIFF.out.thumb
             
             if ( params.export_image ) {
-                CONVERT_TO_PYRAMIDAL_OME ( convertedimage )
+                TIFFFILE_OMETIFF ( convertedimage
+                                   .join(imagesize) )
             }
         }
         

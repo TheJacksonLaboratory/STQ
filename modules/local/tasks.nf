@@ -125,7 +125,7 @@ process STAIN_NORMALIZATION {
     memory { 6.GB + (Float.valueOf(size) / 1000.0).round(2) * params.memory_scale_factor * 12.GB }
 
     input:
-    tuple val(sample_id), path("outfile.tiff"), val(size)
+    tuple val(sample_id), path("outfile.tiff"), path("canvas.tif"), val(size)
     
     output:
     tuple val(sample_id), file("output_images/outfile.tiff")
@@ -138,6 +138,7 @@ process STAIN_NORMALIZATION {
     --referenceImagePath "${params.stain_reference_image}" \
     --inputImagePath "outfile.tiff" \
     --outputImageName "output_images/outfile.tiff" \
+    --canvasImagePath "canvas.tif" \
     --s ${params.stain_patch_size}
     """
 }
@@ -662,6 +663,116 @@ process GET_CONCH_FEATURES {
     --model-checkpoint-path=${params.conch_model_checkpoint} \
     --use-conch-normalizer=${params.use_conch_normalizer}
     """   
+}
+
+
+process SELECT_SAVE_TILES_RAW {
+
+    tag "$sample_id"
+    label 'python_low_process'
+    errorStrategy  { task.attempt <= 1  ? 'retry' : 'finish' }
+    memory { 2.GB }
+    
+    input:
+    tuple val(sample_id), path(image)
+    
+    output:
+    tuple val(sample_id), file("tiles/*.tif"), emit: tiles
+    
+    script:
+    """
+    #!/usr/bin/env python
+    
+    import os
+    import numpy as np
+    import zarr
+    import tifffile
+
+    if not os.path.exists('tiles/'):
+        os.makedirs('tiles/')
+
+    with tifffile.TiffFile("${image}") as tif:
+        dims = tif.pages[0].tags[256].value, tif.pages[0].tags[257].value
+    print(dims)
+
+    tile_size = 224 # Pixels
+    s = tile_size // 2
+    N_tiles = 100
+
+    np.random.seed(0)
+    cx = np.random.randint(s, dims[0] - s, N_tiles)
+    cy = np.random.randint(s, dims[1] - s, N_tiles)
+
+    with tifffile.imread("${image}", aszarr=True) as store:
+        z = zarr.open(store, mode='r')
+        if z.shape[0] <= 4:
+            z = np.moveaxis(z, 0, -1)
+        print(z.shape)
+
+        for i in range(N_tiles):
+            print(i, cx[i], cy[i])
+            tile = z[cy[i]-s:cy[i]+s, cx[i]-s:cx[i]+s, :]
+            tifffile.imwrite(f'tiles/tile-{i}.tif', tile)
+    """
+}
+
+
+process ASSEMBLE_TILES_CELLS {
+
+    tag "$sample_id"
+    label 'python_low_process'
+    errorStrategy  { task.attempt <= 1  ? 'retry' : 'finish' }
+    publishDir "${params.outdir}/${sample_id}", pattern: 'canvas.tif', mode: 'copy', overwrite: params.overwrite_files_on_publish
+    memory { 4.GB }
+    
+    input:
+    tuple val(sample_id), path("tiles/"), path("json/")
+    
+    output:
+    tuple val(sample_id), file("canvas.tif")
+    
+    script:
+    """
+    #!/usr/bin/env python
+    
+    import os
+    import json
+    import tifffile
+    import numpy as np
+
+    patches = []
+    N = len([f for f in os.listdir("json/") if f.endswith('.json')])
+    hcsize = 24 # pixels
+
+    for i in range(N):
+        try:
+            with open(f"json/tile-{i}.json") as f:
+                d = json.load(f)
+            centroids = np.array([c['centroid'] for i, c in d['nuc'].items()]).astype(int)
+
+            tile = tifffile.imread(f"tiles/tile-{i}.tif")
+            msize = tile.shape[0]
+            # Adjust centroids such that they are at least hcsize pixels from the edge of the tile
+            centroids = np.clip(centroids, hcsize, msize - hcsize)
+
+            # Extract patches around centroids
+            for x, y in centroids:
+                patches.append(tile[y-hcsize:y+hcsize, x-hcsize:x+hcsize])
+        except Exception as e:
+            print(f"Error processing tile {i}: {e}")
+    print(f"Extracted {len(patches)} patches.")
+
+    # Collage patches into a single image
+    S = int(np.floor(np.sqrt(len(patches))))
+    canvas = np.zeros((2*hcsize*S, 2*hcsize*S, patches[0].shape[2]), dtype=patches[0].dtype)
+    for i, patch in enumerate(patches[:S*S]):
+        x = (i % S) * 2 * hcsize
+        y = (i // S) * 2 * hcsize
+        canvas[y:y+2*hcsize, x:x+2*hcsize] = patch
+
+    # Save the canvas as a TIFF file
+    tifffile.imwrite("canvas.tif", canvas)
+    """
 }
 
 
