@@ -35,9 +35,8 @@ process TIFFFILE_OMETIFF {
 
     tag "$sample_id"
     label 'process_ome'
-    maxRetries 0
-    errorStrategy  { task.attempt <= maxRetries  ? 'retry' : 'finish' }
-    memory { 24.GB + (Float.valueOf(size) / 1024.0).round(2) * 32.GB }
+    errorStrategy  { task.attempt <= 1  ? 'retry' : 'finish' }
+    memory { 24.GB + (Float.valueOf(size) / 1024.0).round(2) * 8.GB }
     publishDir "${params.outdir}/${sample_id}", pattern: 'image.ome.tiff', mode: 'copy', overwrite: params.overwrite_files_on_publish
 
     input:
