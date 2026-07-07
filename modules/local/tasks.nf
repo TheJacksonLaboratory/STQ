@@ -367,7 +367,7 @@ process TILE_WSI {
         slide_dimensions = slide.dimensions
     
     savepath = 'grid/'
-    
+
     # Spaceranger output is given
     if os.path.getsize("${meta_grid_csv}") > 10:
         import os

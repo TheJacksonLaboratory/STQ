@@ -6,6 +6,7 @@ include { ARB } from './workflows/arbitrary_grid'
 include { ONE } from './workflows/one_reference'
 include { TWO } from './workflows/two_references'
 include { XINDEX } from './subworkflows/xenome_index'
+include { CELLM } from './workflows/sub_arbitrary_grid'
 
 include { EXPORT_PARAMETERS;
           EXPORT_SAMPLEINFO;
@@ -32,6 +33,10 @@ workflow {
 
     if ( params.workflow == "two_references" ) {
         TWO ( samples )
+    }
+
+    if ( params.workflow == "cell_mosaic" ) {
+        CELLM ( samples )
     }
 
     if ( params.workflow == "deconvolution_indices" ) {

@@ -1,0 +1,2 @@
+sample,fastq,image,grid,roifile,mpp
+TestROI,,/projects/chuang-lab/USERS/domans/test-atera/data-set1/WTA_Preview_FFPE_Breast_Cancer_he_image.ome.tif,,/projects/chuang-lab/USERS/whitne/STQ/assets/sample_roi.json,0.27377667386671845
