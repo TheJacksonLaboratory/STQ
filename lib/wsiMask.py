@@ -107,12 +107,12 @@ def plotMask(df, width: int = None, height: int = None, size: float = None,
         
 def getInTissuePixelMask(low_res_image: str, low: float=None, max_color: int=255, sh: int=200,
                         kernel_size: int=31, q: float=99, downsample: float=4.0,
-                        savepath: str = None, sname: str = ''):
+                        savepath: str = None, sname: str = '', verbose=False):
 
     """Geet mask of pixels in tissue using Otsu's method and morphological operations
     
     Parameters:
-    low_res_image: path to file with low resolution image
+    low_res_image: path to file with low resolution image or a numpy array
     
     low: low threshold
 
@@ -134,7 +134,10 @@ def getInTissuePixelMask(low_res_image: str, low: float=None, max_color: int=255
     Pixel in tissue mask
     """
 
-    img_normalized = plt.imread(low_res_image)
+    if isinstance(low_res_image, str):
+        img_normalized = plt.imread(low_res_image)
+    else:
+        img_normalized = low_res_image
     fshape = img_normalized.shape
     fimage = img_normalized.copy()
 
@@ -142,7 +145,8 @@ def getInTissuePixelMask(low_res_image: str, low: float=None, max_color: int=255
     img_normalized = np.clip(img_normalized.astype(int) + 255 - q99, 0, 255).astype(np.uint8)
 
     img_normalized = cv2.resize(img_normalized, (0, 0), fx=1./downsample, fy=1./downsample)
-    print(f"Resized image from {fshape} to {img_normalized.shape} for processing.", flush=True)
+    if verbose:
+        print(f"Resized image from {fshape} to {img_normalized.shape} for processing.", flush=True)
 
     # Convert the image to grayscale using the luminosity
     img_normalized = (img_normalized.astype(np.float32) + 1) / 256
@@ -154,12 +158,14 @@ def getInTissuePixelMask(low_res_image: str, low: float=None, max_color: int=255
     mask = (-np.log(luminance) * 255).astype(np.uint8)
 
     if not low is None:
-        print('Using provided low threshold:', low, flush=True)
+        if verbose:
+            print('Using provided low threshold:', low, flush=True)
     else:
         # Use Otsu's method to find the optimal threshold
         maskb = cv2.GaussianBlur(mask, (kernel_size,kernel_size), 0)
         low = 0.5 * cv2.threshold(maskb, 0, 255, cv2.THRESH_BINARY+cv2.THRESH_OTSU)[0]
-        print('Using low threshold from Otsu:', low, flush=True)
+        if verbose:
+            print('Using low threshold from Otsu:', low, flush=True)
 
     mask[mask < low] = 0
     mask[mask > 0] = max_color
@@ -188,7 +194,8 @@ def getInTissuePixelMask(low_res_image: str, low: float=None, max_color: int=255
 
     if mask.shape[0] != fshape[0] or mask.shape[1] != fshape[1]:
         mask = cv2.resize(mask, (fshape[1], fshape[0]), interpolation=cv2.INTER_NEAREST)
-        print(f"Resized mask back to original image size: {mask.shape}", flush=True)
+        if verbose:
+            print(f"Resized mask back to original image size: {mask.shape}", flush=True)
 
     df = pd.DataFrame(mask>0).astype(int).T
     
