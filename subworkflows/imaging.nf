@@ -56,6 +56,9 @@ include { CONVERT_SEGMENTATION_DATA;
           CONVERT_CSV_TO_ANNDATA;
         } from '../modules/local/merge'
 
+include { CREATE_CELLSZARRZIP;
+        } from '../modules/local/zarr'
+
 include { DIMRED_CLUSTER;
           DIMRED_CLUSTER_MORPH;
         } from '../modules/local/postprocessing'
@@ -70,6 +73,8 @@ workflow IMG {
         
         LOAD_SAMPLE_INFO ( samples
                            .join(images) )
+
+        mpp = LOAD_SAMPLE_INFO.out.mpp
          
         GET_IMAGE_SIZE ( LOAD_SAMPLE_INFO.out.main )
         
@@ -308,6 +313,9 @@ workflow IMG {
                 jsonout = INFER_STARDIST.out.json
                 segmaskout = INFER_STARDIST.out.mask
             }
+
+            CREATE_CELLSZARRZIP ( mpp
+                                .join(segmaskout) )
 
             COMPRESS_JSON_FILE ( jsonout )
         
