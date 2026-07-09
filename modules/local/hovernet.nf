@@ -380,24 +380,16 @@ process INFER_STARDIST {
     from stardist.data import test_image_nuclei_2d
     from stardist.models import StarDist2D
     import matplotlib.pyplot as plt
-    import cv2
     
     shutil.copytree("${params.stardist_model}", "custom_model/")
     model = StarDist2D(None, name="custom_model/")
     
     img = tifffile.imread("${image}")[..., :3]
     print('Received input image:', img.shape)
-
-    factor = 0.25 / float(${params.target_mpp})
-    if factor != 1.0:
-        img = cv2.resize(img, (int(img.shape[1] / factor), int(img.shape[0] / factor)), interpolation=cv2.INTER_AREA)
-        print('Resized input image:', img.shape, factor)
     
     tissuemask = plt.imread("${mask}")
     mask_reduction_factor = int(img.shape[0] / tissuemask.shape[0])
     print('Input tissue mask:', tissuemask.shape, mask_reduction_factor)
-    
-    #img[tissuemask==0] = 0
     
     from csbdeep.data import Normalizer, normalize_mi_ma
     class MyNormalizer(Normalizer):
@@ -413,7 +405,11 @@ process INFER_STARDIST {
     
     normalizer = MyNormalizer(0, 255)
     
-    nuclei, details = model.predict_instances_big(img, axes='YXC', block_size=int($params.stardist_block_size / np.power(2, $task.attempt)), min_overlap=128, context=128, normalizer=normalizer, n_tiles=(4,4,1))
+    scale_factor = float(${params.target_mpp}) / 0.25
+    print('Scale factor:', scale_factor)
+    nuclei, details = model.predict_instances_big(img, axes='YXC', block_size=int($params.stardist_block_size / np.power(2, $task.attempt)),
+                                                min_overlap=128, context=128, normalizer=normalizer, n_tiles=(4,4,1),
+                                                scale=scale_factor)
     
     data = makeJSONoutput(details)
     
