@@ -380,12 +380,18 @@ process INFER_STARDIST {
     from stardist.data import test_image_nuclei_2d
     from stardist.models import StarDist2D
     import matplotlib.pyplot as plt
+    import cv2
     
     shutil.copytree("${params.stardist_model}", "custom_model/")
     model = StarDist2D(None, name="custom_model/")
     
     img = tifffile.imread("${image}")[..., :3]
-    print(img.shape)
+    print('Received input image:', img.shape)
+
+    factor = 0.25 / float(${params.target_mpp})
+    if factor != 1.0:
+        img = cv2.resize(img, (int(img.shape[1] / factor), int(img.shape[0] / factor)), interpolation=cv2.INTER_AREA)
+        print('Resized input image:', img.shape, factor)
     
     tissuemask = plt.imread("${mask}")
     mask_reduction_factor = int(img.shape[0] / tissuemask.shape[0])
