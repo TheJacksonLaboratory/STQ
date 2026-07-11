@@ -292,6 +292,7 @@ def annotateContours(
     images: list[np.ndarray],
     canvas_max_dim: int = 800,
     savepath: str = "./contours/",
+    mpp: float | None = None,
 ):
     assert len(samples) == len(images), "samples and images must have the same length"
     savepath = savepath.rstrip('/')
@@ -535,11 +536,13 @@ def annotateContours(
   #btn-save       { background:var(--accent);  color:#fff; }
   #btn-clear-last { background:#2a2a4a; color:var(--text); }
   #btn-clear-all  { background:#2a2a4a; color:var(--muted); }
-  #ca-autosave-wrap, #ca-wand-wrap {
+  #ca-autosave-wrap, #ca-wand-wrap, #ca-ruler-wrap {
     display:flex; align-items:center; gap:6px;
     font-size:11px; color:var(--muted); margin-left:4px;
   }
-  #ca-autosave-wrap input, #ca-wand-wrap input { accent-color:var(--accent); width:14px; height:14px; cursor:pointer; }
+  #ca-autosave-wrap input, #ca-wand-wrap input, #ca-ruler-wrap input { accent-color:var(--accent); width:14px; height:14px; cursor:pointer; }
+  #ca-ruler-wrap.disabled { opacity:.4; }
+  #ca-ruler-wrap.disabled input { cursor:not-allowed; pointer-events:none; }
   #ca-status { font-size:11px; color:var(--muted); min-height:16px; }
   #ca-contour-list { font-size:10px; color:var(--muted); max-height:52px; overflow-y:auto; line-height:1.6; }
 </style>
@@ -565,6 +568,9 @@ def annotateContours(
     <label id="ca-autosave-wrap">
       <input type="checkbox" id="ca-autosave" checked> autosave
     </label>
+    <label id="ca-ruler-wrap">
+      <input type="checkbox" id="ca-ruler"> ruler
+    </label>
   </div>
   <div id="ca-status">Loading…</div>
   <div id="ca-contour-list"></div>
@@ -578,6 +584,7 @@ def annotateContours(
         f"  const MAX_DIM  = {canvas_max_dim};\n"
         f"  const SRV_PORT = {port};\n"
         f"  const SRV_HOST = {json.dumps(host)};\n"
+        f"  const MPP      = {json.dumps(mpp)};\n"
         + r"""
   let imgIdx      = 0;
   let contours    = [];   // [{points: [[x,y],...], file: string|null}]
@@ -599,8 +606,19 @@ def annotateContours(
   const contourList = document.getElementById('ca-contour-list');
   const autosaveCb  = document.getElementById('ca-autosave');
   const wandCb      = document.getElementById('ca-wand');
+  const rulerCb     = document.getElementById('ca-ruler');
+  const rulerWrap   = document.getElementById('ca-ruler-wrap');
   const prevBtn     = document.getElementById('btn-prev');
   const nextBtn     = document.getElementById('btn-next');
+
+  // Ruler: enabled only when MPP was provided by Python.
+  if (MPP === null) {
+    rulerCb.disabled = true;
+    rulerWrap.classList.add('disabled');
+    rulerWrap.title = 'Provide mpp to enable ruler';
+  } else {
+    rulerCb.checked = true;
+  }
 
   const srvUrl = () => 'http://' + SRV_HOST + ':' + SRV_PORT;
 
@@ -829,10 +847,10 @@ def annotateContours(
         dc.closePath(); dc.strokeStyle = col; dc.lineWidth = lw;
         dc.setLineDash([]); dc.stroke();
       });
-      dc.font = 'bold 11px monospace'; dc.setLineDash([]);
+      dc.font = 'bold 16px monospace'; dc.setLineDash([]);
       dc.lineWidth = 3; dc.strokeStyle = 'white';
       dc.strokeText('#' + i, pts[0][0] + 4, pts[0][1] - 4);
-      dc.fillStyle = '#000'; dc.fillText('#' + i, pts[0][0] + 4, pts[0][1] - 4);
+      dc.fillStyle = '#000'; dc.fillText('oid' + i, pts[0][0] + 4, pts[0][1] - 4);
     });
     if (currentPath.length > 1) {
       dc.beginPath(); dc.moveTo(currentPath[0][0], currentPath[0][1]);
@@ -840,6 +858,89 @@ def annotateContours(
       dc.strokeStyle = '#000'; dc.lineWidth = 1.5;
       dc.setLineDash([5, 4]); dc.stroke(); dc.setLineDash([]);
     }
+    if (MPP !== null && rulerCb.checked) _drawRuler();
+  }
+
+  // ── ruler ─────────────────────────────────────────────────────────
+  function _drawRuler() {
+    const cw = drawCanvas.width, ch = drawCanvas.height;
+    const [fw, fh] = (SIZES[imgIdx] || [cw, ch]);
+    // canvas pixels per 1 mm  (MPP is µm/px at full resolution)
+    const pxPerMm_x = (1000 / MPP) * (cw / fw);
+    const pxPerMm_y = (1000 / MPP) * (ch / fh);
+    if (pxPerMm_x < 1.5 || pxPerMm_y < 1.5) return;  // too zoomed out
+
+    const MINOR = 5;   // mm tick height px
+    const MAJOR = 11;  // cm tick height px
+    const BAND  = 5;  // background strip thickness
+    const COL   = 'rgba(0,0,255,0.93)';
+    const SHAD  = 'rgba(0,0,0,0.6)';
+
+    dc.save();
+    dc.setLineDash([]);
+
+    // Draw one ruler strip along one edge.
+    // axis 'x': ticks at regular x positions, edge at y=edgeY, inward=±1
+    // axis 'y': ticks at regular y positions, edge at x=edgeX, inward=±1
+    function _edge(axis, edgePx, inward) {
+      const pxPerMm = axis === 'x' ? pxPerMm_x : pxPerMm_y;
+      const totalPx = axis === 'x' ? cw : ch;
+      const nMm     = Math.ceil(totalPx / pxPerMm);
+
+      // background strip
+      dc.fillStyle = 'rgba(15,15,30,0.55)';
+      if (axis === 'x') {
+        const y0 = inward > 0 ? edgePx : edgePx - BAND;
+        dc.fillRect(0, y0, cw, BAND);
+      } else {
+        const x0 = inward > 0 ? edgePx : edgePx - BAND;
+        dc.fillRect(x0, 0, BAND, ch);
+      }
+
+      for (let mm = 0; mm <= nMm; mm++) {
+        const isCm    = mm % 10 === 0;
+        const tickLen = isCm ? MAJOR : MINOR;
+        const pos     = mm * pxPerMm;
+        if (pos > totalPx + 1) break;
+
+        // tick line
+        dc.beginPath();
+        if (axis === 'x') {
+          dc.moveTo(pos, edgePx);
+          dc.lineTo(pos, edgePx + inward * tickLen);
+        } else {
+          dc.moveTo(edgePx, pos);
+          dc.lineTo(edgePx + inward * tickLen, pos);
+        }
+        dc.strokeStyle = SHAD; dc.lineWidth = 2; dc.stroke();
+        dc.strokeStyle = COL;  dc.lineWidth = 1; dc.stroke();
+
+        // cm label
+        if (isCm && mm > 0) {
+          const label = (mm / 10) + ' cm';
+          dc.font = 'normal 14px halfspace';
+          if (axis === 'x') {
+            dc.textAlign = 'center';
+            dc.textBaseline = inward > 0 ? 'top' : 'bottom';
+            const lx = pos, ly = edgePx + inward * (MAJOR + 1);
+            dc.fillStyle = SHAD; dc.fillText(label, lx + 0.5, ly + 0.5);
+            dc.fillStyle = COL;  dc.fillText(label, lx, ly);
+          } else {
+            dc.textAlign = inward > 0 ? 'left' : 'right';
+            dc.textBaseline = 'middle';
+            const lx = edgePx + inward * (MAJOR + 1), ly = pos;
+            dc.fillStyle = SHAD; dc.fillText(label, lx + 0.5, ly + 0.5);
+            dc.fillStyle = COL;  dc.fillText(label, lx, ly);
+          }
+        }
+      }
+    }
+
+    _edge('x', 0,  +1);   // top
+    //_edge('x', ch, -1);   // bottom
+    _edge('y', 0,  +1);   // left
+    //_edge('y', cw, -1);   // right
+    dc.restore();
   }
 
   function updateList() {
@@ -978,6 +1079,7 @@ def annotateContours(
       ? 'Magic wand ON — scribbles snap to the tissue boundary.'
       : 'Magic wand OFF — free-hand drawing.';
   });
+  rulerCb.addEventListener('change', () => { redraw(); });
   // ── keyboard ──────────────────────────────────────────────────────
   // JupyterLab intercepts keys in the capture phase on the window, before
   // any bubble-phase listener on the canvas can see them.  The only reliable
