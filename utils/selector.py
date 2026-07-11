@@ -276,7 +276,9 @@ def _grow_tissue_region(
         return None
 
     peri = cv2.arcLength(contour, True)
-    approx = cv2.approxPolyDP(contour, epsilon=max(peri * 0.0015, 1.0), closed=True)
+    # Use a small absolute epsilon so all tissues get equally dense point
+    # sampling — large tissues were coarser when epsilon scaled with perimeter.
+    approx = cv2.approxPolyDP(contour, epsilon=2.0, closed=True)
     pts_full = approx.reshape(-1, 2).astype(np.float64)
     pts_full[:, 0] += x0
     pts_full[:, 1] += y0
