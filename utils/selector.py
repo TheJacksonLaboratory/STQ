@@ -49,12 +49,46 @@ import cv2
 import numpy as np
 from PIL import Image
 from IPython.display import display, HTML
+import tifffile
+from tqdm import tqdm
 
 # ── internal tuning constants (not exposed in the UI) ───────────────────────
 # Dilate the final grown tissue contour outward by this many pixels
 # (full-resolution image space) before it's returned. Set to 0 to disable.
 CONTOUR_GROW_PX = 10
+# Thickness (full-res px) of separator-line barriers burned into the tissue mask
+# before connected-component analysis, so the wand stops at drawn separators.
+SEP_BARRIER_PX = 5
 
+def loadAndFilter(paths, spath=None, downsample=1, maskfunc=None):
+    if maskfunc is None:
+        print('Provide a mask function, such as wsiMask.getInTissuePixelMask from STQ')
+        raise
+    imgs = []
+    samples = []
+    for i, p in tqdm(enumerate(paths), total=len(paths)):
+        sample = p.split('/')[-1]
+        sname = f"{spath}/{sample}.tiff"
+        if not os.path.isfile(sname):
+            img = tifffile.imread(p, level=2)
+            whp = (img>250).all(axis=2)
+            img[whp] = np.quantile(img[~whp], 0.99)
+            m = maskfunc(img, None, kernel_size=7)
+            wh = m.T==0
+            img[wh, ...] = 255
+            if not spath is None:
+                tifffile.imwrite(sname, img, compression='zlib')
+        else:
+            img = tifffile.imread(sname)
+        imgs.append(img[::downsample, ::downsample])
+        samples.append(sample)
+    return samples, imgs
+
+def setNotebookWidth(widthPercent=100):
+    """Set the notebook container width in a Jupyter environment."""
+    display(HTML(f"""<style>:root {{ --jp-notebook-max-width: {widthPercent}%; }}
+body .container, div.container {{ width: {widthPercent}% !important; }}</style>"""))
+    return
 
 def _fill_holes(mask_u8: np.ndarray) -> np.ndarray:
     """
@@ -81,6 +115,7 @@ def _fill_holes(mask_u8: np.ndarray) -> np.ndarray:
 def _grow_tissue_region(
     img_rgb: np.ndarray,
     seed_pts_px: np.ndarray,
+    separator_lines: list | None = None,
     bg_value: int = 255,
     bg_tol: int = 0,
     margin_factor: float = 4.0,
@@ -142,6 +177,22 @@ def _grow_tissue_region(
         seed_x = int(np.clip(cx - x0, 0, mask.shape[1] - 1))
         seed_y = int(np.clip(cy - y0, 0, mask.shape[0] - 1))
 
+        # Burn separator lines into the mask as background barriers so the
+        # connected-component flood cannot cross them.
+        if separator_lines:
+            for _sep in separator_lines:
+                if len(_sep) < 2:
+                    continue
+                _pts = np.round(
+                    np.asarray(_sep, dtype=np.float64) - np.array([[x0, y0]])
+                ).astype(np.int32)
+                for _j in range(len(_pts) - 1):
+                    _p1 = (int(np.clip(_pts[_j,     0], 0, mask.shape[1] - 1)),
+                           int(np.clip(_pts[_j,     1], 0, mask.shape[0] - 1)))
+                    _p2 = (int(np.clip(_pts[_j + 1, 0], 0, mask.shape[1] - 1)),
+                           int(np.clip(_pts[_j + 1, 1], 0, mask.shape[0] - 1)))
+                    cv2.line(mask, _p1, _p2, 0, thickness=SEP_BARRIER_PX)
+
         n_labels, labels = cv2.connectedComponents(mask)
         seed_label = labels[seed_y, seed_x]
 
@@ -155,7 +206,22 @@ def _grow_tissue_region(
             nearest = np.argmin(d2)
             seed_label = labels[ys[nearest], xs[nearest]]
 
-        component = labels == seed_label
+        # Collect ALL component labels touched by any point in the scribble
+        # path, so tissues that the stroke crosses are all included.
+        touched_labels = set()
+        for _sp in seed_pts_px:
+            _sx = int(np.clip(_sp[0] - x0, 0, mask.shape[1] - 1))
+            _sy = int(np.clip(_sp[1] - y0, 0, mask.shape[0] - 1))
+            _lbl = labels[_sy, _sx]
+            if _lbl != 0:
+                touched_labels.add(int(_lbl))
+        # Always include the centroid-seed label as fallback
+        if seed_label != 0:
+            touched_labels.add(int(seed_label))
+        if not touched_labels:
+            return None
+
+        component = np.isin(labels, list(touched_labels))
 
         touches_border = (
             component[0, :].any() or component[-1, :].any()
@@ -186,6 +252,25 @@ def _grow_tissue_region(
     contours, _ = cv2.findContours(comp_u8, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
     if not contours:
         return None
+    # When multiple tissues were selected, take the convex-hull-merged outer
+    # boundary: find the single largest contour by area, but if there are
+    # several, also draw the connecting stroke pixels onto comp_u8 first so
+    # the regions are bridged, then re-extract.
+    if len(contours) > 1:
+        # Draw the original seed path into comp_u8 as a thick bridge
+        bridge_pts = np.round(
+            seed_pts_px - np.array([[x0, y0]])
+        ).astype(np.int32)
+        for _j in range(len(bridge_pts) - 1):
+            _p1 = (int(np.clip(bridge_pts[_j,     0], 0, comp_u8.shape[1] - 1)),
+                   int(np.clip(bridge_pts[_j,     1], 0, comp_u8.shape[0] - 1)))
+            _p2 = (int(np.clip(bridge_pts[_j + 1, 0], 0, comp_u8.shape[1] - 1)),
+                   int(np.clip(bridge_pts[_j + 1, 1], 0, comp_u8.shape[0] - 1)))
+            cv2.line(comp_u8, _p1, _p2, 255, thickness=max(SEP_BARRIER_PX, 4))
+        comp_u8 = _fill_holes(comp_u8)
+        contours, _ = cv2.findContours(comp_u8, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+        if not contours:
+            return None
     contour = max(contours, key=cv2.contourArea)
     if cv2.contourArea(contour) < 25:
         return None
@@ -200,7 +285,7 @@ def _grow_tissue_region(
     return pts_full
 
 
-def annotate_contours(
+def annotateContours(
     samples: list[str],
     images: list[np.ndarray],
     canvas_max_dim: int = 800,
@@ -263,6 +348,7 @@ def annotate_contours(
                 self.send_header('Content-Type', 'image/png')
                 self.send_header('Content-Length', str(len(body)))
                 self.send_header('Cache-Control', 'public, max-age=604800, immutable')
+                self.send_header('Access-Control-Allow-Origin', '*')
                 self.end_headers()
                 self.wfile.write(body)
             else:
@@ -281,6 +367,8 @@ def annotate_contours(
                     'delete':     self._handle_delete,
                     'delete_all': self._handle_delete_all,
                     'list':       self._handle_list,
+                    'save_sep':   self._handle_save_sep,
+                    'list_sep':   self._handle_list_sep,
                 }.get(action, self._handle_save)
                 handler(payload)
             except Exception as e:
@@ -319,6 +407,32 @@ def annotate_contours(
                     pass
             self._ok(b'{"ok":true}')
 
+        def _handle_save_sep(self, payload):
+            sample = payload['sample']
+            lines  = payload.get('lines', [])
+            fname  = os.path.join(savepath, f'{sample}.sep.json')
+            if lines:
+                with open(fname, 'w') as fh:
+                    json.dump({'lines': lines}, fh, indent=2)
+            else:
+                try:
+                    os.remove(fname)
+                except FileNotFoundError:
+                    pass
+            self._ok(b'{"ok":true}')
+
+        def _handle_list_sep(self, payload):
+            sample = payload['sample']
+            fname  = os.path.join(savepath, f'{sample}.sep.json')
+            try:
+                with open(fname) as fh:
+                    d = json.load(fh)
+                self._ok(json.dumps({'ok': True, 'lines': d.get('lines', [])}).encode())
+            except FileNotFoundError:
+                self._ok(b'{"ok":true,"lines":[]}')
+            except Exception as e:
+                self._ok(json.dumps({'ok': False, 'error': str(e)}).encode())
+
         def _handle_list(self, payload):
             sample = payload['sample']
             files = sorted(_sample_files(sample), key=_oid_of)
@@ -335,16 +449,24 @@ def annotate_contours(
             self._ok(json.dumps({'ok': True, 'contours': out}).encode())
 
         def _handle_wand(self, payload):
-            idx      = int(payload['idx'])
-            canvas_w = float(payload['canvas_w'])
-            canvas_h = float(payload['canvas_h'])
-            pts      = payload['points']
+            idx              = int(payload['idx'])
+            canvas_w         = float(payload['canvas_w'])
+            canvas_h         = float(payload['canvas_h'])
+            pts              = payload['points']
+            sep_lines_canvas = payload.get('sep_lines', [])
 
             full_w, full_h = sizes[idx]
             sx, sy = full_w / canvas_w, full_h / canvas_h
             seed_full = np.array([[x * sx, y * sy] for x, y in pts])
+            sep_full  = [
+                np.array([[p[0] * sx, p[1] * sy] for p in line])
+                for line in sep_lines_canvas
+            ]
 
-            result = _grow_tissue_region(images[idx], seed_full)
+            result = _grow_tissue_region(
+                images[idx], seed_full,
+                separator_lines=sep_full if sep_full else None,
+            )
             if result is None:
                 self._ok(json.dumps({'ok': False, 'error': 'no region found'}).encode())
                 return
@@ -397,7 +519,7 @@ def annotate_contours(
     border-radius:var(--radius); overflow:hidden; cursor:crosshair;
   }
   #ca-img-canvas, #ca-draw-canvas { display:block; }
-  #ca-draw-canvas { position:absolute; top:0; left:0; }
+  #ca-draw-canvas { position:absolute; top:0; left:0; outline:none; }
   #ca-toolbar { display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
   .ca-btn {
     font-family:var(--font); font-size:12px; letter-spacing:.06em;
@@ -427,7 +549,7 @@ def annotate_contours(
   </div>
   <div id="ca-canvas-wrap">
     <canvas id="ca-img-canvas"></canvas>
-    <canvas id="ca-draw-canvas"></canvas>
+    <canvas id="ca-draw-canvas" tabindex="0"></canvas>
   </div>
   <div id="ca-toolbar">
     <button class="ca-btn" id="btn-prev">← Previous</button>
@@ -457,6 +579,9 @@ def annotate_contours(
         + r"""
   let imgIdx      = 0;
   let contours    = [];   // [{points: [[x,y],...], file: string|null}]
+  let separators  = [];   // [{points: [[x,y],...]}]  — open barrier lines
+  let selectedSepIdx = -1;
+  let drawMode    = 'contour';  // 'contour' | 'separator'
   let currentPath = [];
   let drawing     = false;
   let strokeWandDisabled = false;   // Cmd/Ctrl held at mousedown -> skip wand for this stroke
@@ -464,7 +589,7 @@ def annotate_contours(
 
   const imgCanvas   = document.getElementById('ca-img-canvas');
   const drawCanvas  = document.getElementById('ca-draw-canvas');
-  const ic = imgCanvas.getContext('2d');
+  const ic = imgCanvas.getContext('2d', {willReadFrequently: true});
   const dc = drawCanvas.getContext('2d');
   const sampleLabel = document.getElementById('ca-sample-label');
   const counterEl   = document.getElementById('ca-counter');
@@ -539,6 +664,45 @@ def annotate_contours(
     }
   }
 
+  // ── separator lines: save / load ─────────────────────────────────
+  async function listSavedSeparators(sample) {
+    try {
+      const resp = await fetch(srvUrl(), {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({action: 'list_sep', sample: sample})
+      });
+      const json = await resp.json();
+      return json.ok ? json.lines : [];
+    } catch (e) {
+      return [];
+    }
+  }
+
+  async function doSaveSeparators() {
+    const sample   = SAMPLES[imgIdx];
+    const [cw, ch] = [drawCanvas.width, drawCanvas.height];
+    const lines = separators.map(s =>
+      s.points.map(([x, y]) => [parseFloat((x / cw).toFixed(4)), parseFloat((y / ch).toFixed(4))])
+    );
+    try {
+      await fetch(srvUrl(), {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({action: 'save_sep', sample: sample, lines: lines})
+      });
+      statusEl.textContent = '✅ Separator saved (' + separators.length + ' line' + (separators.length !== 1 ? 's' : '') + ' total).';
+    } catch(e) {
+      statusEl.textContent = '⚠ Could not save separator: ' + e;
+    }
+  }
+
+  function commitSeparator(pts) {
+    separators.push({points: pts});
+    redraw(); updateList();
+    doSaveSeparators();
+  }
+
   // ── magic wand: send scribble as seed, get refined contour back ────
   async function growRegion(pts) {
     const resp = await fetch(srvUrl(), {
@@ -549,7 +713,8 @@ def annotate_contours(
         idx: imgIdx,
         canvas_w: drawCanvas.width,
         canvas_h: drawCanvas.height,
-        points: pts
+        points: pts,
+        sep_lines: separators.map(s => s.points)
       })
     });
     return await resp.json();
@@ -561,6 +726,7 @@ def annotate_contours(
     if (idx < 0 || idx >= SIZES.length || prefetched.has(idx)) return;
     prefetched.add(idx);
     const im = new Image();
+    im.crossOrigin = 'anonymous';
     im.src = srvUrl() + '/image/' + idx;
   }
 
@@ -571,11 +737,16 @@ def annotate_contours(
   }
 
   async function loadImage(idx) {
+    if (!SIZES.length || idx < 0 || idx >= SIZES.length || !SIZES[idx]) {
+      statusEl.textContent = '⚠ No image data — re-run the cell to reload.';
+      return;
+    }
     const [w, h]   = SIZES[idx];
     const [cw, ch] = scaledSize(w, h);
     imgCanvas.width = drawCanvas.width = cw;
     imgCanvas.height = drawCanvas.height = ch;
     const img = new Image();
+    img.crossOrigin = 'anonymous';
     img.onload = () => ic.drawImage(img, 0, 0, cw, ch);
     // Lazy: only fetched from the server the moment it's actually shown.
     img.src = srvUrl() + '/image/' + idx;
@@ -585,17 +756,24 @@ def annotate_contours(
     counterEl.textContent   = (idx + 1) + ' / ' + SIZES.length;
     prevBtn.disabled = idx === 0;
     currentPath = [];
-    contours = [];
+    contours = []; separators = []; selectedSepIdx = -1;
     redraw(); updateList();
     statusEl.textContent = 'Loading saved contours…';
 
-    // Restore any contours already saved to disk for this sample, so
-    // Previous/Next lets you review or keep editing earlier work.
-    const saved = await listSavedContours(SAMPLES[idx]);
+    // Restore contours and separator lines already saved to disk.
+    const results = await Promise.all([
+      listSavedContours(SAMPLES[idx]),
+      listSavedSeparators(SAMPLES[idx])
+    ]);
+    const saved    = results[0] || [];
+    const savedSep = results[1] || [];
     if (idx === imgIdx) {   // guard against a fast double-click racing us
       contours = saved.map(c => ({
         points: c.points.map(([nx, ny]) => [nx * cw, ny * ch]),
         file: c.file
+      }));
+      separators = savedSep.map(line => ({
+        points: line.map(([nx, ny]) => [nx * cw, ny * ch])
       }));
       redraw(); updateList();
     }
@@ -617,6 +795,29 @@ def annotate_contours(
   // ── drawing ───────────────────────────────────────────────────────
   function redraw() {
     dc.clearRect(0, 0, drawCanvas.width, drawCanvas.height);
+    // Draw separator barrier lines first (below contours)
+    separators.forEach((sep, i) => {
+      const pts = sep.points;
+      if (pts.length < 2) return;
+      const sel = i === selectedSepIdx;
+      dc.save();
+      dc.beginPath();
+      dc.moveTo(pts[0][0], pts[0][1]);
+      pts.slice(1).forEach(p => dc.lineTo(p[0], p[1]));
+      if (sel) { dc.shadowColor = '#ffff00'; dc.shadowBlur = 16; }
+      dc.strokeStyle = sel ? '#ffff00' : 'rgba(255,210,0,0.9)';
+      dc.lineWidth   = sel ? 3 : 2;
+      dc.setLineDash([8, 4]);
+      dc.stroke();
+      dc.restore();
+      // endpoint dots for clarity
+      dc.save();
+      dc.fillStyle = sel ? '#ffff00' : 'rgba(255,210,0,0.9)';
+      [pts[0], pts[pts.length - 1]].forEach(([px, py]) => {
+        dc.beginPath(); dc.arc(px, py, sel ? 4 : 3, 0, 2 * Math.PI); dc.fill();
+      });
+      dc.restore();
+    });
     contours.forEach((c, i) => {
       const pts = c.points;
       if (pts.length < 2) return;
@@ -640,8 +841,9 @@ def annotate_contours(
   }
 
   function updateList() {
-    contourList.textContent = !contours.length ? '' :
-      contours.map((c, i) => '#' + i + ': ' + c.points.length + ' pts' + (c.file ? '' : ' (unsaved)')).join('  ·  ');
+    const cParts = contours.map((c, i)   => '#' + i + ': ' + c.points.length + ' pts' + (c.file ? '' : ' (unsaved)'));
+    const sParts = separators.map((s, i) => 'sep#' + i + ': ' + s.points.length + ' pts');
+    contourList.textContent = [...cParts, ...sParts].join('  ·  ');
   }
 
   function commitContour(pts) {
@@ -654,8 +856,13 @@ def annotate_contours(
 
   // ── mouse ─────────────────────────────────────────────────────────
   drawCanvas.addEventListener('mousedown', e => {
+    const [x, y] = canvasXY(e);
+    // Detect background: if the pixel under the cursor is near-white, start a
+    // separator line rather than a tissue contour.
+    const px = ic.getImageData(Math.max(0, Math.floor(x)), Math.max(0, Math.floor(y)), 1, 1).data;
+    drawMode = (px[0] >= 230 && px[1] >= 230 && px[2] >= 230) ? 'separator' : 'contour';
     drawing = true;
-    currentPath = [canvasXY(e)];
+    currentPath = [[x, y]];
     strokeWandDisabled = e.metaKey || e.ctrlKey;   // hold Cmd/Ctrl to draw free-hand just this once
   });
   // Listen on window (not just the canvas) so the stroke keeps going when the
@@ -665,6 +872,31 @@ def annotate_contours(
   window.addEventListener('mouseup',   finishDraw);
   window.addEventListener('blur',      finishDraw);   // e.g. alt-tab while dragging
 
+  // ── separator selection (double-click) ────────────────────────────
+  function _distToSeg(px, py, x1, y1, x2, y2) {
+    const dx = x2 - x1, dy = y2 - y1, len2 = dx * dx + dy * dy;
+    if (len2 < 1e-10) return Math.hypot(px - x1, py - y1);
+    const t = Math.max(0, Math.min(1, ((px - x1) * dx + (py - y1) * dy) / len2));
+    return Math.hypot(px - (x1 + t * dx), py - (y1 + t * dy));
+  }
+
+  drawCanvas.addEventListener('dblclick', e => {
+    const [x, y] = canvasXY(e);
+    let best = -1, bestDist = 12;
+    separators.forEach((sep, i) => {
+      const pts = sep.points;
+      for (let j = 0; j < pts.length - 1; j++) {
+        const d = _distToSeg(x, y, pts[j][0], pts[j][1], pts[j+1][0], pts[j+1][1]);
+        if (d < bestDist) { bestDist = d; best = i; }
+      }
+    });
+    selectedSepIdx = best;
+    redraw();
+    statusEl.textContent = best >= 0
+      ? '✏ Separator #' + best + ' selected — Del/Backspace to delete, Esc to deselect.'
+      : '';
+  });
+
   async function finishDraw() {
     if (!drawing) return; drawing = false;
     if (currentPath.length <= 1) { currentPath = []; return; }
@@ -672,6 +904,11 @@ def annotate_contours(
     const scribble = [...currentPath];
     const useWand  = wandCb.checked && !strokeWandDisabled;
     currentPath = [];
+
+    if (drawMode === 'separator') {
+      commitSeparator(scribble);
+      return;
+    }
 
     if (useWand) {
       statusEl.textContent = '🪄 Growing region…';
@@ -739,13 +976,48 @@ def annotate_contours(
       ? 'Magic wand ON — scribbles snap to the tissue boundary.'
       : 'Magic wand OFF — free-hand drawing.';
   });
-  document.addEventListener('keydown', e => {
-    if (e.key === 'ArrowRight') nextBtn.click();
-    if (e.key === 'ArrowLeft')  prevBtn.click();
-    if (e.key === 's' && (e.ctrlKey || e.metaKey)) { e.preventDefault(); document.getElementById('btn-save').click(); }
-    if (e.key === 'z' && (e.ctrlKey || e.metaKey)) { e.preventDefault(); document.getElementById('btn-clear-last').click(); }
-    if (e.key === 'w') { wandCb.checked = !wandCb.checked; wandCb.dispatchEvent(new Event('change')); }
+  // ── keyboard ──────────────────────────────────────────────────────
+  // JupyterLab intercepts keys in the capture phase on the window, before
+  // any bubble-phase listener on the canvas can see them.  The only reliable
+  // fix is to also register in the CAPTURE phase on window, check our own
+  // hover flag, and stop propagation there so the notebook never sees the event.
+  let canvasHovered = false;
+  drawCanvas.addEventListener('mouseenter', () => {
+    canvasHovered = true;
+    try { if (Jupyter && Jupyter.keyboard_manager) Jupyter.keyboard_manager.disable(); } catch(_) {}
+    drawCanvas.focus();
   });
+  drawCanvas.addEventListener('mouseleave', () => {
+    canvasHovered = false;
+    try { if (Jupyter && Jupyter.keyboard_manager) Jupyter.keyboard_manager.enable(); } catch(_) {}
+    drawCanvas.blur();
+  });
+
+  function _handleKey(e) {
+    if (!canvasHovered) return;
+    // Swallow the event entirely so the notebook/CodeMirror never sees it.
+    e.stopPropagation();
+    e.stopImmediatePropagation();
+    if (e.key === 'ArrowRight') { e.preventDefault(); nextBtn.click(); }
+    else if (e.key === 'ArrowLeft') { e.preventDefault(); prevBtn.click(); }
+    else if (e.key === 'z') { e.preventDefault(); document.getElementById('btn-clear-last').click(); }
+    else if (e.key === 's' && (e.ctrlKey || e.metaKey)) { e.preventDefault(); document.getElementById('btn-save').click(); }
+    else if (e.key === 'w') { wandCb.checked = !wandCb.checked; wandCb.dispatchEvent(new Event('change')); }
+    else if ((e.key === 'Delete' || e.key === 'Backspace') && selectedSepIdx >= 0) {
+      e.preventDefault();
+      separators.splice(selectedSepIdx, 1);
+      selectedSepIdx = -1;
+      redraw(); updateList();
+      doSaveSeparators();
+      statusEl.textContent = '🗑 Separator deleted.';
+    } else if (e.key === 'Escape' && selectedSepIdx >= 0) {
+      selectedSepIdx = -1;
+      redraw();
+      statusEl.textContent = 'Selection cleared.';
+    }
+  }
+  // Register in CAPTURE phase (true) so we beat JupyterLab's own capture listeners.
+  window.addEventListener('keydown', _handleKey, true);
 
   loadImage(0);
 })();
