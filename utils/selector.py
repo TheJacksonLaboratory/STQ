@@ -47,10 +47,12 @@ from urllib.parse import urlparse
 
 import cv2
 import numpy as np
+import pandas as pd
 from PIL import Image
 from IPython.display import display, HTML
 import tifffile
 from tqdm import tqdm
+import csv
 
 # ── internal tuning constants (not exposed in the UI) ───────────────────────
 # Dilate the final grown tissue contour outward by this many pixels
@@ -59,6 +61,37 @@ CONTOUR_GROW_PX = 10
 # Thickness (full-res px) of separator-line barriers burned into the tissue mask
 # before connected-component analysis, so the wand stops at drawn separators.
 SEP_BARRIER_PX = 5
+
+def getMPPs(paths):
+    mpps = {}
+    slidepaths = {}
+    for slide in tqdm(paths, desc='Reading slide MPPs'):
+        with tifffile.TiffFile(slide) as tif:
+            page = tif.pages[0]
+            mpp = np.round(10000/page.tags['XResolution'].value[0], 4)
+            sample = slide.split('/')[-1].replace('.ndpi', '')
+            mpps[sample] = mpp
+            slidepaths[sample] = slide
+    se = pd.Series(mpps).value_counts().sort_index()
+    print(se.to_dict())
+    return mpps, slidepaths
+
+def makeSamplesheet(jpath, paths, sname):
+    jfiles = [f for f in os.listdir(jpath) if f.endswith('.json') and not f.endswith('.sep.json')]
+    print(f'Found {len(jfiles)} tissue JSON files in {jpath}')
+    mpps, slidepaths = getMPPs(paths)
+    
+    with open(sname, "w", newline="") as f:
+        writer = csv.writer(f)
+        writer.writerow(["sample", "fastq", "image", "grid", "roifile", "mpp"])
+        for jfile in jfiles[:]:
+            slide = jfile.split('.oid')[0]
+            sample = slide.split('/')[-1].replace('.ndpi', '')
+            mpp = mpps[sample]
+            oid = jfile.split('.json')[0].split('.oid')[-1]
+            writer.writerow([f"{sample}.oid{oid}", "", slidepaths[sample], "", jpath + jfile, mpp])
+    print(f"Wrote {len(jfiles)} samples")
+    return sname
 
 def loadAndFilter(paths, spath=None, downsample=1, maskfunc=None):
     if maskfunc is None:
