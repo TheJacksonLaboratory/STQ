@@ -319,6 +319,42 @@ def _grow_tissue_region(
     pts_full[:, 1] = np.clip(pts_full[:, 1], 0, H - 1)
     return pts_full
 
+def _detect_all_tissue_components(img_rgb, bg_value=255, bg_tol=0,
+                                    min_area=500, close_iters=1, open_iters=1,
+                                    min_span=50, max_span=500):
+    is_bg = np.all(img_rgb >= (bg_value - bg_tol), axis=-1)
+    mask = (~is_bg).astype(np.uint8) * 255
+    kernel = np.ones((5,5), np.uint8)
+    if close_iters: mask = cv2.morphologyEx(mask, cv2.MORPH_CLOSE, kernel, iterations=close_iters)
+    if open_iters:  mask = cv2.morphologyEx(mask, cv2.MORPH_OPEN,  kernel, iterations=open_iters)
+    n, labels = cv2.connectedComponents(mask)
+    dims = np.array(img_rgb.shape[:2][::-1])
+    out = []
+    for lbl in range(1, n):
+        comp = (labels == lbl).astype(np.uint8) * 255
+        if comp.sum()/255 < min_area: continue
+        comp = _fill_holes(comp)
+        if CONTOUR_GROW_PX > 0:
+            pad = CONTOUR_GROW_PX + 5
+            comp = np.pad(comp, pad, constant_values=0)
+            k = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (2*CONTOUR_GROW_PX+1,)*2)
+            comp = cv2.dilate(comp, k)
+            offset = -pad
+        else:
+            offset = 0
+        contours, _ = cv2.findContours(comp, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+        if not contours: continue
+        c = max(contours, key=cv2.contourArea)
+        approx = cv2.approxPolyDP(c, epsilon=2.0, closed=True).reshape(-1,2).astype(float) + offset
+        mins = approx.min(axis=0)
+        maxs = approx.max(axis=0)
+        if (mins<=np.array([0, 0])).any() or (maxs>=dims).any():
+            continue
+        span = maxs-mins
+        if span.min() < min_span and span.max() > max_span:
+            continue
+        out.append(approx)
+    return out
 
 def annotateContours(
     samples: list[str],
