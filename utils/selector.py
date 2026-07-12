@@ -319,14 +319,27 @@ def _grow_tissue_region(
     pts_full[:, 1] = np.clip(pts_full[:, 1], 0, H - 1)
     return pts_full
 
-def _detect_all_tissue_components(img_rgb, bg_value=255, bg_tol=0,
-                                    min_area=500, close_iters=1, open_iters=1,
+def _detect_all_tissue_components(img_rgb, separator_lines=None, bg_value=255, bg_tol=0,
+                                    min_area=5000, close_iters=1, open_iters=1,
                                     min_span=50, max_span=500):
     is_bg = np.all(img_rgb >= (bg_value - bg_tol), axis=-1)
     mask = (~is_bg).astype(np.uint8) * 255
     kernel = np.ones((5,5), np.uint8)
     if close_iters: mask = cv2.morphologyEx(mask, cv2.MORPH_CLOSE, kernel, iterations=close_iters)
     if open_iters:  mask = cv2.morphologyEx(mask, cv2.MORPH_OPEN,  kernel, iterations=open_iters)
+    # Burn separator lines into the mask so connected-component analysis
+    # respects barriers drawn by the user, identical to how _grow_tissue_region does it.
+    if separator_lines:
+        for _sep in separator_lines:
+            if len(_sep) < 2:
+                continue
+            _pts = np.round(np.asarray(_sep, dtype=np.float64)).astype(np.int32)
+            for _j in range(len(_pts) - 1):
+                _p1 = (int(np.clip(_pts[_j,     0], 0, mask.shape[1] - 1)),
+                       int(np.clip(_pts[_j,     1], 0, mask.shape[0] - 1)))
+                _p2 = (int(np.clip(_pts[_j + 1, 0], 0, mask.shape[1] - 1)),
+                       int(np.clip(_pts[_j + 1, 1], 0, mask.shape[0] - 1)))
+                cv2.line(mask, _p1, _p2, 0, thickness=SEP_BARRIER_PX)
     n, labels = cv2.connectedComponents(mask)
     dims = np.array(img_rgb.shape[:2][::-1])
     out = []
@@ -436,6 +449,8 @@ def annotateContours(
                 handler = {
                     'save':       self._handle_save,
                     'wand':       self._handle_wand,
+                    'detect_all': self._handle_detect_all,
+                    'reindex':    self._handle_reindex,
                     'delete':     self._handle_delete,
                     'delete_all': self._handle_delete_all,
                     'list':       self._handle_list,
@@ -545,6 +560,44 @@ def annotateContours(
 
             canvas_pts = [[x / sx, y / sy] for x, y in result]
             self._ok(json.dumps({'ok': True, 'points': canvas_pts}).encode())
+
+        def _handle_detect_all(self, payload):
+            idx            = int(payload['idx'])
+            canvas_w       = float(payload['canvas_w'])
+            canvas_h       = float(payload['canvas_h'])
+            sep_lines_canvas = payload.get('sep_lines', [])
+            full_w, full_h = sizes[idx]
+            sx, sy = full_w / canvas_w, full_h / canvas_h
+            sep_full = [
+                np.array([[p[0] * sx, p[1] * sy] for p in line])
+                for line in sep_lines_canvas
+            ]
+            components = _detect_all_tissue_components(
+                images[idx],
+                separator_lines=sep_full if sep_full else None,
+            )
+            result = []
+            for comp in components:
+                canvas_pts = [[float(x / sx), float(y / sy)] for x, y in comp]
+                result.append(canvas_pts)
+            self._ok(json.dumps({'ok': True, 'components': result}).encode())
+
+        def _handle_reindex(self, payload):
+            sample = payload['sample']
+            files = sorted(_sample_files(sample), key=_oid_of)
+            # rename to temp names first to avoid conflicts
+            tmp = []
+            for i, f in enumerate(files):
+                t = os.path.join(savepath, f'{sample}.oid_tmp_{i}.json')
+                os.rename(f, t)
+                tmp.append(t)
+            # rename to final contiguous names
+            new_files = []
+            for i, t in enumerate(tmp):
+                final = os.path.join(savepath, f'{sample}.oid{i}.json')
+                os.rename(t, final)
+                new_files.append(final)
+            self._ok(json.dumps({'ok': True, 'files': new_files}).encode())
 
         def _ok(self, body):
             self.send_response(200)
@@ -658,7 +711,9 @@ def annotateContours(
   let imgIdx      = 0;
   let contours    = [];   // [{points: [[x,y],...], file: string|null}]
   let separators  = [];   // [{points: [[x,y],...]}]  — open barrier lines
-  let selectedSepIdx = -1;
+  let selectedSepIdx     = -1;
+  let selectedContourIdx = -1;
+  let lastDrawnType      = null;  // 'contour' | 'separator'
   let drawMode    = 'contour';  // 'contour' | 'separator'
   let currentPath = [];
   let drawing     = false;
@@ -787,9 +842,53 @@ def annotateContours(
   }
 
   function commitSeparator(pts) {
+    lastDrawnType = 'separator';
     separators.push({points: pts});
     redraw(); updateList();
     doSaveSeparators();
+  }
+
+  async function reindexFiles(sample) {
+    try {
+      const resp = await fetch(srvUrl(), {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({action: 'reindex', sample: sample})
+      });
+      const json = await resp.json();
+      if (json.ok) {
+        let fi = 0;
+        contours.forEach(c => { if (c.file) { c.file = json.files[fi++] || null; } });
+      }
+    } catch(e) { /* best effort */ }
+  }
+
+  async function detectAllTissue() {
+    statusEl.textContent = '🔍 Detecting all tissue components…';
+    try {
+      const resp = await fetch(srvUrl(), {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({
+          action: 'detect_all',
+          idx: imgIdx,
+          canvas_w: drawCanvas.width,
+          canvas_h: drawCanvas.height,
+          sep_lines: separators.map(s => s.points)
+        })
+      });
+      const json = await resp.json();
+      if (!json.ok) { statusEl.textContent = '⚠ detect_all: ' + json.error; return; }
+      for (const pts of json.components) {
+        contours.push({points: pts, file: null});
+        if (autosaveCb.checked) await doSave(contours.length - 1);
+      }
+      lastDrawnType = 'contour';
+      redraw(); updateList();
+      statusEl.textContent = '✅ Detected ' + json.components.length + ' tissue component(s).';
+    } catch(e) {
+      statusEl.textContent = '⚠ detect_all failed: ' + e;
+    }
   }
 
   // ── magic wand: send scribble as seed, get refined contour back ────
@@ -845,7 +944,7 @@ def annotateContours(
     counterEl.textContent   = (idx + 1) + ' / ' + SIZES.length;
     prevBtn.disabled = idx === 0;
     currentPath = [];
-    contours = []; separators = []; selectedSepIdx = -1;
+    contours = []; separators = []; selectedSepIdx = -1; selectedContourIdx = -1; lastDrawnType = null;
     redraw(); updateList();
     statusEl.textContent = 'Loading saved contours…';
 
@@ -894,14 +993,14 @@ def annotateContours(
       dc.moveTo(pts[0][0], pts[0][1]);
       pts.slice(1).forEach(p => dc.lineTo(p[0], p[1]));
       if (sel) { dc.shadowColor = '#ffff00'; dc.shadowBlur = 16; }
-      dc.strokeStyle = sel ? '#ffff00' : 'rgba(255,210,0,0.9)';
-      dc.lineWidth   = sel ? 3 : 2;
+      dc.strokeStyle = sel ? '#ffff00' : 'lime';
+      dc.lineWidth   = sel ? 4 : 2;
       dc.setLineDash([8, 4]);
       dc.stroke();
       dc.restore();
       // endpoint dots for clarity
       dc.save();
-      dc.fillStyle = sel ? '#ffff00' : 'rgba(255,210,0,0.9)';
+      dc.fillStyle = sel ? '#ffff00' : 'lime';
       [pts[0], pts[pts.length - 1]].forEach(([px, py]) => {
         dc.beginPath(); dc.arc(px, py, sel ? 4 : 3, 0, 2 * Math.PI); dc.fill();
       });
@@ -910,16 +1009,20 @@ def annotateContours(
     contours.forEach((c, i) => {
       const pts = c.points;
       if (pts.length < 2) return;
-      [['rgba(255,255,255,0.65)', 4], ['#000', 2]].forEach(([col, lw]) => {
+      const csel = i === selectedContourIdx;
+      dc.save();
+      if (csel) { dc.shadowColor = '#ffff00'; dc.shadowBlur = 20; }
+      [['rgba(255,255,255,0.65)', csel ? 6 : 4], [csel ? '#ffff00' : '#000', csel ? 4 : 2]].forEach(([col, lw]) => {
         dc.beginPath(); dc.moveTo(pts[0][0], pts[0][1]);
         pts.slice(1).forEach(p => dc.lineTo(p[0], p[1]));
         dc.closePath(); dc.strokeStyle = col; dc.lineWidth = lw;
         dc.setLineDash([]); dc.stroke();
       });
       dc.font = 'bold 16px monospace'; dc.setLineDash([]);
-      dc.lineWidth = 3; dc.strokeStyle = 'white';
+      dc.lineWidth = 3; dc.strokeStyle = csel ? '#ffff00' : 'white';
       dc.strokeText('#' + i, pts[0][0] + 4, pts[0][1] - 4);
-      dc.fillStyle = '#000'; dc.fillText('oid' + i, pts[0][0] + 4, pts[0][1] - 4);
+      dc.fillStyle = csel ? '#ff8800' : '#000'; dc.fillText('oid' + i, pts[0][0] + 4, pts[0][1] - 4);
+      dc.restore();
     });
     if (currentPath.length > 1) {
       dc.beginPath(); dc.moveTo(currentPath[0][0], currentPath[0][1]);
@@ -1019,6 +1122,7 @@ def annotateContours(
   }
 
   function commitContour(pts) {
+    lastDrawnType = 'contour';
     contours.push({points: pts, file: null});
     const idx = contours.length - 1;
     redraw(); updateList();
@@ -1054,19 +1158,38 @@ def annotateContours(
 
   drawCanvas.addEventListener('dblclick', e => {
     const [x, y] = canvasXY(e);
-    let best = -1, bestDist = 12;
+    // Check separators
+    let bestSep = -1, bestSepDist = 12;
     separators.forEach((sep, i) => {
       const pts = sep.points;
       for (let j = 0; j < pts.length - 1; j++) {
         const d = _distToSeg(x, y, pts[j][0], pts[j][1], pts[j+1][0], pts[j+1][1]);
-        if (d < bestDist) { bestDist = d; best = i; }
+        if (d < bestSepDist) { bestSepDist = d; bestSep = i; }
       }
     });
-    selectedSepIdx = best;
-    redraw();
-    statusEl.textContent = best >= 0
-      ? '✏ Separator #' + best + ' selected — Del/Backspace to delete, Esc to deselect.'
-      : '';
+    // Check contours (closed polygons)
+    let bestCnt = -1, bestCntDist = 12;
+    contours.forEach((c, i) => {
+      const pts = c.points;
+      for (let j = 0; j < pts.length; j++) {
+        const nx = (j + 1) % pts.length;
+        const d = _distToSeg(x, y, pts[j][0], pts[j][1], pts[nx][0], pts[nx][1]);
+        if (d < bestCntDist) { bestCntDist = d; bestCnt = i; }
+      }
+    });
+    if (bestSep >= 0 && (bestCnt < 0 || bestSepDist <= bestCntDist)) {
+      selectedSepIdx = bestSep; selectedContourIdx = -1;
+      redraw();
+      statusEl.textContent = '✏ Separator #' + bestSep + ' selected — Del/Backspace to delete, Esc to deselect.';
+    } else if (bestCnt >= 0) {
+      selectedContourIdx = bestCnt; selectedSepIdx = -1;
+      redraw();
+      statusEl.textContent = '✏ Contour #' + bestCnt + ' selected — Del/Backspace to delete, Esc to deselect.';
+    } else {
+      selectedSepIdx = -1; selectedContourIdx = -1;
+      redraw();
+      statusEl.textContent = '';
+    }
   });
 
   async function finishDraw() {
@@ -1113,12 +1236,14 @@ def annotateContours(
       return;
     }
     if (!contours.length) return;
+    const sample = SAMPLES[imgIdx];
     const last = contours.pop();
     redraw(); updateList();
     if (last.file) {
       statusEl.textContent = '🗑 Deleting ' + last.file + '…';
       await deleteFile(last.file);
-      statusEl.textContent = '✅ Removed contour and deleted ' + last.file;
+      await reindexFiles(sample);
+      statusEl.textContent = '✅ Removed contour and files reindexed.';
     } else {
       statusEl.textContent = 'Last (unsaved) contour removed.';
     }
@@ -1171,11 +1296,49 @@ def annotateContours(
     // Swallow the event entirely so the notebook/CodeMirror never sees it.
     e.stopPropagation();
     e.stopImmediatePropagation();
-    if (e.key === 'ArrowRight') { e.preventDefault(); nextBtn.click(); }
-    else if (e.key === 'ArrowLeft') { e.preventDefault(); prevBtn.click(); }
-    else if (e.key === 'z') { e.preventDefault(); document.getElementById('btn-clear-last').click(); }
+    if (e.key === 'ArrowRight' || e.key === 'd') { e.preventDefault(); nextBtn.click(); }
+    else if (e.key === 'ArrowLeft' || e.key === 'a') { e.preventDefault(); prevBtn.click(); }
+    else if (e.key === 'z') {
+      e.preventDefault();
+      if (lastDrawnType === 'separator' && separators.length > 0) {
+        separators.pop();
+        if (selectedSepIdx >= separators.length) selectedSepIdx = -1;
+        redraw(); updateList();
+        doSaveSeparators();
+        statusEl.textContent = '🗑 Last separator removed.';
+      } else {
+        document.getElementById('btn-clear-last').click();
+      }
+    }
+    else if (e.key === ' ') { e.preventDefault(); detectAllTissue(); }
+    else if (e.key === 'q') {
+      e.preventDefault();
+      if (contours.length > 0) {
+        document.getElementById('btn-clear-all').click();
+      } else if (separators.length > 0) {
+        separators = []; selectedSepIdx = -1;
+        redraw(); updateList();
+        doSaveSeparators();
+        statusEl.textContent = '🗑 All separators cleared.';
+      }
+    }
     else if (e.key === 's' && (e.ctrlKey || e.metaKey)) { e.preventDefault(); document.getElementById('btn-save').click(); }
     else if (e.key === 'w') { wandCb.checked = !wandCb.checked; wandCb.dispatchEvent(new Event('change')); }
+    else if ((e.key === 'Delete' || e.key === 'Backspace') && selectedContourIdx >= 0) {
+      e.preventDefault();
+      const sample = SAMPLES[imgIdx];
+      const c = contours.splice(selectedContourIdx, 1)[0];
+      selectedContourIdx = -1;
+      redraw(); updateList();
+      (async () => {
+        if (c.file) {
+          statusEl.textContent = '🗑 Deleting contour file…';
+          await deleteFile(c.file);
+        }
+        await reindexFiles(sample);
+        statusEl.textContent = '✅ Contour deleted and files reindexed.';
+      })();
+    }
     else if ((e.key === 'Delete' || e.key === 'Backspace') && selectedSepIdx >= 0) {
       e.preventDefault();
       separators.splice(selectedSepIdx, 1);
@@ -1183,10 +1346,12 @@ def annotateContours(
       redraw(); updateList();
       doSaveSeparators();
       statusEl.textContent = '🗑 Separator deleted.';
-    } else if (e.key === 'Escape' && selectedSepIdx >= 0) {
-      selectedSepIdx = -1;
-      redraw();
-      statusEl.textContent = 'Selection cleared.';
+    } else if (e.key === 'Escape') {
+      if (selectedSepIdx >= 0 || selectedContourIdx >= 0) {
+        selectedSepIdx = -1; selectedContourIdx = -1;
+        redraw();
+        statusEl.textContent = 'Selection cleared.';
+      }
     }
   }
   // Register in CAPTURE phase (true) so we beat JupyterLab's own capture listeners.
