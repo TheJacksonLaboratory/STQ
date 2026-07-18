@@ -281,6 +281,20 @@ def _grow_tissue_region(
             cv2.MORPH_ELLIPSE, (2 * CONTOUR_GROW_PX + 1, 2 * CONTOUR_GROW_PX + 1)
         )
         comp_u8 = cv2.dilate(comp_u8, kernel)
+        # Re-burn separator barriers so dilation cannot bleed across them.
+        if separator_lines:
+            for _sep in separator_lines:
+                if len(_sep) < 2:
+                    continue
+                _pts = np.round(
+                    np.asarray(_sep, dtype=np.float64) - np.array([[x0, y0]])
+                ).astype(np.int32)
+                for _j in range(len(_pts) - 1):
+                    _p1 = (int(np.clip(_pts[_j,     0], 0, comp_u8.shape[1] - 1)),
+                           int(np.clip(_pts[_j,     1], 0, comp_u8.shape[0] - 1)))
+                    _p2 = (int(np.clip(_pts[_j + 1, 0], 0, comp_u8.shape[1] - 1)),
+                           int(np.clip(_pts[_j + 1, 1], 0, comp_u8.shape[0] - 1)))
+                    cv2.line(comp_u8, _p1, _p2, 0, thickness=SEP_BARRIER_PX)
 
     contours, _ = cv2.findContours(comp_u8, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
     if not contours:
@@ -352,6 +366,19 @@ def _detect_all_tissue_components(img_rgb, separator_lines=None, bg_value=255, b
             comp = np.pad(comp, pad, constant_values=0)
             k = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (2*CONTOUR_GROW_PX+1,)*2)
             comp = cv2.dilate(comp, k)
+            # Re-burn separator barriers (adjusted for pad offset) so
+            # dilation cannot bleed across them.
+            if separator_lines:
+                for _sep in separator_lines:
+                    if len(_sep) < 2:
+                        continue
+                    _pts = (np.round(np.asarray(_sep, dtype=np.float64)) + pad).astype(np.int32)
+                    for _j in range(len(_pts) - 1):
+                        _p1 = (int(np.clip(_pts[_j,     0], 0, comp.shape[1] - 1)),
+                               int(np.clip(_pts[_j,     1], 0, comp.shape[0] - 1)))
+                        _p2 = (int(np.clip(_pts[_j + 1, 0], 0, comp.shape[1] - 1)),
+                               int(np.clip(_pts[_j + 1, 1], 0, comp.shape[0] - 1)))
+                        cv2.line(comp, _p1, _p2, 0, thickness=SEP_BARRIER_PX)
             offset = -pad
         else:
             offset = 0
@@ -368,6 +395,91 @@ def _detect_all_tissue_components(img_rgb, separator_lines=None, bg_value=255, b
             continue
         out.append(approx)
     return out
+
+
+def _merge_overlapping_contours(new_pts, existing_pts_list, canvas_w, canvas_h):
+    """
+    Check if new_pts overlaps any contours in existing_pts_list (all canvas coords).
+    If so, union all overlapping ones into a single contour and return
+    (merged_pts, list_of_merged_indices).  Returns (new_pts, []) when no overlap.
+    """
+    h, w = int(canvas_h), int(canvas_w)
+
+    def _to_mask(pts):
+        mask = np.zeros((h, w), dtype=np.uint8)
+        poly = np.round(np.array(pts, dtype=np.float64)).astype(np.int32)
+        poly[:, 0] = np.clip(poly[:, 0], 0, w - 1)
+        poly[:, 1] = np.clip(poly[:, 1], 0, h - 1)
+        cv2.fillPoly(mask, [poly], 255)
+        return mask
+
+    new_mask = _to_mask(new_pts)
+    overlapping, non_overlapping = [], []
+    for i, ex in enumerate(existing_pts_list):
+        ex_mask = _to_mask(ex)
+        ex_area = cv2.countNonZero(ex_mask)
+        overlap  = cv2.countNonZero(cv2.bitwise_and(new_mask, ex_mask))
+        # Merge only when the new contour covers at least 20% of the existing one.
+        if ex_area > 0 and overlap / ex_area >= 0.20:
+            overlapping.append(i)
+        else:
+            non_overlapping.append(i)
+
+    if not overlapping:
+        return new_pts, []
+
+    union_mask = new_mask.copy()
+    for i in overlapping:
+        union_mask = cv2.bitwise_or(union_mask, _to_mask(existing_pts_list[i]))
+
+    ctrs, _ = cv2.findContours(union_mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+    if not ctrs:
+        return new_pts, []
+    c = max(ctrs, key=cv2.contourArea)
+    approx = cv2.approxPolyDP(c, epsilon=2.0, closed=True).reshape(-1, 2).astype(float)
+    return approx.tolist(), overlapping
+
+
+def _split_contours_by_separator(sep_pts, existing_pts_list, canvas_w, canvas_h):
+    """
+    For each contour in existing_pts_list check whether sep_pts completely
+    crosses it (i.e. splits it into 2+ disconnected pieces).
+    Returns a list of (original_index, [new_pts_arrays]) for every contour
+    that was actually split.  Unsplit contours do not appear in the result.
+    """
+    h, w = int(canvas_h), int(canvas_w)
+    sep_arr = np.round(np.array(sep_pts, dtype=np.float64)).astype(np.int32)
+
+    results = []
+    for i, contour_pts in enumerate(existing_pts_list):
+        mask = np.zeros((h, w), dtype=np.uint8)
+        poly = np.round(np.array(contour_pts, dtype=np.float64)).astype(np.int32)
+        poly[:, 0] = np.clip(poly[:, 0], 0, w - 1)
+        poly[:, 1] = np.clip(poly[:, 1], 0, h - 1)
+        cv2.fillPoly(mask, [poly], 255)
+        # Burn the separator line as a background barrier
+        for j in range(len(sep_arr) - 1):
+            p1 = (int(np.clip(sep_arr[j,     0], 0, w - 1)), int(np.clip(sep_arr[j,     1], 0, h - 1)))
+            p2 = (int(np.clip(sep_arr[j + 1, 0], 0, w - 1)), int(np.clip(sep_arr[j + 1, 1], 0, h - 1)))
+            cv2.line(mask, p1, p2, 0, thickness=SEP_BARRIER_PX)
+        n, labels = cv2.connectedComponents(mask)
+        if n <= 2:   # background + 1 component → no split
+            continue
+        parts = []
+        for lbl in range(1, n):
+            comp = (labels == lbl).astype(np.uint8) * 255
+            if comp.sum() / 255 < 100:   # skip tiny dust fragments
+                continue
+            ctrs, _ = cv2.findContours(comp, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+            if not ctrs:
+                continue
+            c = max(ctrs, key=cv2.contourArea)
+            approx = cv2.approxPolyDP(c, epsilon=2.0, closed=True).reshape(-1, 2).astype(float)
+            parts.append(approx.tolist())
+        if len(parts) >= 2:
+            results.append((i, parts))
+    return results
+
 
 def annotateContours(
     samples: list[str],
@@ -456,6 +568,8 @@ def annotateContours(
                     'list':       self._handle_list,
                     'save_sep':   self._handle_save_sep,
                     'list_sep':   self._handle_list_sep,
+                    'merge':      self._handle_merge,
+                    'split_sep':  self._handle_split_sep,
                 }.get(action, self._handle_save)
                 handler(payload)
             except Exception as e:
@@ -599,6 +713,31 @@ def annotateContours(
                 new_files.append(final)
             self._ok(json.dumps({'ok': True, 'files': new_files}).encode())
 
+        def _handle_merge(self, payload):
+            new_pts  = payload['new_pts']
+            existing = payload['existing']
+            canvas_w = float(payload['canvas_w'])
+            canvas_h = float(payload['canvas_h'])
+            merged_pts, merged_indices = _merge_overlapping_contours(
+                new_pts, existing, canvas_w, canvas_h
+            )
+            self._ok(json.dumps({
+                'ok': True,
+                'merged_pts': merged_pts,
+                'merged_indices': merged_indices,
+            }).encode())
+
+        def _handle_split_sep(self, payload):
+            sep_pts  = payload['sep_pts']
+            existing = payload['existing']
+            canvas_w = float(payload['canvas_w'])
+            canvas_h = float(payload['canvas_h'])
+            splits = _split_contours_by_separator(sep_pts, existing, canvas_w, canvas_h)
+            self._ok(json.dumps({
+                'ok': True,
+                'splits': [[i, parts] for i, parts in splits],
+            }).encode())
+
         def _ok(self, body):
             self.send_response(200)
             self.send_header('Content-Type',                 'application/json')
@@ -658,11 +797,11 @@ def annotateContours(
   #btn-save       { background:var(--accent);  color:#fff; }
   #btn-clear-last { background:#2a2a4a; color:var(--text); }
   #btn-clear-all  { background:#2a2a4a; color:var(--muted); }
-  #ca-autosave-wrap, #ca-wand-wrap, #ca-ruler-wrap {
+  #ca-autosave-wrap, #ca-wand-wrap, #ca-ruler-wrap, #ca-autodetect-wrap {
     display:flex; align-items:center; gap:6px;
     font-size:11px; color:var(--muted); margin-left:4px;
   }
-  #ca-autosave-wrap input, #ca-wand-wrap input, #ca-ruler-wrap input { accent-color:var(--accent); width:14px; height:14px; cursor:pointer; }
+  #ca-autosave-wrap input, #ca-wand-wrap input, #ca-ruler-wrap input, #ca-autodetect-wrap input { accent-color:var(--accent); width:14px; height:14px; cursor:pointer; }
   #ca-ruler-wrap.disabled { opacity:.4; }
   #ca-ruler-wrap.disabled input { cursor:not-allowed; pointer-events:none; }
   #ca-status { font-size:11px; color:var(--muted); min-height:16px; }
@@ -692,6 +831,9 @@ def annotateContours(
     </label>
     <label id="ca-ruler-wrap">
       <input type="checkbox" id="ca-ruler"> ruler
+    </label>
+    <label id="ca-autodetect-wrap">
+      <input type="checkbox" id="ca-autodetect" checked> autodetect
     </label>
   </div>
   <div id="ca-status">Loading…</div>
@@ -731,9 +873,10 @@ def annotateContours(
   const autosaveCb  = document.getElementById('ca-autosave');
   const wandCb      = document.getElementById('ca-wand');
   const rulerCb     = document.getElementById('ca-ruler');
-  const rulerWrap   = document.getElementById('ca-ruler-wrap');
-  const prevBtn     = document.getElementById('btn-prev');
-  const nextBtn     = document.getElementById('btn-next');
+  const rulerWrap      = document.getElementById('ca-ruler-wrap');
+  const autodetectCb   = document.getElementById('ca-autodetect');
+  const prevBtn        = document.getElementById('btn-prev');
+  const nextBtn        = document.getElementById('btn-next');
 
   // Ruler: enabled only when MPP was provided by Python.
   if (MPP === null) {
@@ -841,11 +984,49 @@ def annotateContours(
     }
   }
 
-  function commitSeparator(pts) {
+  async function commitSeparator(pts) {
     lastDrawnType = 'separator';
     separators.push({points: pts});
     redraw(); updateList();
-    doSaveSeparators();
+    await doSaveSeparators();
+
+    // Split any contour that the separator completely crosses.
+    if (contours.length === 0) return;
+    try {
+      const resp = await fetch(srvUrl(), {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({
+          action: 'split_sep',
+          sep_pts: pts,
+          existing: contours.map(c => c.points),
+          canvas_w: drawCanvas.width,
+          canvas_h: drawCanvas.height
+        })
+      });
+      const res = await resp.json();
+      if (!res.ok || !res.splits || res.splits.length === 0) return;
+
+      const sample = SAMPLES[imgIdx];
+      // Process in reverse-index order so earlier splices don't shift later indices.
+      const splitsSorted = [...res.splits].sort((a, b) => b[0] - a[0]);
+      let totalNew = 0;
+      for (const [mi, parts] of splitsSorted) {
+        if (contours[mi] && contours[mi].file) await deleteFile(contours[mi].file);
+        contours.splice(mi, 1, ...parts.map(p => ({points: p, file: null})));
+        totalNew += parts.length;
+      }
+      redraw(); updateList();
+      if (autosaveCb.checked) {
+        for (let i = 0; i < contours.length; i++) {
+          if (!contours[i].file) await doSave(i);
+        }
+        await reindexFiles(sample);
+        statusEl.textContent = '✂ Split ' + res.splits.length + ' contour(s) → ' + totalNew + ' parts saved.';
+      } else {
+        statusEl.textContent = '✂ Split ' + res.splits.length + ' contour(s) into ' + totalNew + ' parts. Click Save contour to write files.';
+      }
+    } catch(e) { /* best effort */ }
   }
 
   async function reindexFiles(sample) {
@@ -966,11 +1147,15 @@ def annotateContours(
       redraw(); updateList();
     }
 
-    statusEl.textContent = wandCb.checked
-      ? 'Scribble inside a tissue — it will snap to the tissue boundary. (Hold ⌘/Ctrl to draw free-hand.)'
-      : (autosaveCb.checked
-          ? 'Draw a contour — saved automatically on mouse-up.'
-          : 'Draw a contour, then click Save contour.');
+    if (contours.length === 0 && separators.length === 0 && autodetectCb.checked) {
+      await detectAllTissue();
+    } else {
+      statusEl.textContent = wandCb.checked
+        ? 'Scribble inside a tissue — it will snap to the tissue boundary. (Hold ⌘/Ctrl to draw free-hand.)'
+        : (autosaveCb.checked
+            ? 'Draw a contour — saved automatically on mouse-up.'
+            : 'Draw a contour, then click Save contour.');
+    }
   }
 
   function canvasXY(e) {
@@ -1121,17 +1306,59 @@ def annotateContours(
     contourList.textContent = [...cParts, ...sParts].join('  ·  ');
   }
 
-  function commitContour(pts) {
+  async function commitContour(pts) {
     lastDrawnType = 'contour';
-    contours.push({points: pts, file: null});
+    let finalPts = pts;
+    let mergeCount = 0;
+
+    // Merge with any overlapping existing contours.
+    if (contours.length > 0) {
+      try {
+        const resp = await fetch(srvUrl(), {
+          method: 'POST',
+          headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify({
+            action: 'merge',
+            new_pts: pts,
+            existing: contours.map(c => c.points),
+            canvas_w: drawCanvas.width,
+            canvas_h: drawCanvas.height
+          })
+        });
+        const res = await resp.json();
+        if (res.ok && res.merged_indices && res.merged_indices.length > 0) {
+          finalPts = res.merged_pts;
+          mergeCount = res.merged_indices.length;
+          for (const mi of res.merged_indices) {
+            if (contours[mi] && contours[mi].file) await deleteFile(contours[mi].file);
+          }
+          // Remove in reverse order to preserve indices.
+          for (const mi of [...res.merged_indices].sort((a, b) => b - a)) {
+            contours.splice(mi, 1);
+          }
+        }
+      } catch(e) { /* best effort */ }
+    }
+
+    contours.push({points: finalPts, file: null});
     const idx = contours.length - 1;
     redraw(); updateList();
-    if (autosaveCb.checked) doSave(idx);
-    else statusEl.textContent = 'Contour drawn. Click Save contour to write file.';
+    if (autosaveCb.checked) {
+      await doSave(idx);
+      if (mergeCount > 0) {
+        await reindexFiles(SAMPLES[imgIdx]);
+        statusEl.textContent = '✅ Merged ' + mergeCount + ' contour(s) → saved.';
+      }
+    } else {
+      statusEl.textContent = mergeCount > 0
+        ? '🔗 Merged ' + mergeCount + ' contour(s). Click Save contour to write file.'
+        : 'Contour drawn. Click Save contour to write file.';
+    }
   }
 
   // ── mouse ─────────────────────────────────────────────────────────
   drawCanvas.addEventListener('mousedown', e => {
+    if (e.button !== 0) return;   // ignore right-click / middle-click
     const [x, y] = canvasXY(e);
     // Detect background: if the pixel under the cursor is near-white, start a
     // separator line rather than a tissue contour.
@@ -1155,6 +1382,64 @@ def annotateContours(
     const t = Math.max(0, Math.min(1, ((px - x1) * dx + (py - y1) * dy) / len2));
     return Math.hypot(px - (x1 + t * dx), py - (y1 + t * dy));
   }
+
+  function _pointInPolygon(px, py, pts) {
+    let inside = false;
+    for (let i = 0, j = pts.length - 1; i < pts.length; j = i++) {
+      const xi = pts[i][0], yi = pts[i][1], xj = pts[j][0], yj = pts[j][1];
+      if (((yi > py) !== (yj > py)) && (px < (xj - xi) * (py - yi) / (yj - yi) + xi))
+        inside = !inside;
+    }
+    return inside;
+  }
+
+  // ── right-click: remove nearest/hit contour or separator ──────────
+  drawCanvas.addEventListener('contextmenu', e => {
+    e.preventDefault();
+    e.stopPropagation();
+    e.stopImmediatePropagation();
+    const [x, y] = canvasXY(e);
+    const HIT = 30;
+    let bestSep = -1, bestSepDist = HIT;
+    separators.forEach((sep, i) => {
+      const pts = sep.points;
+      for (let j = 0; j < pts.length - 1; j++) {
+        const d = _distToSeg(x, y, pts[j][0], pts[j][1], pts[j+1][0], pts[j+1][1]);
+        if (d < bestSepDist) { bestSepDist = d; bestSep = i; }
+      }
+    });
+    let bestCnt = -1, bestCntDist = HIT;
+    contours.forEach((c, i) => {
+      const pts = c.points;
+      if (_pointInPolygon(x, y, pts)) { bestCntDist = -1; bestCnt = i; return; }
+      if (bestCntDist < 0) return;   // already have an interior hit
+      for (let j = 0; j < pts.length; j++) {
+        const nx = (j + 1) % pts.length;
+        const d = _distToSeg(x, y, pts[j][0], pts[j][1], pts[nx][0], pts[nx][1]);
+        if (d < bestCntDist) { bestCntDist = d; bestCnt = i; }
+      }
+    });
+    if (bestSep >= 0 && (bestCnt < 0 || bestSepDist <= bestCntDist)) {
+      separators.splice(bestSep, 1);
+      if (selectedSepIdx >= separators.length) selectedSepIdx = -1;
+      redraw(); updateList();
+      doSaveSeparators();
+      statusEl.textContent = '🗑 Separator removed (right-click).';
+    } else if (bestCnt >= 0) {
+      const sample = SAMPLES[imgIdx];
+      const c = contours.splice(bestCnt, 1)[0];
+      if (selectedContourIdx >= contours.length) selectedContourIdx = -1;
+      redraw(); updateList();
+      (async () => {
+        if (c.file) {
+          statusEl.textContent = '🗑 Deleting contour file…';
+          await deleteFile(c.file);
+        }
+        await reindexFiles(sample);
+        statusEl.textContent = '✅ Contour removed (right-click) and files reindexed.';
+      })();
+    }
+  }, true);
 
   drawCanvas.addEventListener('dblclick', e => {
     const [x, y] = canvasXY(e);
@@ -1201,7 +1486,7 @@ def annotateContours(
     currentPath = [];
 
     if (drawMode === 'separator') {
-      commitSeparator(scribble);
+      await commitSeparator(scribble);
       return;
     }
 
@@ -1210,7 +1495,7 @@ def annotateContours(
       try {
         const res = await growRegion(scribble);
         if (res.ok) {
-          commitContour(res.points);
+          await commitContour(res.points);
           return;
         }
         statusEl.textContent = '⚠ Wand: ' + res.error + ' — used raw scribble instead.';
@@ -1220,7 +1505,7 @@ def annotateContours(
     } else if (strokeWandDisabled && wandCb.checked) {
       statusEl.textContent = '✋ Wand skipped (⌘/Ctrl held) — used free-hand contour.';
     }
-    commitContour(scribble);
+    await commitContour(scribble);
   }
 
   // ── buttons ───────────────────────────────────────────────────────
