@@ -578,13 +578,14 @@ def annotateContours(
         def _handle_save(self, payload):
             sample = payload['sample']
             data   = payload['data']
-            used = {_oid_of(f) for f in _sample_files(sample)}
-            oid = 0
-            while oid in used:
-                oid += 1
-            fname = os.path.join(savepath, f'{sample}.oid{oid}.json')
-            with open(fname, 'w') as fh:
-                json.dump(data, fh, indent=2)
+            with _save_lock:
+                used = {_oid_of(f) for f in _sample_files(sample)}
+                oid = 0
+                while oid in used:
+                    oid += 1
+                fname = os.path.join(savepath, f'{sample}.oid{oid}.json')
+                with open(fname, 'w') as fh:
+                    json.dump(data, fh, indent=2)
             self._ok(json.dumps({'ok': True, 'file': fname}).encode())
 
         def _handle_delete(self, payload):
@@ -752,6 +753,8 @@ def annotateContours(
         def log_message(self, *a):
             pass
 
+    _save_lock = threading.Lock()
+
     host = socket.gethostbyname(socket.gethostname())
     srv = ThreadingHTTPServer((host, port), Handler)
     t   = threading.Thread(target=srv.serve_forever, daemon=True)
@@ -851,6 +854,7 @@ def annotateContours(
         f"  const MPP      = {json.dumps(mpp)};\n"
         + r"""
   let imgIdx      = 0;
+  let busy        = 0;    // incremented while any async operation is in flight
   let contours    = [];   // [{points: [[x,y],...], file: string|null}]
   let separators  = [];   // [{points: [[x,y],...]}]  — open barrier lines
   let selectedSepIdx     = -1;
@@ -888,6 +892,15 @@ def annotateContours(
   }
 
   const srvUrl = () => 'http://' + SRV_HOST + ':' + SRV_PORT;
+
+  function _setBusy(delta) {
+    busy += delta;
+    const locked = busy > 0;
+    prevBtn.disabled = locked || imgIdx === 0;
+    nextBtn.disabled = locked || imgIdx >= SIZES.length - 1;
+    document.getElementById('btn-clear-last').disabled = locked;
+    document.getElementById('btn-clear-all').disabled  = locked;
+  }
 
   // ── save / delete / list via local HTTP server ──────────────────────
   async function doSave(idx) {
@@ -985,14 +998,17 @@ def annotateContours(
   }
 
   async function commitSeparator(pts) {
-    lastDrawnType = 'separator';
-    separators.push({points: pts});
-    redraw(); updateList();
-    await doSaveSeparators();
-
-    // Split any contour that the separator completely crosses.
-    if (contours.length === 0) return;
+    const snapIdx = imgIdx;
+    _setBusy(+1);
     try {
+      lastDrawnType = 'separator';
+      separators.push({points: pts});
+      redraw(); updateList();
+      await doSaveSeparators();
+      if (imgIdx !== snapIdx) return;
+
+      // Split any contour that the separator completely crosses.
+      if (contours.length === 0) return;
       const resp = await fetch(srvUrl(), {
         method: 'POST',
         headers: {'Content-Type': 'application/json'},
@@ -1004,22 +1020,24 @@ def annotateContours(
           canvas_h: drawCanvas.height
         })
       });
+      if (imgIdx !== snapIdx) return;
       const res = await resp.json();
       if (!res.ok || !res.splits || res.splits.length === 0) return;
 
-      const sample = SAMPLES[imgIdx];
+      const sample = SAMPLES[snapIdx];
       // Process in reverse-index order so earlier splices don't shift later indices.
       const splitsSorted = [...res.splits].sort((a, b) => b[0] - a[0]);
       let totalNew = 0;
       for (const [mi, parts] of splitsSorted) {
         if (contours[mi] && contours[mi].file) await deleteFile(contours[mi].file);
+        if (imgIdx !== snapIdx) return;
         contours.splice(mi, 1, ...parts.map(p => ({points: p, file: null})));
         totalNew += parts.length;
       }
       redraw(); updateList();
       if (autosaveCb.checked) {
         for (let i = 0; i < contours.length; i++) {
-          if (!contours[i].file) await doSave(i);
+          if (!contours[i].file) { await doSave(i); if (imgIdx !== snapIdx) return; }
         }
         await reindexFiles(sample);
         statusEl.textContent = '✂ Split ' + res.splits.length + ' contour(s) → ' + totalNew + ' parts saved.';
@@ -1027,6 +1045,7 @@ def annotateContours(
         statusEl.textContent = '✂ Split ' + res.splits.length + ' contour(s) into ' + totalNew + ' parts. Click Save contour to write files.';
       }
     } catch(e) { /* best effort */ }
+    finally { _setBusy(-1); }
   }
 
   async function reindexFiles(sample) {
@@ -1045,6 +1064,8 @@ def annotateContours(
   }
 
   async function detectAllTissue() {
+    const snapIdx = imgIdx;
+    _setBusy(+1);
     statusEl.textContent = '🔍 Detecting all tissue components…';
     try {
       const resp = await fetch(srvUrl(), {
@@ -1052,24 +1073,26 @@ def annotateContours(
         headers: {'Content-Type': 'application/json'},
         body: JSON.stringify({
           action: 'detect_all',
-          idx: imgIdx,
+          idx: snapIdx,
           canvas_w: drawCanvas.width,
           canvas_h: drawCanvas.height,
           sep_lines: separators.map(s => s.points)
         })
       });
+      if (imgIdx !== snapIdx) return;
       const json = await resp.json();
       if (!json.ok) { statusEl.textContent = '⚠ detect_all: ' + json.error; return; }
+      if (imgIdx !== snapIdx) return;
       for (const pts of json.components) {
         contours.push({points: pts, file: null});
-        if (autosaveCb.checked) await doSave(contours.length - 1);
+        if (autosaveCb.checked) { await doSave(contours.length - 1); if (imgIdx !== snapIdx) return; }
       }
       lastDrawnType = 'contour';
       redraw(); updateList();
       statusEl.textContent = '✅ Detected ' + json.components.length + ' tissue component(s).';
     } catch(e) {
       statusEl.textContent = '⚠ detect_all failed: ' + e;
-    }
+    } finally { _setBusy(-1); }
   }
 
   // ── magic wand: send scribble as seed, get refined contour back ────
@@ -1307,53 +1330,62 @@ def annotateContours(
   }
 
   async function commitContour(pts) {
-    lastDrawnType = 'contour';
-    let finalPts = pts;
-    let mergeCount = 0;
+    const snapIdx = imgIdx;
+    _setBusy(+1);
+    try {
+      lastDrawnType = 'contour';
+      let finalPts = pts;
+      let mergeCount = 0;
 
-    // Merge with any overlapping existing contours.
-    if (contours.length > 0) {
-      try {
-        const resp = await fetch(srvUrl(), {
-          method: 'POST',
-          headers: {'Content-Type': 'application/json'},
-          body: JSON.stringify({
-            action: 'merge',
-            new_pts: pts,
-            existing: contours.map(c => c.points),
-            canvas_w: drawCanvas.width,
-            canvas_h: drawCanvas.height
-          })
-        });
-        const res = await resp.json();
-        if (res.ok && res.merged_indices && res.merged_indices.length > 0) {
-          finalPts = res.merged_pts;
-          mergeCount = res.merged_indices.length;
-          for (const mi of res.merged_indices) {
-            if (contours[mi] && contours[mi].file) await deleteFile(contours[mi].file);
+      // Merge with any overlapping existing contours.
+      if (contours.length > 0) {
+        try {
+          const resp = await fetch(srvUrl(), {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({
+              action: 'merge',
+              new_pts: pts,
+              existing: contours.map(c => c.points),
+              canvas_w: drawCanvas.width,
+              canvas_h: drawCanvas.height
+            })
+          });
+          if (imgIdx !== snapIdx) return;
+          const res = await resp.json();
+          if (imgIdx !== snapIdx) return;
+          if (res.ok && res.merged_indices && res.merged_indices.length > 0) {
+            finalPts = res.merged_pts;
+            mergeCount = res.merged_indices.length;
+            for (const mi of res.merged_indices) {
+              if (contours[mi] && contours[mi].file) await deleteFile(contours[mi].file);
+              if (imgIdx !== snapIdx) return;
+            }
+            // Remove in reverse order to preserve indices.
+            for (const mi of [...res.merged_indices].sort((a, b) => b - a)) {
+              contours.splice(mi, 1);
+            }
           }
-          // Remove in reverse order to preserve indices.
-          for (const mi of [...res.merged_indices].sort((a, b) => b - a)) {
-            contours.splice(mi, 1);
-          }
-        }
-      } catch(e) { /* best effort */ }
-    }
-
-    contours.push({points: finalPts, file: null});
-    const idx = contours.length - 1;
-    redraw(); updateList();
-    if (autosaveCb.checked) {
-      await doSave(idx);
-      if (mergeCount > 0) {
-        await reindexFiles(SAMPLES[imgIdx]);
-        statusEl.textContent = '✅ Merged ' + mergeCount + ' contour(s) → saved.';
+        } catch(e) { /* best effort */ }
       }
-    } else {
-      statusEl.textContent = mergeCount > 0
-        ? '🔗 Merged ' + mergeCount + ' contour(s). Click Save contour to write file.'
-        : 'Contour drawn. Click Save contour to write file.';
-    }
+
+      if (imgIdx !== snapIdx) return;
+      contours.push({points: finalPts, file: null});
+      const idx = contours.length - 1;
+      redraw(); updateList();
+      if (autosaveCb.checked) {
+        await doSave(idx);
+        if (imgIdx !== snapIdx) return;
+        if (mergeCount > 0) {
+          await reindexFiles(SAMPLES[snapIdx]);
+          statusEl.textContent = '✅ Merged ' + mergeCount + ' contour(s) → saved.';
+        }
+      } else {
+        statusEl.textContent = mergeCount > 0
+          ? '🔗 Merged ' + mergeCount + ' contour(s). Click Save contour to write file.'
+          : 'Contour drawn. Click Save contour to write file.';
+      }
+    } finally { _setBusy(-1); }
   }
 
   // ── mouse ─────────────────────────────────────────────────────────
@@ -1363,7 +1395,7 @@ def annotateContours(
     // Detect background: if the pixel under the cursor is near-white, start a
     // separator line rather than a tissue contour.
     const px = ic.getImageData(Math.max(0, Math.floor(x)), Math.max(0, Math.floor(y)), 1, 1).data;
-    drawMode = (px[0] >= 230 && px[1] >= 230 && px[2] >= 230) ? 'separator' : 'contour';
+    drawMode = (px[0] >= 254 && px[1] >= 254 && px[2] >= 254) ? 'separator' : 'contour';
     drawing = true;
     currentPath = [[x, y]];
     strokeWandDisabled = e.metaKey || e.ctrlKey;   // hold Cmd/Ctrl to draw free-hand just this once
@@ -1542,10 +1574,12 @@ def annotateContours(
     statusEl.textContent = '✅ All contours cleared for ' + sample + '.';
   });
   nextBtn.addEventListener('click', () => {
+    if (busy > 0) return;
     if (imgIdx < SIZES.length - 1) { imgIdx++; loadImage(imgIdx); }
     else statusEl.textContent = '✓ All images annotated.';
   });
   prevBtn.addEventListener('click', () => {
+    if (busy > 0) return;
     if (imgIdx > 0) { imgIdx--; loadImage(imgIdx); }
   });
   autosaveCb.addEventListener('change', () => {
