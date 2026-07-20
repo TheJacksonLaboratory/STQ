@@ -7,6 +7,25 @@ umap_annotator.py — interactive scatter annotation for Jupyter notebooks.
               embedding, e.g. UMAP). One point per row.
   df_meta   : optional DataFrame, same index, arbitrary columns -> shown in
               the hover tooltip.
+  df_features : optional DataFrame, same index as df/df_meta, numeric
+              feature columns used to train a one-vs-rest logistic
+              regression classifier per label (only for labels with at
+              least `min_label_count` positive AND negative examples).
+              When provided, clicking a point fetches that sample's
+              predicted probability for every label it doesn't have yet,
+              and shows the ones that look likely as one-click "suggested"
+              chips in the popup; confirming one adds it as a real label
+              (same as typing it in) and retrains that label's classifier.
+              Requires scikit-learn; the suggestion feature is silently
+              disabled (with a printed note) if either is missing.
+  augFunc   : optional (X, y) -> (X_aug, y_aug) hook, currently a passthrough
+              stub -- reserved for future data augmentation before each
+              label's classifier is (re)trained.
+  clf_params : optional dict of LogisticRegression kwargs; defaults to
+              {"penalty": "l2", "C": 10, "class_weight": "balanced",
+               "solver": "liblinear", "max_iter": 1000}.
+  min_label_count : minimum number of positive AND negative examples a
+              label needs before a classifier is trained for it.
   image_paths : dict mapping sample name -> full path of that sample's
               thumbnail image (any format tifffile/PIL can read). Samples
               missing from this dict simply won't have an image in the
@@ -42,6 +61,9 @@ Behavior:
     across reloads. Points are rendered as pie-sliced dots (grey/unlabeled
     behind, colored/labeled on top), one slice per label color, sized by
     the on-canvas size slider.
+  - If df_features is given (and scikit-learn is installed), the popup also
+    shows likely-label suggestions with a one-click "+" to confirm each;
+    confirming adds it as a real label and retrains that label's model.
 """
 
 import json, logging, os, socket, threading
@@ -54,6 +76,11 @@ import pandas as pd
 import tifffile
 from PIL import Image
 from IPython.display import display, HTML
+
+try:
+    from sklearn.linear_model import LogisticRegression as LR
+except ImportError:
+    LR = None
 
 # tifffile reports "shaped series shape does not match page shape" (for tiffs
 # whose embedded shape metadata doesn't match the actual page -- e.g. written
@@ -72,16 +99,25 @@ _PALETTE = [
     "#607d8b", "#cddc39", "#ff5722", "#673ab7",
 ]
 
+_DEFAULT_CLF_PARAMS = {
+    "penalty": "l2", "C": 10, "class_weight": "balanced",
+    "solver": "liblinear", "max_iter": 1000,
+}
+
 
 def annotateScatter(
     df: pd.DataFrame,
     df_meta: pd.DataFrame | None = None,
+    df_features: pd.DataFrame | None = None,
     image_paths: dict | None = None,
     savepath: str = "./labels/",
     canvas_width: int = 700,
     canvas_height: int = 700,
     thumb_max_dim: int = 260,
     wsi_max_dim: int = 1000,
+    augFunc = None,
+    clf_params: dict | None = None,
+    min_label_count: int = 3,
 ):
     assert {"x", "y"}.issubset(df.columns), "df must have 'x' and 'y' columns"
     image_paths = image_paths or {}
@@ -120,6 +156,85 @@ def annotateScatter(
         if label not in colors:
             colors[label] = _PALETTE[len(colors) % len(_PALETTE)]
         return colors[label]
+
+    # ── optional per-label suggestion classifiers (needs df_features + sklearn) ──
+    _clf_params = clf_params or _DEFAULT_CLF_PARAMS
+    sample_idx = {s: i for i, s in enumerate(samples)}
+    have_features = df_features is not None
+    X_all = None
+    valid_row = None
+    if have_features and LR is None:
+        print("[annotateScatter] scikit-learn not installed -- label suggestions disabled.")
+        have_features = False
+    if have_features:
+        try:
+            # feat = df_features.reindex(samples)
+            X_all = df_features.astype(float).values
+            valid_row = ~np.isnan(X_all).any(axis=1)
+        except Exception as e:
+            print(f"[annotateScatter] could not use df_features ({e}) -- label suggestions disabled.")
+            have_features = False
+
+    def _augment(X, y):
+        """Stub hook for future data augmentation ahead of each label's LR
+        fit. Currently a no-op passthrough; when augFunc is supplied it's
+        expected to take (X, y) and return an augmented (X_aug, y_aug)."""
+        if augFunc is not None:
+            return augFunc(X, y)
+        return X, y
+
+    clfs: dict[str, "LR"] = {}   # label -> fitted classifier (only labels with enough data)
+
+    def _train_one(label):
+        """(Re)train label's one-vs-rest classifier, using only labelled samples, or drop it if there's
+        not enough support in both classes. Assumes caller holds `lock`."""
+        if not have_features:
+            return
+        y_pos = np.array([1 if label in labels.get(s, []) else 0 for s in samples])
+        y_neg = np.array([1 if (len(labels.get(s, []))>0) and (label not in labels.get(s, [])) else 0 for s in samples])
+        if np.sum(y_pos) < min_label_count or np.sum(y_neg) < min_label_count:
+            clfs.pop(label, None)
+            return
+        mask = (y_pos > 0) | (y_neg > 0)
+        print(f"[annotateScatter] training classifier for label '{label}' with {np.sum(mask)} samples")
+        X_train, y_train = X_all[mask], y_pos[mask]
+        X_train, y_train = _augment(X_train, y_train)
+        clf = LR(**_clf_params)
+        clf.fit(X_train, y_train)
+        clfs[label] = clf
+
+    def _retrain_label(label):
+        if not have_features:
+            return
+        with lock:
+            _train_one(label)
+
+    def _predict_candidates(sample):
+        """Probability of each label the sample doesn't already have, for
+        every label with a trained classifier. Returns [] if features are
+        unavailable for this sample or no classifiers exist yet."""
+        if not have_features or sample not in sample_idx or not clfs:
+            return []
+        i = sample_idx[sample]
+        if not valid_row[i]:
+            return []
+        x = X_all[i:i + 1]
+        current = set(labels.get(sample, []))
+        out = []
+        for label, clf in clfs.items():
+            if label in current:
+                continue
+            prob = float(clf.predict_proba(x)[0, 1])
+            out.append({"label": label, "prob": prob})
+        out.sort(key=lambda d: -d["prob"])
+        return [d for d in out if d["prob"] >= 0.15][:8]
+
+    if have_features:
+        for _label in {l for labs in labels.values() for l in labs}:
+            try:
+                _retrain_label(_label)
+            except Exception as e:
+                print(f"[annotateScatter] initial training failed for label '{_label}': {e}")
 
     _thumb_cache: dict[str, dict] = {}   # sample -> {'png': bytes, 'w': int, 'h': int}
 
@@ -258,6 +373,20 @@ def annotateScatter(
                 self.send_header("Access-Control-Allow-Origin", "*")
                 self.end_headers()
                 self.wfile.write(body)
+            elif p.path.startswith("/predict/"):
+                sample = unquote(p.path[len("/predict/"):])
+                try:
+                    with lock:
+                        candidates = _predict_candidates(sample)
+                    body = json.dumps({"ok": True, "candidates": candidates}).encode()
+                except Exception:
+                    body = json.dumps({"ok": False, "candidates": []}).encode()
+                self.send_response(200)
+                self.send_header("Content-Type", "application/json")
+                self.send_header("Content-Length", str(len(body)))
+                self.send_header("Access-Control-Allow-Origin", "*")
+                self.end_headers()
+                self.wfile.write(body)
             else:
                 self.send_response(404)
                 self.end_headers()
@@ -275,6 +404,7 @@ def annotateScatter(
                             labels[s].append(l)
                         _color_for(l)
                         _save()
+                        _train_one(l)
                 elif action == "remove":
                     s, l = payload["sample"], payload["label"]
                     if s in labels and l in labels[s]:
@@ -282,6 +412,7 @@ def annotateScatter(
                         if not labels[s]:
                             del labels[s]
                         _save()
+                        _train_one(l)
                 self._ok(json.dumps({"ok": True, "labels": labels, "colors": colors}).encode())
 
         def _ok(self, body):
@@ -302,10 +433,10 @@ def annotateScatter(
     srv = ThreadingHTTPServer((host, port), Handler)
     threading.Thread(target=srv.serve_forever, daemon=True).start()
 
-    display(HTML(_render(samples, pts, meta, labels, colors, host, port, canvas_width, canvas_height)))
+    display(HTML(_render(samples, pts, meta, labels, colors, host, port, canvas_width, canvas_height, have_features)))
 
 
-def _render(samples, pts, meta, labels, colors, host, port, canvas_width, canvas_height):
+def _render(samples, pts, meta, labels, colors, host, port, canvas_width, canvas_height, have_features):
     css = """
 <style>
   #ua-root * { box-sizing:border-box; margin:0; padding:0; }
@@ -354,7 +485,19 @@ def _render(samples, pts, meta, labels, colors, host, port, canvas_width, canvas
     flex:0 0 auto; display:block; margin:0 auto 8px; background:#000; border-radius:4px;
     max-width:100%; max-height:380px; object-fit:contain;
   }
-  #ua-label-list, #ua-add-row { width:100%; min-width:150px; }
+  #ua-label-list, #ua-add-row, #ua-suggest-list { width:100%; min-width:150px; }
+  #ua-suggest-list { flex:0 0 auto; display:flex; flex-wrap:wrap; gap:4px; margin-bottom:8px; }
+  .ua-suggest-chip {
+    display:inline-flex; align-items:center; gap:5px; font-size:11px;
+    background:rgba(233,69,96,0.12); border:1px dashed #e94560; border-radius:9px;
+    padding:2px 4px 2px 8px; color:#eaeaea;
+  }
+  .ua-suggest-prob { color:#8892a4; font-size:10px; }
+  .ua-suggest-add {
+    cursor:pointer; color:#e94560; font-weight:bold; font-size:13px;
+    padding:0 4px; line-height:1;
+  }
+  .ua-suggest-add:hover { color:#fff; background:#e94560; border-radius:50%; }
   #ua-label-list { flex:0 0 auto; display:flex; flex-direction:column; gap:4px; margin-bottom:8px; max-height:120px; overflow-y:auto; }
   .ua-label-row { display:flex; align-items:center; gap:6px; font-size:11px; }
   .ua-dot { width:9px; height:9px; border-radius:50%; flex:0 0 auto; }
@@ -398,13 +541,14 @@ def _render(samples, pts, meta, labels, colors, host, port, canvas_width, canvas
     <div id="ua-zoomlabel">100%</div>
     <div id="ua-sizectl" title="dot/pie size">
       <span>size</span>
-      <input type="range" id="ua-size-slider" min="1" max="20" step="1" value="3" />
+      <input type="range" id="ua-size-slider" min="2" max="14" step="1" value="5" />
     </div>
     <div id="ua-popup">
       <span id="ua-popup-close">✕</span>
       <div id="ua-popup-title">—</div>
       <img id="ua-popup-img" src="" title="click to view whole slide" />
       <div id="ua-label-list"></div>
+      <div id="ua-suggest-list"></div>
       <div id="ua-add-row">
         <input id="ua-add-input" placeholder="add label…" />
         <button id="ua-add-btn">+</button>
@@ -433,6 +577,7 @@ def _render(samples, pts, meta, labels, colors, host, port, canvas_width, canvas
         f"  const CW      = {canvas_width};\n"
         f"  const CH      = {canvas_height};\n"
         f"  const SRV     = 'http://{host}:{port}';\n"
+        f"  const HAS_FEATURES = {json.dumps(have_features)};\n"
         + r"""
   const canvas  = document.getElementById('ua-canvas');
   const ctx     = canvas.getContext('2d');
@@ -441,6 +586,7 @@ def _render(samples, pts, meta, labels, colors, host, port, canvas_width, canvas
   const popupTitle  = document.getElementById('ua-popup-title');
   const popupImg    = document.getElementById('ua-popup-img');
   const labelList   = document.getElementById('ua-label-list');
+  const suggestList = document.getElementById('ua-suggest-list');
   const popupMeta   = document.getElementById('ua-popup-meta');
   const addInput    = document.getElementById('ua-add-input');
   const resetBtn    = document.getElementById('ua-reset');
@@ -453,8 +599,7 @@ def _render(samples, pts, meta, labels, colors, host, port, canvas_width, canvas
   const wsiCanvas   = document.getElementById('ua-wsi-canvas');
   const wsiStatus   = document.getElementById('ua-wsi-status');
   const wsiClose    = document.getElementById('ua-wsi-close');
-  const GRAY = '#aaaaaa';
-  //const GRAY = '#555a6e';
+  const GRAY = '#555a6e';
   let baseR = parseFloat(sizeSlider.value);
   const HIT = 8;
 
@@ -652,6 +797,31 @@ def _render(samples, pts, meta, labels, colors, host, port, canvas_width, canvas
     popupMeta.innerHTML = html || '<div style="color:#666;">no metadata</div>';
   }
 
+  function renderSuggestions(sample) {
+    suggestList.innerHTML = '';
+    if (!HAS_FEATURES) return;
+    fetch(SRV + '/predict/' + encodeURIComponent(sample))
+      .then(r => r.json())
+      .then(j => {
+        if (selectedIdx < 0 || SAMPLES[selectedIdx] !== sample) return;   // popup moved on
+        if (!j.ok || !j.candidates.length) return;
+        suggestList.innerHTML = j.candidates.map(c => `
+          <span class="ua-suggest-chip" data-label="${c.label}">
+            ${c.label} <span class="ua-suggest-prob">${Math.round(c.prob * 100)}%</span>
+            <span class="ua-suggest-add" title="confirm suggestion">+</span>
+          </span>`).join('');
+        suggestList.querySelectorAll('.ua-suggest-add').forEach(el => {
+          el.addEventListener('click', () => {
+            const chip = el.closest('.ua-suggest-chip');
+            const label = chip.dataset.label;
+            postAction({ action: 'add', sample, label });
+            chip.remove();   // it's now a real label, shown in the label list instead
+          });
+        });
+      })
+      .catch(() => {});
+  }
+
   function openPopup(idx) {
     selectedIdx = idx;
     const sample = SAMPLES[idx];
@@ -661,6 +831,7 @@ def _render(samples, pts, meta, labels, colors, host, port, canvas_width, canvas
     popupImg.style.display = 'block';
     popupImg.src = SRV + '/thumb/' + encodeURIComponent(sample);  // loads in parallel
     renderLabelList(sample);
+    renderSuggestions(sample);
     renderMeta(sample);
     addInput.value = '';
     popup.style.display = 'flex';
