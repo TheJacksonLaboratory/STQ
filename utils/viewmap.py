@@ -104,6 +104,10 @@ _DEFAULT_CLF_PARAMS = {
     "solver": "liblinear", "max_iter": 1000,
 }
 
+# Minimum predicted probability for a label to be assigned automatically
+# by the "Classify" button (applied to every sample with a trained classifier).
+AUTO_LABEL_THRESHOLD = 0.9
+
 
 def annotateScatter(
     df: pd.DataFrame,
@@ -116,6 +120,8 @@ def annotateScatter(
     thumb_max_dim: int = 260,
     wsi_max_dim: int = 1000,
     augFunc = None,
+    qs = None,
+    alpha = 0.85,
     clf_params: dict | None = None,
     min_label_count: int = 3,
 ):
@@ -143,6 +149,7 @@ def annotateScatter(
     colors_path = os.path.join(savepath, "colors.json")
     labels = json.load(open(labels_path)) if os.path.isfile(labels_path) else {}
     colors = json.load(open(colors_path)) if os.path.isfile(colors_path) else {}
+    auto_labels: dict = {}   # in-memory only; populated by /classify, cleared by /clear_auto
 
     lock = threading.Lock()
 
@@ -176,11 +183,25 @@ def annotateScatter(
             have_features = False
 
     def _augment(X, y):
-        """Stub hook for future data augmentation ahead of each label's LR
-        fit. Currently a no-op passthrough; when augFunc is supplied it's
-        expected to take (X, y) and return an augmented (X_aug, y_aug)."""
-        if augFunc is not None:
-            return augFunc(X, y)
+        """Data augmentation ahead of each label's LR fit. Take (X, y) and return an augmented (X_aug, y_aug)."""
+        if (augFunc is not None) and (qs is not None):
+            curated_positive = np.where(y == 1)[0]
+            curated_negative = np.where(y == 0)[0]
+            names = df_features.columns
+            dpos_v = []
+            for s_pos in curated_positive:
+                s_neg = np.random.choice(curated_negative)
+                df_pos = pd.Series(X[s_pos], index=names).unstack()
+                df_neg = pd.Series(X[s_neg], index=names).unstack()
+                assert df_pos.index.equals(df_neg.index)
+                acdf = augFunc(df_pos.index.values, df_pos.values,
+                            df_neg.values, alpha=alpha, beta=1. - alpha)
+                acdf = pd.DataFrame(index=df_pos.index, columns=df_pos.columns, data=acdf)
+                dpos_v.append(acdf.T.sort_index().T.stack().rename(s_pos))
+            dpos = pd.concat(dpos_v, axis=1).T
+            X_ = np.concatenate([dpos.values, X[curated_negative]], axis=0)
+            y_ = np.array([1] * len(dpos) + [0] * len(curated_negative))
+            return X_, y_
         return X, y
 
     clfs: dict[str, "LR"] = {}   # label -> fitted classifier (only labels with enough data)
@@ -196,7 +217,6 @@ def annotateScatter(
             clfs.pop(label, None)
             return
         mask = (y_pos > 0) | (y_neg > 0)
-        print(f"[annotateScatter] training classifier for label '{label}' with {np.sum(mask)} samples")
         X_train, y_train = X_all[mask], y_pos[mask]
         X_train, y_train = _augment(X_train, y_train)
         clf = LR(**_clf_params)
@@ -228,6 +248,30 @@ def annotateScatter(
             out.append({"label": label, "prob": prob})
         out.sort(key=lambda d: -d["prob"])
         return [d for d in out if d["prob"] >= 0.15][:8]
+
+    auto_labels_path = os.path.join(savepath, "auto-labels.json")
+
+    def _classify_all():
+        """Run every trained classifier on every sample; assign labels whose
+        predicted probability >= AUTO_LABEL_THRESHOLD.  Returns a new dict
+        mapping sample -> [label, ...].  Caller must hold `lock`."""
+        result: dict = {}
+        if not have_features or not clfs:
+            return result
+        for i, sample in enumerate(samples):
+            if not valid_row[i]:
+                continue
+            x = X_all[i:i + 1]
+            assigned = []
+            for label, clf in clfs.items():
+                prob = float(clf.predict_proba(x)[0, 1])
+                if prob >= AUTO_LABEL_THRESHOLD:
+                    assigned.append(label)
+            if assigned:
+                result[sample] = assigned
+        with open(auto_labels_path, "w") as f:
+            json.dump(result, f, indent=2)
+        return result
 
     if have_features:
         for _label in {l for labs in labels.values() for l in labs}:
@@ -387,6 +431,30 @@ def annotateScatter(
                 self.send_header("Access-Control-Allow-Origin", "*")
                 self.end_headers()
                 self.wfile.write(body)
+            elif p.path == "/classify":
+                try:
+                    with lock:
+                        auto_labels.clear()
+                        auto_labels.update(_classify_all())
+                        body = json.dumps({"ok": True, "auto_labels": auto_labels}).encode()
+                except Exception as exc:
+                    body = json.dumps({"ok": False, "auto_labels": {}, "error": str(exc)}).encode()
+                self.send_response(200)
+                self.send_header("Content-Type", "application/json")
+                self.send_header("Content-Length", str(len(body)))
+                self.send_header("Access-Control-Allow-Origin", "*")
+                self.end_headers()
+                self.wfile.write(body)
+            elif p.path == "/clear_auto":
+                with lock:
+                    auto_labels.clear()
+                body = json.dumps({"ok": True, "auto_labels": {}}).encode()
+                self.send_response(200)
+                self.send_header("Content-Type", "application/json")
+                self.send_header("Content-Length", str(len(body)))
+                self.send_header("Access-Control-Allow-Origin", "*")
+                self.end_headers()
+                self.wfile.write(body)
             else:
                 self.send_response(404)
                 self.end_headers()
@@ -413,7 +481,7 @@ def annotateScatter(
                             del labels[s]
                         _save()
                         _train_one(l)
-                self._ok(json.dumps({"ok": True, "labels": labels, "colors": colors}).encode())
+                self._ok(json.dumps({"ok": True, "labels": labels, "colors": colors, "auto_labels": auto_labels}).encode())
 
         def _ok(self, body):
             self.send_response(200)
@@ -433,10 +501,10 @@ def annotateScatter(
     srv = ThreadingHTTPServer((host, port), Handler)
     threading.Thread(target=srv.serve_forever, daemon=True).start()
 
-    display(HTML(_render(samples, pts, meta, labels, colors, host, port, canvas_width, canvas_height, have_features)))
+    display(HTML(_render(samples, pts, meta, labels, colors, host, port, canvas_width, canvas_height, have_features, auto_labels)))
 
 
-def _render(samples, pts, meta, labels, colors, host, port, canvas_width, canvas_height, have_features):
+def _render(samples, pts, meta, labels, colors, host, port, canvas_width, canvas_height, have_features, auto_labels):
     css = """
 <style>
   #ua-root * { box-sizing:border-box; margin:0; padding:0; }
@@ -472,7 +540,7 @@ def _render(samples, pts, meta, labels, colors, host, port, canvas_width, canvas
     box-shadow:0 4px 12px rgba(0,0,0,0.35); max-width:260px;
   }
   #ua-popup {
-    position:absolute; top:10px; right:10px; display:none;
+    position:absolute; top:38px; right:10px; display:none;
     flex-direction:column; overflow:hidden;
     width:max-content; min-width:170px; max-width:420px;
     /*POPUP_MAX_HEIGHT*/
@@ -514,6 +582,23 @@ def _render(samples, pts, meta, labels, colors, host, port, canvas_width, canvas
     border:none; border-radius:4px; padding:4px 10px; cursor:pointer;
   }
   #ua-add-btn:hover { filter:brightness(1.15); }
+  #ua-auto-list { flex:0 0 auto; display:flex; flex-direction:column; gap:3px; margin-bottom:6px; max-height:100px; overflow-y:auto; }
+  .ua-auto-row { display:flex; align-items:center; gap:6px; font-size:11px; }
+  #ua-classify-ctl {
+    position:absolute; top:8px; right:8px; z-index:40;
+    display:flex; align-items:center; gap:6px;
+    font-size:10px; background:rgba(15,15,24,0.85);
+    border:1px solid #2a2a4a; border-radius:4px; padding:3px 8px;
+  }
+  #ua-classify-btn, #ua-clear-auto-btn {
+    font-family:inherit; font-size:10px; color:#eaeaea;
+    border:1px solid #2a2a4a; border-radius:3px; padding:2px 8px; cursor:pointer;
+  }
+  #ua-classify-btn { background:#1b3a5c; }
+  #ua-classify-btn:hover { background:#0f3460; border-color:#4a7ab5; }
+  #ua-clear-auto-btn { background:#2a1a2e; }
+  #ua-clear-auto-btn:hover { background:#3a1a3e; border-color:#8a4a9a; }
+  #ua-auto-status { font-size:10px; color:#8892a4; white-space:nowrap; }
   #ua-popup-meta {
     flex:1 1 auto; min-height:0; overflow-y:auto; margin-top:8px;
     background:#f3f1ea; color:#000; border-radius:6px; padding:6px 8px; font-size:11px;
@@ -543,6 +628,11 @@ def _render(samples, pts, meta, labels, colors, host, port, canvas_width, canvas
       <span>size</span>
       <input type="range" id="ua-size-slider" min="2" max="14" step="1" value="5" />
     </div>
+    <div id="ua-classify-ctl">
+      <button id="ua-classify-btn">Classify</button>
+      <button id="ua-clear-auto-btn">Clear</button>
+      <span id="ua-auto-status"></span>
+    </div>
     <div id="ua-popup">
       <span id="ua-popup-close">✕</span>
       <div id="ua-popup-title">—</div>
@@ -553,6 +643,7 @@ def _render(samples, pts, meta, labels, colors, host, port, canvas_width, canvas
         <input id="ua-add-input" placeholder="add label…" />
         <button id="ua-add-btn">+</button>
       </div>
+      <div id="ua-auto-list"></div>
       <div id="ua-popup-meta"></div>
     </div>
   </div>
@@ -572,11 +663,12 @@ def _render(samples, pts, meta, labels, colors, host, port, canvas_width, canvas
         f"  const SAMPLES = {json.dumps(samples)};\n"
         f"  const PTS     = {json.dumps(pts)};\n"
         f"  const META    = {json.dumps(meta)};\n"
-        f"  let   LABELS  = {json.dumps(labels)};\n"
-        f"  let   COLORS  = {json.dumps(colors)};\n"
-        f"  const CW      = {canvas_width};\n"
-        f"  const CH      = {canvas_height};\n"
-        f"  const SRV     = 'http://{host}:{port}';\n"
+        f"  let   LABELS     = {json.dumps(labels)};\n"
+        f"  let   COLORS     = {json.dumps(colors)};\n"
+        f"  let   AUTO_LABELS = {json.dumps(auto_labels)};\n"
+        f"  const CW         = {canvas_width};\n"
+        f"  const CH         = {canvas_height};\n"
+        f"  const SRV        = 'http://{host}:{port}';\n"
         f"  const HAS_FEATURES = {json.dumps(have_features)};\n"
         + r"""
   const canvas  = document.getElementById('ua-canvas');
@@ -586,10 +678,14 @@ def _render(samples, pts, meta, labels, colors, host, port, canvas_width, canvas
   const popupTitle  = document.getElementById('ua-popup-title');
   const popupImg    = document.getElementById('ua-popup-img');
   const labelList   = document.getElementById('ua-label-list');
-  const suggestList = document.getElementById('ua-suggest-list');
-  const popupMeta   = document.getElementById('ua-popup-meta');
-  const addInput    = document.getElementById('ua-add-input');
-  const resetBtn    = document.getElementById('ua-reset');
+  const suggestList  = document.getElementById('ua-suggest-list');
+  const popupMeta    = document.getElementById('ua-popup-meta');
+  const addInput     = document.getElementById('ua-add-input');
+  const autoList     = document.getElementById('ua-auto-list');
+  const classifyBtn  = document.getElementById('ua-classify-btn');
+  const clearAutoBtn = document.getElementById('ua-clear-auto-btn');
+  const autoStatus   = document.getElementById('ua-auto-status');
+  const resetBtn     = document.getElementById('ua-reset');
   const zoomLabel   = document.getElementById('ua-zoomlabel');
   const sizeSlider  = document.getElementById('ua-size-slider');
   popupImg.addEventListener('error', () => { popupImg.style.display = 'none'; });
@@ -633,10 +729,15 @@ def _render(samples, pts, meta, labels, colors, host, port, canvas_width, canvas
     // balloon at high zoom; user's slider sets the base size.
     const rBase = Math.min(Math.max(baseR * Math.sqrt(vscale), 2), 40);
 
+    // When any auto-labels exist, dots are colored by auto-labels only;
+    // samples without an auto-label are grey (even if manually labeled).
+    // When no auto-labels exist at all, fall back to manual labels.
+    const hasAnyAuto = Object.keys(AUTO_LABELS).length > 0;
+
     function drawPoint(i) {
       const [cx, cy] = toScreen(PX[i][0], PX[i][1]);
       if (cx < -20 || cx > CW+20 || cy < -20 || cy > CH+20) return;  // cull offscreen
-      const labs = LABELS[SAMPLES[i]] || [];
+      const labs = hasAnyAuto ? (AUTO_LABELS[SAMPLES[i]] || []) : (LABELS[SAMPLES[i]] || []);
       const rad = (i === hoverIdx || i === selectedIdx) ? rBase + 2 : rBase;
       if (labs.length === 0) {
         ctx.beginPath(); ctx.arc(cx, cy, rad, 0, 2*Math.PI);
@@ -657,11 +758,12 @@ def _render(samples, pts, meta, labels, colors, host, port, canvas_width, canvas
 
     // unlabeled/grey points render first (behind), colored/labeled points
     // render second so they're always visually on top.
+    const activeLabelMap = hasAnyAuto ? AUTO_LABELS : LABELS;
     for (let i = 0; i < SAMPLES.length; i++) {
-      if ((LABELS[SAMPLES[i]] || []).length === 0) drawPoint(i);
+      if ((activeLabelMap[SAMPLES[i]] || []).length === 0) drawPoint(i);
     }
     for (let i = 0; i < SAMPLES.length; i++) {
-      if ((LABELS[SAMPLES[i]] || []).length > 0) drawPoint(i);
+      if ((activeLabelMap[SAMPLES[i]] || []).length > 0) drawPoint(i);
     }
     zoomLabel.textContent = Math.round(vscale * 100) + '%';
   }
@@ -748,6 +850,26 @@ def _render(samples, pts, meta, labels, colors, host, port, canvas_width, canvas
     return `<div style="margin-top:4px;">${chips}</div>`;
   }
 
+  function tooltipLabelsHtml(sample) {
+    const manual = LABELS[sample] || [];
+    const auto   = AUTO_LABELS[sample] || [];
+    if (!manual.length && !auto.length) return '';
+    const chipStyle = 'display:inline-flex;align-items:center;gap:4px;background:rgba(0,0,0,0.06);padding:1px 6px;border-radius:9px;margin:2px 3px 0 0;';
+    const dot = col => `<span style="width:7px;height:7px;border-radius:50%;background:${col};display:inline-block;"></span>`;
+    let html = '';
+    if (manual.length) {
+      html += `<div style="margin-top:5px;font-size:10px;color:#777;letter-spacing:.04em;">MANUAL</div>`;
+      html += `<div style="margin-top:2px;">${manual.map(l =>
+        `<span style="${chipStyle}">${dot(COLORS[l] || GRAY)}${l}</span>`).join('')}</div>`;
+    }
+    if (auto.length) {
+      html += `<div style="margin-top:5px;font-size:10px;color:#5a8aaa;letter-spacing:.04em;">AUTO</div>`;
+      html += `<div style="margin-top:2px;">${auto.map(l =>
+        `<span style="${chipStyle}">${dot(COLORS[l] || GRAY)}${l}</span>`).join('')}</div>`;
+    }
+    return html;
+  }
+
   // ── hover tooltip ────────────────────────────────────────────────────
   canvas.addEventListener('mousemove', e => {
     if (dragging && dragged) return;   // panning takes priority over hover
@@ -758,7 +880,7 @@ def _render(samples, pts, meta, labels, colors, host, port, canvas_width, canvas
     const sample = SAMPLES[idx];
     const meta = metaTableHtml(sample);
     tooltip.innerHTML = `<b style="color:#e94560;">${sample}</b>` +
-      labelChipsHtml(sample) +
+      tooltipLabelsHtml(sample) +
       (meta ? `<div style="margin-top:4px;">${meta}</div>` : '');
     tooltip.style.display = 'block';
     tooltip.style.left = (e.clientX + 14) + 'px';
@@ -790,6 +912,25 @@ def _render(samples, pts, meta, labels, colors, host, port, canvas_width, canvas
     const [w, h] = dims;
     popupImg.style.width = Math.min(w, 380) + 'px';   // popup (max-content) wraps to this
     popupImg.style.aspectRatio = w + ' / ' + h;        // height follows automatically, true to source
+  }
+
+  function updateAutoStatus() {
+    const total = Object.keys(AUTO_LABELS).length;
+    autoStatus.textContent = total > 0
+      ? `auto: ${Object.values(AUTO_LABELS).reduce((s,v)=>s+v.length,0)} in ${total} samples`
+      : '';
+  }
+
+  function renderAutoList(sample) {
+    const labs = AUTO_LABELS[sample] || [];
+    if (!labs.length) { autoList.innerHTML = ''; return; }
+    const header = '<div style="font-size:10px;color:#5a8aaa;letter-spacing:.04em;margin-bottom:3px;">AUTO</div>';
+    autoList.innerHTML = header + labs.map(l =>
+      `<div class="ua-auto-row">
+         <span class="ua-dot" style="background:${COLORS[l] || GRAY}"></span>
+         <span class="ua-label-text" title="${l}">${l}</span>
+       </div>`).join('');
+    updateAutoStatus();
   }
 
   function renderMeta(sample) {
@@ -832,6 +973,7 @@ def _render(samples, pts, meta, labels, colors, host, port, canvas_width, canvas
     popupImg.src = SRV + '/thumb/' + encodeURIComponent(sample);  // loads in parallel
     renderLabelList(sample);
     renderSuggestions(sample);
+    renderAutoList(sample);
     renderMeta(sample);
     addInput.value = '';
     popup.style.display = 'flex';
@@ -924,7 +1066,11 @@ def _render(samples, pts, meta, labels, colors, host, port, canvas_width, canvas
       const json = await resp.json();
       if (json.ok) {
         LABELS = json.labels; COLORS = json.colors;
-        if (selectedIdx >= 0) renderLabelList(SAMPLES[selectedIdx]);
+        if (json.auto_labels !== undefined) AUTO_LABELS = json.auto_labels;
+        if (selectedIdx >= 0) {
+          renderLabelList(SAMPLES[selectedIdx]);
+          renderAutoList(SAMPLES[selectedIdx]);
+        }
         draw();
       }
     } catch (e) { /* best effort */ }
@@ -946,6 +1092,40 @@ def _render(samples, pts, meta, labels, colors, host, port, canvas_width, canvas
   });
   addInput.addEventListener('keydown', e => {
     if (e.key === 'Enter') document.getElementById('ua-add-btn').click();
+  });
+
+  classifyBtn.addEventListener('click', async () => {
+    classifyBtn.disabled = true;
+    classifyBtn.textContent = 'Classifying…';
+    autoStatus.textContent = 'running…';
+    try {
+      const resp = await fetch(SRV + '/classify');
+      const json = await resp.json();
+      if (json.ok) {
+        AUTO_LABELS = json.auto_labels;
+        updateAutoStatus();
+        if (!Object.keys(AUTO_LABELS).length)
+          autoStatus.textContent = 'no classifiers — add labels first';
+        if (selectedIdx >= 0) renderAutoList(SAMPLES[selectedIdx]);
+        draw();
+      }
+    } catch (e) { autoStatus.textContent = '⚠ failed'; }
+    classifyBtn.disabled = false;
+    classifyBtn.textContent = 'Classify';
+  });
+
+  clearAutoBtn.addEventListener('click', async () => {
+    try {
+      const resp = await fetch(SRV + '/clear_auto');
+      const json = await resp.json();
+      if (json.ok) {
+        AUTO_LABELS = {};
+        autoStatus.textContent = '';
+        if (selectedIdx >= 0) renderAutoList(SAMPLES[selectedIdx]);
+        else autoList.innerHTML = '';
+        draw();
+      }
+    } catch (e) { /* best effort */ }
   });
 
   draw();
