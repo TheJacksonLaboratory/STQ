@@ -556,21 +556,18 @@ def _render(samples, pts, meta, labels, colors, host, port, canvas_width, canvas
   .ua-suggest-chip {
     display:inline-flex; align-items:center; gap:5px; font-size:11px;
     background:rgba(233,69,96,0.12); border:1px dashed #e94560; border-radius:9px;
-    padding:2px 4px 2px 8px; color:#eaeaea;
+    padding:2px 8px; color:#eaeaea; cursor:pointer;
   }
+  .ua-suggest-chip:hover { background:#e94560; color:#fff; border-style:solid; }
   .ua-suggest-prob { color:#8892a4; font-size:10px; }
-  .ua-suggest-add {
-    cursor:pointer; color:#e94560; font-weight:bold; font-size:13px;
-    padding:0 4px; line-height:1;
-  }
-  .ua-suggest-add:hover { color:#fff; background:#e94560; border-radius:50%; }
+  .ua-suggest-chip:hover .ua-suggest-prob { color:#fff; }
   #ua-label-list { flex:0 0 auto; display:flex; flex-direction:column; gap:4px; margin-bottom:8px; max-height:120px; overflow-y:auto; }
   .ua-label-row { display:flex; align-items:center; gap:6px; font-size:11px; }
   .ua-dot { width:9px; height:9px; border-radius:50%; flex:0 0 auto; }
   .ua-label-text { flex:1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
   .ua-rm { cursor:pointer; color:#8892a4; font-size:12px; }
   .ua-rm:hover { color:#e94560; }
-  #ua-add-row { flex:0 0 auto; display:flex; gap:4px; }
+  #ua-add-row { flex:0 0 auto; display:flex; gap:4px; position:relative; }
   #ua-add-input {
     flex:1; font-family:inherit; font-size:11px; background:#0f0f18; color:#eaeaea;
     border:1px solid #2a2a4a; border-radius:4px; padding:4px 6px;
@@ -580,6 +577,16 @@ def _render(samples, pts, meta, labels, colors, host, port, canvas_width, canvas
     border:none; border-radius:4px; padding:4px 10px; cursor:pointer;
   }
   #ua-add-btn:hover { filter:brightness(1.15); }
+  #ua-add-dropdown {
+    position:absolute; top:100%; left:0; right:26px; margin-top:2px; display:none;
+    max-height:120px; overflow-y:auto; z-index:60;
+    background:#0f0f18; border:1px solid #2a2a4a; border-radius:4px;
+    box-shadow:0 4px 12px rgba(0,0,0,0.5);
+  }
+  .ua-add-dropdown-item {
+    display:flex; align-items:center; gap:6px; font-size:11px; padding:4px 7px; cursor:pointer;
+  }
+  .ua-add-dropdown-item:hover, .ua-add-dropdown-item.active { background:#1b3a5c; }
   #ua-auto-list { flex:0 0 auto; display:flex; flex-direction:column; gap:3px; margin-bottom:6px; max-height:100px; overflow-y:auto; }
   .ua-auto-row { display:flex; align-items:center; gap:6px; font-size:11px; }
   #ua-classify-ctl {
@@ -638,7 +645,8 @@ def _render(samples, pts, meta, labels, colors, host, port, canvas_width, canvas
       <div id="ua-label-list"></div>
       <div id="ua-suggest-list"></div>
       <div id="ua-add-row">
-        <input id="ua-add-input" placeholder="add label…" />
+        <input id="ua-add-input" autocomplete="off" placeholder="add label…" />
+        <div id="ua-add-dropdown"></div>
         <button id="ua-add-btn">+</button>
       </div>
       <div id="ua-auto-list"></div>
@@ -679,6 +687,7 @@ def _render(samples, pts, meta, labels, colors, host, port, canvas_width, canvas
   const suggestList  = document.getElementById('ua-suggest-list');
   const popupMeta    = document.getElementById('ua-popup-meta');
   const addInput     = document.getElementById('ua-add-input');
+  const addDropdown  = document.getElementById('ua-add-dropdown');
   const autoList     = document.getElementById('ua-auto-list');
   const classifyBtn  = document.getElementById('ua-classify-btn');
   const clearAutoBtn = document.getElementById('ua-clear-auto-btn');
@@ -824,6 +833,7 @@ def _render(samples, pts, meta, labels, colors, host, port, canvas_width, canvas
   window.addEventListener('keydown', e => {
     if (e.key === 'Escape') {
       if (wsiPopup.style.display === 'block') closeWsiPopup();
+      else if (addDropdown.style.display === 'block') hideDropdown();
       else closePopup();
     }
   });
@@ -945,13 +955,11 @@ def _render(samples, pts, meta, labels, colors, host, port, canvas_width, canvas
         if (selectedIdx < 0 || SAMPLES[selectedIdx] !== sample) return;   // popup moved on
         if (!j.ok || !j.candidates.length) return;
         suggestList.innerHTML = j.candidates.map(c => `
-          <span class="ua-suggest-chip" data-label="${c.label}">
+          <span class="ua-suggest-chip" data-label="${c.label}" title="click to add this label">
             ${c.label} <span class="ua-suggest-prob">${Math.round(c.prob * 100)}%</span>
-            <span class="ua-suggest-add" title="confirm suggestion">+</span>
           </span>`).join('');
-        suggestList.querySelectorAll('.ua-suggest-add').forEach(el => {
-          el.addEventListener('click', () => {
-            const chip = el.closest('.ua-suggest-chip');
+        suggestList.querySelectorAll('.ua-suggest-chip').forEach(chip => {
+          chip.addEventListener('click', () => {
             const label = chip.dataset.label;
             postAction({ action: 'add', sample, label });
             chip.remove();   // it's now a real label, shown in the label list instead
@@ -960,6 +968,56 @@ def _render(samples, pts, meta, labels, colors, host, port, canvas_width, canvas
       })
       .catch(() => {});
   }
+
+  // ── label autocomplete dropdown ──────────────────────────────────────
+  let ddItems = [], ddActive = -1;
+
+  function allKnownLabels() {
+    return Object.keys(COLORS).sort((a, b) => a.localeCompare(b));
+  }
+
+  function hideDropdown() {
+    addDropdown.style.display = 'none';
+    addDropdown.innerHTML = '';
+    ddItems = []; ddActive = -1;
+  }
+
+  function renderDropdown(filter) {
+    const q = filter.trim().toLowerCase();
+    const all = allKnownLabels();
+    ddItems = q ? all.filter(l => l.toLowerCase().includes(q)) : all;
+    if (!ddItems.length) { hideDropdown(); return; }
+    ddActive = -1;
+    addDropdown.innerHTML = ddItems.map((l, i) => `
+      <div class="ua-add-dropdown-item" data-idx="${i}">
+        <span class="ua-dot" style="background:${COLORS[l] || GRAY}"></span>
+        <span class="ua-label-text" title="${l}">${l}</span>
+      </div>`).join('');
+    addDropdown.querySelectorAll('.ua-add-dropdown-item').forEach(el => {
+      el.addEventListener('mousedown', ev => {
+        // mousedown (not click) so it fires before the input's blur hides the dropdown
+        ev.preventDefault();
+        addInput.value = ddItems[parseInt(el.dataset.idx, 10)];
+        hideDropdown();
+        addInput.focus();
+      });
+    });
+    addDropdown.style.display = 'block';
+  }
+
+  function setActiveItem(i) {
+    const rows = addDropdown.querySelectorAll('.ua-add-dropdown-item');
+    rows.forEach(r => r.classList.remove('active'));
+    if (i >= 0 && i < rows.length) {
+      rows[i].classList.add('active');
+      rows[i].scrollIntoView({ block: 'nearest' });
+    }
+    ddActive = i;
+  }
+
+  addInput.addEventListener('input', () => renderDropdown(addInput.value));
+  addInput.addEventListener('focus', () => renderDropdown(addInput.value));
+  addInput.addEventListener('blur', () => hideDropdown());
 
   function openPopup(idx) {
     selectedIdx = idx;
@@ -974,6 +1032,7 @@ def _render(samples, pts, meta, labels, colors, host, port, canvas_width, canvas
     renderAutoList(sample);
     renderMeta(sample);
     addInput.value = '';
+    hideDropdown();
     popup.style.display = 'flex';
     draw();
 
@@ -991,6 +1050,7 @@ def _render(samples, pts, meta, labels, colors, host, port, canvas_width, canvas
 
   function closePopup() {
     selectedIdx = -1; popup.style.display = 'none';
+    hideDropdown();
     closeWsiPopup();
     draw();
   }
@@ -1087,9 +1147,29 @@ def _render(samples, pts, meta, labels, colors, host, port, canvas_width, canvas
     if (!label) return;
     postAction({ action: 'add', sample: SAMPLES[selectedIdx], label });
     addInput.value = '';
+    hideDropdown();
   });
   addInput.addEventListener('keydown', e => {
-    if (e.key === 'Enter') document.getElementById('ua-add-btn').click();
+    const rows = addDropdown.style.display === 'block' ? addDropdown.querySelectorAll('.ua-add-dropdown-item') : [];
+    if (e.key === 'ArrowDown' && rows.length) {
+      e.preventDefault();
+      setActiveItem(ddActive < rows.length - 1 ? ddActive + 1 : 0);
+    } else if (e.key === 'ArrowUp' && rows.length) {
+      e.preventDefault();
+      setActiveItem(ddActive > 0 ? ddActive - 1 : rows.length - 1);
+    } else if (e.key === 'Enter') {
+      if (rows.length && ddActive >= 0) {
+        e.preventDefault();
+        addInput.value = ddItems[ddActive];
+        hideDropdown();
+      } else {
+        document.getElementById('ua-add-btn').click();
+      }
+    } else if (e.key === 'Escape') {
+      // handled globally, but stop it from also bubbling to close the popup
+      // when the dropdown is open (global handler already closes just the dropdown)
+      if (rows.length) e.stopPropagation();
+    }
   });
 
   classifyBtn.addEventListener('click', async () => {
