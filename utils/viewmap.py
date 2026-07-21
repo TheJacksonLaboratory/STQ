@@ -76,6 +76,7 @@ import pandas as pd
 import tifffile
 from PIL import Image
 from IPython.display import display, HTML
+from matplotlib import pyplot as plt
 
 try:
     from sklearn.linear_model import LogisticRegression as LR
@@ -187,21 +188,18 @@ def annotateScatter(
         if (augFunc is not None) and (qs is not None):
             curated_positive = np.where(y == 1)[0]
             curated_negative = np.where(y == 0)[0]
-            names = df_features.columns
-            dpos_v = []
-            for s_pos in curated_positive:
-                s_neg = np.random.choice(curated_negative)
-                df_pos = pd.Series(X[s_pos], index=names).unstack()
-                df_neg = pd.Series(X[s_neg], index=names).unstack()
+            X_ = X.copy()
+            for s_pos in X.index[curated_positive]:
+                s_neg = X.index[np.random.choice(curated_negative)]
+                df_pos = X.loc[s_pos].unstack()
+                df_neg = X.loc[s_neg].unstack()
                 assert df_pos.index.equals(df_neg.index)
                 acdf = augFunc(df_pos.index.values, df_pos.values,
                             df_neg.values, alpha=alpha, beta=1. - alpha)
                 acdf = pd.DataFrame(index=df_pos.index, columns=df_pos.columns, data=acdf)
-                dpos_v.append(acdf.T.sort_index().T.stack().rename(s_pos))
-            dpos = pd.concat(dpos_v, axis=1).T
-            X_ = np.concatenate([dpos.values, X[curated_negative]], axis=0)
-            y_ = np.array([1] * len(dpos) + [0] * len(curated_negative))
-            return X_, y_
+                acdf = acdf.T.sort_index().T.stack().rename(s_pos)
+                X_.loc[s_pos] = acdf
+            return X_, y
         return X, y
 
     clfs: dict[str, "LR"] = {}   # label -> fitted classifier (only labels with enough data)
@@ -217,10 +215,10 @@ def annotateScatter(
             clfs.pop(label, None)
             return
         mask = (y_pos > 0) | (y_neg > 0)
-        X_train, y_train = X_all[mask], y_pos[mask]
+        X_train, y_train = df_features.loc[mask], y_pos[mask]
         X_train, y_train = _augment(X_train, y_train)
         clf = LR(**_clf_params)
-        clf.fit(X_train, y_train)
+        clf.fit(X_train.values, y_train)
         clfs[label] = clf
 
     def _retrain_label(label):
