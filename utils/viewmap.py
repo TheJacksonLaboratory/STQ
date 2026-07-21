@@ -55,6 +55,12 @@ Behavior:
     with that sample's saved contour overlaid (black line, glowing yellow
     outline). Esc closes whichever popup is topmost -- the whole-slide
     popup first if it's open, then the small popup on a second Esc.
+  - Hovering over the whole-slide popup shows a circular magnifying-glass
+    (512px diameter) that fetches and displays a live 512x512 full-resolution
+    tile from the *original* whole-slide image (not the downsampled overview),
+    centered on the hovered location. Requires zarr (used via tifffile's
+    aszarr() for lazy, region-only reads of the pyramidal TIFF); the
+    magnifier is silently disabled (with a printed note) if zarr is missing.
   - Labels are persisted to <savepath>/labels.json ({sample: [label, ...]}),
     colors to <savepath>/colors.json ({label: "#hex"}) -- colors are
     assigned once per label and stay consistent for the whole dataset /
@@ -69,7 +75,7 @@ Behavior:
 import json, logging, os, socket, threading
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from io import BytesIO
-from urllib.parse import urlparse, unquote
+from urllib.parse import urlparse, unquote, parse_qs
 
 import numpy as np
 import pandas as pd
@@ -82,6 +88,11 @@ try:
     from sklearn.linear_model import LogisticRegression as LR
 except ImportError:
     LR = None
+
+try:
+    import zarr
+except ImportError:
+    zarr = None
 
 # tifffile reports "shaped series shape does not match page shape" (for tiffs
 # whose embedded shape metadata doesn't match the actual page -- e.g. written
@@ -108,6 +119,10 @@ _DEFAULT_CLF_PARAMS = {
 # Minimum predicted probability for a label to be assigned automatically
 # by the "Classify" button (applied to every sample with a trained classifier).
 AUTO_LABEL_THRESHOLD = 0.9
+
+# Side length (px) of the live full-resolution tile fetched under the
+# whole-slide magnifying glass. Kept square; magnifier circle diameter is 512, need to downsample.
+TILE_SIZE = 1024
 
 
 def annotateScatter(
@@ -182,6 +197,11 @@ def annotateScatter(
         except Exception as e:
             print(f"[annotateScatter] could not use df_features ({e}) -- label suggestions disabled.")
             have_features = False
+
+    have_magnifier = zarr is not None
+    if not have_magnifier:
+        print("[annotateScatter] zarr not installed -- whole-slide magnifier disabled.")
+
 
     def _augment(X, y):
         """Data augmentation ahead of each label's LR fit. Take (X, y) and return an augmented (X_aug, y_aug)."""
@@ -350,6 +370,67 @@ def annotateScatter(
 
             _wsi_cache[sample] = {"png": buf.getvalue(), "w": im.width, "h": im.height, "points": points}
             return _wsi_cache[sample]
+
+    # ── live full-resolution tiles for the whole-slide magnifying glass ────
+    _full_wsi_cache: dict[str, dict] = {}   # sample -> {'tf','z','h','w'} | None (open handles, kept alive)
+
+    def _get_level0(sample):
+        """Open (once) and cache a lazy zarr view onto the *full-resolution*
+        (level 0) plane of the sample's whole-slide TIFF, so a single tile
+        can be read without decoding the whole pyramid level. Returns None
+        (and caches that) if unavailable, so repeated failed lookups are cheap."""
+        if sample in _full_wsi_cache:
+            return _full_wsi_cache[sample]
+        with lock:
+            if sample in _full_wsi_cache:
+                return _full_wsi_cache[sample]
+            try:
+                with open(_info_path(sample)) as f:
+                    info = json.load(f)
+
+                store = tifffile.imread(info["image"], aszarr=True)
+                z = zarr.open(store, mode='r')["0"]
+                h, w = z.shape[0], z.shape[1]
+                entry = {"z": z, "h": h, "w": w}
+            except Exception as e:
+                print(f"[annotateScatter] could not open full-res slide for '{sample}', {info['image']} ({e}) -- magnifier disabled for it.")
+                entry = None
+            _full_wsi_cache[sample] = entry
+            return entry
+
+    def _get_tile(sample, nx, ny):
+        """Return a TILE_SIZE x TILE_SIZE PNG crop of the sample's *full
+        resolution* whole-slide image, centered on the normalized (0-1, 0-1)
+        location (nx, ny) within the slide -- same normalization the saved
+        contour points use, so it lines up with the low-res overview shown
+        in the whole-slide popup. Crops near an edge are clamped in-bounds
+        (not padded), so the returned tile can be slightly off-center there."""
+        entry = _get_level0(sample)
+        if entry is None:
+            return None
+        z, h, w = entry["z"], entry["h"], entry["w"]
+        cx, cy = nx * w, ny * h
+        half = TILE_SIZE // 2
+        x0 = int(np.clip(cx - half, 0, max(w - TILE_SIZE, 0)))
+        y0 = int(np.clip(cy - half, 0, max(h - TILE_SIZE, 0)))
+        x1, y1 = min(x0 + TILE_SIZE, w), min(y0 + TILE_SIZE, h)
+        with lock:
+            arr = np.asarray(z[y0:y1, x0:x1])
+        if arr.ndim == 2:
+            arr = np.stack([arr] * 3, axis=-1)
+        arr = arr[..., :3]
+        if arr.dtype != np.uint8:
+            mx = arr.max()
+            arr = ((arr / mx) * 255).astype(np.uint8) if mx > 0 else arr.astype(np.uint8)
+        if arr.shape[0] != TILE_SIZE or arr.shape[1] != TILE_SIZE:
+            canvas = np.zeros((TILE_SIZE, TILE_SIZE, 3), dtype=np.uint8)
+            canvas[:arr.shape[0], :arr.shape[1]] = arr
+            arr = canvas
+        im = Image.fromarray(arr)
+        buf = BytesIO()
+        im.save(buf, format="PNG")
+        return buf.getvalue()
+
     # ── tiny HTTP server: GET thumbnails/wsi, POST label add/remove ────────
     with socket.socket() as s:
         s.bind(("", 0))
@@ -413,6 +494,30 @@ def annotateScatter(
                 self.send_header("Content-Type", "application/json")
                 self.send_header("Content-Length", str(len(body)))
                 self.send_header("Access-Control-Allow-Origin", "*")
+                self.end_headers()
+                self.wfile.write(body)
+            elif p.path.startswith("/tile/"):
+                sample = unquote(p.path[len("/tile/"):])
+                if not have_magnifier:
+                    self.send_response(404)
+                    self.end_headers()
+                    return
+                qsp = parse_qs(p.query)
+                try:
+                    nx = float(qsp.get("nx", ["0.5"])[0])
+                    ny = float(qsp.get("ny", ["0.5"])[0])
+                    body = _get_tile(sample, nx, ny)
+                    if body is None:
+                        raise ValueError("tile unavailable")
+                except Exception:
+                    self.send_response(404)
+                    self.end_headers()
+                    return
+                self.send_response(200)
+                self.send_header("Content-Type", "image/png")
+                self.send_header("Content-Length", str(len(body)))
+                self.send_header("Access-Control-Allow-Origin", "*")
+                self.send_header("Cache-Control", "no-store")
                 self.end_headers()
                 self.wfile.write(body)
             elif p.path.startswith("/predict/"):
@@ -499,10 +604,10 @@ def annotateScatter(
     srv = ThreadingHTTPServer((host, port), Handler)
     threading.Thread(target=srv.serve_forever, daemon=True).start()
 
-    display(HTML(_render(samples, pts, meta, labels, colors, host, port, canvas_width, canvas_height, have_features, auto_labels)))
+    display(HTML(_render(samples, pts, meta, labels, colors, host, port, canvas_width, canvas_height, have_features, auto_labels, have_magnifier)))
 
 
-def _render(samples, pts, meta, labels, colors, host, port, canvas_width, canvas_height, have_features, auto_labels):
+def _render(samples, pts, meta, labels, colors, host, port, canvas_width, canvas_height, have_features, auto_labels, have_magnifier):
     css = """
 <style>
   #ua-root * { box-sizing:border-box; margin:0; padding:0; }
@@ -621,9 +726,29 @@ def _render(samples, pts, meta, labels, colors, host, port, canvas_width, canvas
   #ua-wsi-close { float:right; cursor:pointer; color:#8892a4; font-size:15px; }
   #ua-wsi-close:hover { color:#eaeaea; }
   #ua-wsi-title { font-size:12px; color:#e94560; margin-bottom:8px; padding-right:18px; }
-  #ua-wsi-canvas { display:block; max-width:100%; height:auto; border-radius:4px; background:#000; }
+  #ua-wsi-canvas { display:block; max-width:100%; height:auto; border-radius:4px; background:#000; cursor:none; }
   #ua-wsi-status { font-size:11px; color:#8892a4; margin-top:6px; }
+  #ua-magnifier {
+    position:fixed; width:512px; height:512px; border-radius:50%;
+    border:0px solid #000000; box-shadow:0 8px 28px rgba(0,0,0,0.7), 0 0 0 1px rgba(255,255,255,0.08) inset;
+    pointer-events:none; display:none; z-index:2147483647; overflow:hidden; background:#000;
+  }
+  #ua-magnifier canvas { display:block; width:512px; height:512px; image-rendering:pixelated; }
+  #ua-magnifier-status {
+    position:absolute; inset:0; display:flex; align-items:center; justify-content:center;
+    color:#8892a4; font-size:11px; text-align:center; padding:0 20px;
+  }
+  #ua-wsi-crosshair {
+    position:fixed; width:26px; height:26px; left:0; top:0;
+    pointer-events:none; display:none; z-index:2147483647;
+  }
+  #ua-wsi-crosshair::before, #ua-wsi-crosshair::after {
+    content:''; position:absolute; background:#ffff00; box-shadow:0 0 3px 0 rgba(0,0,0,0.9);
+  }
+  #ua-wsi-crosshair::before { left:0; right:0; top:50%; height:2px; transform:translateY(-60px); }
+  #ua-wsi-crosshair::after { top:0; bottom:0; left:50%; width:2px; transform:translateX(-1px); transform:translateY(-60px); }
 </style>
+<div class="ua-instance">
 <div id="ua-root">
   <div id="ua-wrap">
     <canvas id="ua-canvas"></canvas>
@@ -631,7 +756,7 @@ def _render(samples, pts, meta, labels, colors, host, port, canvas_width, canvas
     <div id="ua-zoomlabel">100%</div>
     <div id="ua-sizectl" title="dot/pie size">
       <span>size</span>
-      <input type="range" id="ua-size-slider" min="2" max="14" step="1" value="5" />
+      <input type="range" id="ua-size-slider" min="2" max="14" step="1" value="3" />
     </div>
     <div id="ua-classify-ctl">
       <button id="ua-classify-btn">Classify</button>
@@ -662,6 +787,12 @@ def _render(samples, pts, meta, labels, colors, host, port, canvas_width, canvas
   <canvas id="ua-wsi-canvas"></canvas>
   <div id="ua-wsi-status"></div>
 </div>
+<div id="ua-magnifier">
+  <canvas id="ua-magnifier-canvas" width="512" height="512"></canvas>
+  <div id="ua-magnifier-status"></div>
+</div>
+<div id="ua-wsi-crosshair"></div>
+</div>
 """
     css = css.replace("/*POPUP_MAX_HEIGHT*/", f"max-height:{max(200, canvas_height - 20)}px;")
     js = (
@@ -676,32 +807,45 @@ def _render(samples, pts, meta, labels, colors, host, port, canvas_width, canvas
         f"  const CH         = {canvas_height};\n"
         f"  const SRV        = 'http://{host}:{port}';\n"
         f"  const HAS_FEATURES = {json.dumps(have_features)};\n"
+        f"  const HAS_MAGNIFIER = {json.dumps(have_magnifier)};\n"
         + r"""
-  const canvas  = document.getElementById('ua-canvas');
+  // Scope all element lookups to THIS widget instance's own container, rather
+  // than the global document -- Jupyter keeps previous cell outputs in the
+  // DOM, so with repeated re-runs the same ids exist multiple times on the
+  // page and a bare document.getElementById() would silently grab a stale
+  // element from an earlier run instead of the one just rendered.
+  const container = document.currentScript.previousElementSibling;
+  const getEl = id => container.querySelector('#' + id);
+  const canvas  = getEl('ua-canvas');
   const ctx     = canvas.getContext('2d');
-  const tooltip = document.getElementById('ua-tooltip');
-  const popup       = document.getElementById('ua-popup');
-  const popupTitle  = document.getElementById('ua-popup-title');
-  const popupImg    = document.getElementById('ua-popup-img');
-  const labelList   = document.getElementById('ua-label-list');
-  const suggestList  = document.getElementById('ua-suggest-list');
-  const popupMeta    = document.getElementById('ua-popup-meta');
-  const addInput     = document.getElementById('ua-add-input');
-  const addDropdown  = document.getElementById('ua-add-dropdown');
-  const autoList     = document.getElementById('ua-auto-list');
-  const classifyBtn  = document.getElementById('ua-classify-btn');
-  const clearAutoBtn = document.getElementById('ua-clear-auto-btn');
-  const autoStatus   = document.getElementById('ua-auto-status');
-  const resetBtn     = document.getElementById('ua-reset');
-  const zoomLabel   = document.getElementById('ua-zoomlabel');
-  const sizeSlider  = document.getElementById('ua-size-slider');
+  const tooltip = getEl('ua-tooltip');
+  const popup       = getEl('ua-popup');
+  const popupTitle  = getEl('ua-popup-title');
+  const popupImg    = getEl('ua-popup-img');
+  const labelList   = getEl('ua-label-list');
+  const suggestList  = getEl('ua-suggest-list');
+  const popupMeta    = getEl('ua-popup-meta');
+  const addInput     = getEl('ua-add-input');
+  const addDropdown  = getEl('ua-add-dropdown');
+  const autoList     = getEl('ua-auto-list');
+  const classifyBtn  = getEl('ua-classify-btn');
+  const clearAutoBtn = getEl('ua-clear-auto-btn');
+  const autoStatus   = getEl('ua-auto-status');
+  const resetBtn     = getEl('ua-reset');
+  const zoomLabel   = getEl('ua-zoomlabel');
+  const sizeSlider  = getEl('ua-size-slider');
   popupImg.addEventListener('error', () => { popupImg.style.display = 'none'; });
-  const wsiBackdrop = document.getElementById('ua-wsi-backdrop');
-  const wsiPopup    = document.getElementById('ua-wsi-popup');
-  const wsiTitle    = document.getElementById('ua-wsi-title');
-  const wsiCanvas   = document.getElementById('ua-wsi-canvas');
-  const wsiStatus   = document.getElementById('ua-wsi-status');
-  const wsiClose    = document.getElementById('ua-wsi-close');
+  const wsiBackdrop = getEl('ua-wsi-backdrop');
+  const wsiPopup    = getEl('ua-wsi-popup');
+  const wsiTitle    = getEl('ua-wsi-title');
+  const wsiCanvas   = getEl('ua-wsi-canvas');
+  const wsiStatus   = getEl('ua-wsi-status');
+  const wsiClose    = getEl('ua-wsi-close');
+  const magnifier       = getEl('ua-magnifier');
+  const magCanvas       = getEl('ua-magnifier-canvas');
+  const magCtx          = magCanvas.getContext('2d');
+  const magStatus       = getEl('ua-magnifier-status');
+  const wsiCrosshair    = getEl('ua-wsi-crosshair');
   const GRAY = '#555a6e';
   let baseR = parseFloat(sizeSlider.value);
   const HIT = 8;
@@ -1050,6 +1194,8 @@ def _render(samples, pts, meta, labels, colors, host, port, canvas_width, canvas
 
   function closePopup() {
     selectedIdx = -1; popup.style.display = 'none';
+    popupImg.src = '';               // clear stale thumbnail so it doesn't flash for the next sample
+    popupImg.style.display = 'none';
     hideDropdown();
     closeWsiPopup();
     draw();
@@ -1109,11 +1255,100 @@ def _render(samples, pts, meta, labels, colors, host, port, canvas_width, canvas
     wsiSeq++;   // invalidate any in-flight load
     wsiBackdrop.style.display = 'none';
     wsiPopup.style.display = 'none';
+    // clear the canvas so a stale slide/contour doesn't flash when the next sample opens
+    wsiCanvas.getContext('2d').clearRect(0, 0, wsiCanvas.width, wsiCanvas.height);
+    hideMagnifier();
   }
 
   popupImg.addEventListener('click', openWsiPopup);
   wsiClose.addEventListener('click', closeWsiPopup);
   wsiBackdrop.addEventListener('click', closeWsiPopup);
+
+  // ── magnifying glass: live full-resolution tile under the cursor ────────
+  // Fetches are throttled to "one in flight at a time, always chasing the
+  // latest cursor position" rather than firing on every mousemove, so fast
+  // motion doesn't queue up a burst of stale requests.
+  let magSeq = 0, magPending = null, magBusy = false, magLastUrl = null;
+
+  function wsiCanvasXY(e) {
+    const r = wsiCanvas.getBoundingClientRect();
+    // canvas has a real pixel buffer (wsiCanvas.width/height, set to the
+    // whole-slide overview's own dimensions) that may be CSS-scaled to fit
+    // the popup (max-width:100%), so convert client coords through both.
+    const scaleX = wsiCanvas.width / r.width;
+    const scaleY = wsiCanvas.height / r.height;
+    return [(e.clientX - r.left) * scaleX, (e.clientY - r.top) * scaleY];
+  }
+
+  function positionMagnifier(clientX, clientY) {
+    const size = 512;
+    const gap = 28;   // keep clear of the sampling point itself
+    // prefer up-and-to-the-right of the cursor so the magnifier never covers
+    // the region it's currently sampling
+    let left = clientX + gap;
+    let top  = clientY - size - gap;
+    if (top < 4) top = clientY + gap;                 // flip below if no room above
+    if (left + size + 4 > window.innerWidth) left = clientX - size - gap;  // flip left if no room right
+    left = Math.max(4, Math.min(left, window.innerWidth - size - 4));
+    top  = Math.max(4, Math.min(top, window.innerHeight - size - 4));
+    magnifier.style.left = left + 'px';
+    magnifier.style.top  = top + 'px';
+  }
+
+  function runMagnifierFetch() {
+    if (!magPending) { magBusy = false; return; }
+    const { sample, nx, ny } = magPending;
+    magPending = null;
+    magBusy = true;
+    const mySeq = ++magSeq;
+    fetch(SRV + '/tile/' + encodeURIComponent(sample) + `?nx=${nx.toFixed(5)}&ny=${ny.toFixed(5)}`)
+      .then(r => { if (!r.ok) throw new Error('tile unavailable'); return r.blob(); })
+      .then(blob => {
+        if (mySeq !== magSeq) return;
+        const url = URL.createObjectURL(blob);
+        const img = new Image();
+        img.onload = () => {
+          if (mySeq !== magSeq) { URL.revokeObjectURL(url); return; }
+          magCtx.clearRect(0, 0, 512, 512);
+          magCtx.drawImage(img, 0, 0, 512, 512);
+          magStatus.textContent = '';
+          if (magLastUrl) URL.revokeObjectURL(magLastUrl);
+          magLastUrl = url;
+        };
+        img.src = url;
+      })
+      .catch(() => { if (mySeq === magSeq) magStatus.textContent = '⚠ tile unavailable'; })
+      .finally(runMagnifierFetch);
+  }
+
+  function scheduleMagnifierFetch(sample, nx, ny) {
+    magPending = { sample, nx, ny };
+    if (!magBusy) runMagnifierFetch();
+  }
+
+  function hideMagnifier() {
+    magnifier.style.display = 'none';
+    wsiCrosshair.style.display = 'none';
+    // Clear image of the magnifier so it doesn't flash a stale tile when the next sample opens.
+    magCtx.clearRect(0, 0, 512, 512);
+    magSeq++;   // invalidate any in-flight/queued fetch
+    magPending = null;
+  }
+
+  wsiCanvas.addEventListener('mousemove', e => {
+    if (!HAS_MAGNIFIER || selectedIdx < 0) return;
+    const sample = SAMPLES[selectedIdx];
+    const [px, py] = wsiCanvasXY(e);
+    if (px < 0 || py < 0 || px > wsiCanvas.width || py > wsiCanvas.height) { hideMagnifier(); return; }
+    const nx = px / wsiCanvas.width, ny = py / wsiCanvas.height;
+    positionMagnifier(e.clientX, e.clientY);
+    wsiCrosshair.style.left = (e.clientX - 13) + 'px';
+    wsiCrosshair.style.top  = (e.clientY - 13) + 'px';
+    wsiCrosshair.style.display = 'block';
+    magnifier.style.display = 'block';
+    scheduleMagnifierFetch(sample, nx, ny);
+  });
+  wsiCanvas.addEventListener('mouseleave', hideMagnifier);
 
   async function postAction(body) {
     try {
@@ -1140,8 +1375,8 @@ def _render(samples, pts, meta, labels, colors, host, port, canvas_width, canvas
     const idx = nearest(mx, my);
     if (idx >= 0) openPopup(idx); else closePopup();
   });
-  document.getElementById('ua-popup-close').addEventListener('click', closePopup);
-  document.getElementById('ua-add-btn').addEventListener('click', () => {
+  getEl('ua-popup-close').addEventListener('click', closePopup);
+  getEl('ua-add-btn').addEventListener('click', () => {
     if (selectedIdx < 0) return;
     const label = addInput.value.trim();
     if (!label) return;
@@ -1163,7 +1398,7 @@ def _render(samples, pts, meta, labels, colors, host, port, canvas_width, canvas
         addInput.value = ddItems[ddActive];
         hideDropdown();
       } else {
-        document.getElementById('ua-add-btn').click();
+        getEl('ua-add-btn').click();
       }
     } else if (e.key === 'Escape') {
       // handled globally, but stop it from also bubbling to close the popup
