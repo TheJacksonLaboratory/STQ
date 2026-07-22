@@ -118,7 +118,7 @@ _DEFAULT_CLF_PARAMS = {
 
 # Minimum predicted probability for a label to be assigned automatically
 # by the "Classify" button (applied to every sample with a trained classifier).
-AUTO_LABEL_THRESHOLD = 0.9
+AUTO_LABEL_THRESHOLD = 0.75
 
 # Side length (px) of the live full-resolution tile fetched under the
 # whole-slide magnifying glass. Kept square; magnifier circle diameter is 512, need to downsample.
