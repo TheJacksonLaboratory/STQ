@@ -822,7 +822,7 @@ def annotateContours(
   </div>
   <div id="ca-toolbar">
     <button class="ca-btn" id="btn-prev">← Previous</button>
-    <button class="ca-btn" id="btn-save">Save contour</button>
+    <button class="ca-btn" id="btn-save">Save</button>
     <button class="ca-btn" id="btn-clear-last">Clear last</button>
     <button class="ca-btn" id="btn-clear-all">Clear all</button>
     <button class="ca-btn" id="btn-next">Next →</button>
@@ -864,6 +864,7 @@ def annotateContours(
   let currentPath = [];
   let drawing     = false;
   let strokeWandDisabled = false;   // Cmd/Ctrl held at mousedown -> skip wand for this stroke
+  let _dirty      = false;          // true when in-memory state may differ from on-disk files
   const prefetched = new Set();     // sample indices whose image bytes we've already requested
 
   const imgCanvas   = document.getElementById('ca-img-canvas');
@@ -896,8 +897,13 @@ def annotateContours(
   function _setBusy(delta) {
     busy += delta;
     const locked = busy > 0;
-    prevBtn.disabled = locked || imgIdx === 0;
-    nextBtn.disabled = locked || imgIdx >= SIZES.length - 1;
+    if (locked) {
+      prevBtn.disabled = true;
+      nextBtn.disabled = true;
+    } else {
+      prevBtn.disabled = imgIdx === 0;
+      nextBtn.disabled = imgIdx >= SIZES.length - 1;
+    }
     document.getElementById('btn-clear-last').disabled = locked;
     document.getElementById('btn-clear-all').disabled  = locked;
   }
@@ -997,12 +1003,56 @@ def annotateContours(
     }
   }
 
+  // Atomically save all contours and separators for the current sample.
+  // Deletes all existing files first, then writes fresh indexed files.
+  async function doSaveAll() {
+    const sample   = SAMPLES[imgIdx];
+    const snapIdx  = imgIdx;
+    const [cw, ch] = [drawCanvas.width, drawCanvas.height];
+    statusEl.textContent = '💾 Saving…';
+    _setBusy(+1);
+    try {
+      await deleteAllForSample(sample);
+      if (imgIdx !== snapIdx) return;
+      for (let i = 0; i < contours.length; i++) {
+        if (imgIdx !== snapIdx) return;
+        const pts  = contours[i].points;
+        const data = {
+          '0': { points: pts.map(p => parseFloat((p[0] / cw).toFixed(4))) },
+          '1': { points: pts.map(p => parseFloat((p[1] / ch).toFixed(4))) }
+        };
+        const resp = await fetch(srvUrl(), {
+          method: 'POST',
+          headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify({action: 'save', sample, data})
+        });
+        const j = await resp.json();
+        if (j.ok) contours[i].file = j.file;
+      }
+      if (imgIdx !== snapIdx) return;
+      const lines = separators.map(s =>
+        s.points.map(([x, y]) => [parseFloat((x / cw).toFixed(4)), parseFloat((y / ch).toFixed(4))])
+      );
+      await fetch(srvUrl(), {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({action: 'save_sep', sample, lines})
+      });
+      if (imgIdx !== snapIdx) return;
+      _dirty = false;
+      statusEl.textContent = '✅ Saved ' + contours.length + ' contour(s) and ' + separators.length + ' separator(s).';
+    } catch(e) {
+      statusEl.textContent = '⚠ Save failed: ' + e;
+    } finally { _setBusy(-1); }
+  }
+
   async function commitSeparator(pts) {
     const snapIdx = imgIdx;
     _setBusy(+1);
     try {
       lastDrawnType = 'separator';
       separators.push({points: pts});
+      _dirty = true;
       redraw(); updateList();
       await doSaveSeparators();
       if (imgIdx !== snapIdx) return;
@@ -1085,8 +1135,8 @@ def annotateContours(
       if (imgIdx !== snapIdx) return;
       for (const pts of json.components) {
         contours.push({points: pts, file: null});
-        if (autosaveCb.checked) { await doSave(contours.length - 1); if (imgIdx !== snapIdx) return; }
       }
+      _dirty = true;
       lastDrawnType = 'contour';
       redraw(); updateList();
       statusEl.textContent = '✅ Detected ' + json.components.length + ' tissue component(s).';
@@ -1147,8 +1197,9 @@ def annotateContours(
     sampleLabel.textContent = SAMPLES[idx];
     counterEl.textContent   = (idx + 1) + ' / ' + SIZES.length;
     prevBtn.disabled = idx === 0;
+    nextBtn.disabled = idx >= SIZES.length - 1;
     currentPath = [];
-    contours = []; separators = []; selectedSepIdx = -1; selectedContourIdx = -1; lastDrawnType = null;
+    contours = []; separators = []; selectedSepIdx = -1; selectedContourIdx = -1; lastDrawnType = null; _dirty = false;
     redraw(); updateList();
     statusEl.textContent = 'Loading saved contours…';
 
@@ -1226,10 +1277,14 @@ def annotateContours(
         dc.closePath(); dc.strokeStyle = col; dc.lineWidth = lw;
         dc.setLineDash([]); dc.stroke();
       });
+      const labelX = pts.reduce((s, p) => s + p[0], 0) / pts.length;
+      const labelY = pts.reduce((s, p) => s + p[1], 0) / pts.length;
       dc.font = 'bold 16px monospace'; dc.setLineDash([]);
+      dc.textAlign = 'center'; dc.textBaseline = 'middle';
       dc.lineWidth = 3; dc.strokeStyle = csel ? '#ffff00' : 'white';
-      dc.strokeText('#' + i, pts[0][0] + 4, pts[0][1] - 4);
-      dc.fillStyle = csel ? '#ff8800' : '#000'; dc.fillText('oid' + i, pts[0][0] + 4, pts[0][1] - 4);
+      dc.strokeText('oid' + i, labelX, labelY);
+      dc.fillStyle = csel ? '#ff8800' : '#000'; dc.fillText('oid' + i, labelX, labelY);
+      dc.textAlign = 'start'; dc.textBaseline = 'alphabetic';
       dc.restore();
     });
     if (currentPath.length > 1) {
@@ -1371,6 +1426,7 @@ def annotateContours(
 
       if (imgIdx !== snapIdx) return;
       contours.push({points: finalPts, file: null});
+      _dirty = true;
       const idx = contours.length - 1;
       redraw(); updateList();
       if (autosaveCb.checked) {
@@ -1454,6 +1510,7 @@ def annotateContours(
     if (bestSep >= 0 && (bestCnt < 0 || bestSepDist <= bestCntDist)) {
       separators.splice(bestSep, 1);
       if (selectedSepIdx >= separators.length) selectedSepIdx = -1;
+      _dirty = true;
       redraw(); updateList();
       doSaveSeparators();
       statusEl.textContent = '🗑 Separator removed (right-click).';
@@ -1461,6 +1518,7 @@ def annotateContours(
       const sample = SAMPLES[imgIdx];
       const c = contours.splice(bestCnt, 1)[0];
       if (selectedContourIdx >= contours.length) selectedContourIdx = -1;
+      _dirty = true;
       redraw(); updateList();
       (async () => {
         if (c.file) {
@@ -1542,8 +1600,7 @@ def annotateContours(
 
   // ── buttons ───────────────────────────────────────────────────────
   document.getElementById('btn-save').addEventListener('click', () => {
-    if (!contours.length) { statusEl.textContent = '⚠ No contour — draw one first.'; return; }
-    doSave(contours.length - 1);
+    doSaveAll();
   });
   document.getElementById('btn-clear-last').addEventListener('click', async () => {
     if (currentPath.length) {
@@ -1555,6 +1612,7 @@ def annotateContours(
     if (!contours.length) return;
     const sample = SAMPLES[imgIdx];
     const last = contours.pop();
+    _dirty = true;
     redraw(); updateList();
     if (last.file) {
       statusEl.textContent = '🗑 Deleting ' + last.file + '…';
@@ -1567,20 +1625,29 @@ def annotateContours(
   });
   document.getElementById('btn-clear-all').addEventListener('click', async () => {
     const sample = SAMPLES[imgIdx];
-    contours = []; currentPath = [];
+    contours = []; currentPath = []; _dirty = false;
     redraw(); updateList();
     statusEl.textContent = '🗑 Deleting all saved contours for ' + sample + '…';
     await deleteAllForSample(sample);
     statusEl.textContent = '✅ All contours cleared for ' + sample + '.';
   });
-  nextBtn.addEventListener('click', () => {
+  nextBtn.addEventListener('click', async () => {
     if (busy > 0) return;
-    if (imgIdx < SIZES.length - 1) { imgIdx++; loadImage(imgIdx); }
-    else statusEl.textContent = '✓ All images annotated.';
+    if (imgIdx < SIZES.length - 1) {
+      if (_dirty) await doSaveAll();
+      imgIdx++;
+      loadImage(imgIdx);
+    } else {
+      statusEl.textContent = '✓ All images annotated.';
+    }
   });
-  prevBtn.addEventListener('click', () => {
+  prevBtn.addEventListener('click', async () => {
     if (busy > 0) return;
-    if (imgIdx > 0) { imgIdx--; loadImage(imgIdx); }
+    if (imgIdx > 0) {
+      if (_dirty) await doSaveAll();
+      imgIdx--;
+      loadImage(imgIdx);
+    }
   });
   autosaveCb.addEventListener('change', () => {
     statusEl.textContent = autosaveCb.checked
@@ -1622,6 +1689,7 @@ def annotateContours(
       if (lastDrawnType === 'separator' && separators.length > 0) {
         separators.pop();
         if (selectedSepIdx >= separators.length) selectedSepIdx = -1;
+        _dirty = true;
         redraw(); updateList();
         doSaveSeparators();
         statusEl.textContent = '🗑 Last separator removed.';
@@ -1636,18 +1704,20 @@ def annotateContours(
         document.getElementById('btn-clear-all').click();
       } else if (separators.length > 0) {
         separators = []; selectedSepIdx = -1;
+        _dirty = true;
         redraw(); updateList();
         doSaveSeparators();
         statusEl.textContent = '🗑 All separators cleared.';
       }
     }
-    else if (e.key === 's' && (e.ctrlKey || e.metaKey)) { e.preventDefault(); document.getElementById('btn-save').click(); }
+    else if (e.key === 's' && (e.ctrlKey || e.metaKey)) { e.preventDefault(); doSaveAll(); }
     else if (e.key === 'w') { wandCb.checked = !wandCb.checked; wandCb.dispatchEvent(new Event('change')); }
     else if ((e.key === 'Delete' || e.key === 'Backspace') && selectedContourIdx >= 0) {
       e.preventDefault();
       const sample = SAMPLES[imgIdx];
       const c = contours.splice(selectedContourIdx, 1)[0];
       selectedContourIdx = -1;
+      _dirty = true;
       redraw(); updateList();
       (async () => {
         if (c.file) {
@@ -1662,6 +1732,7 @@ def annotateContours(
       e.preventDefault();
       separators.splice(selectedSepIdx, 1);
       selectedSepIdx = -1;
+      _dirty = true;
       redraw(); updateList();
       doSaveSeparators();
       statusEl.textContent = '🗑 Separator deleted.';
