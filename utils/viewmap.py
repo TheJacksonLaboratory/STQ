@@ -762,16 +762,34 @@ def _render(samples, pts, meta, labels, colors, host, port, canvas_width, canvas
   }
   #ua-wsi-crosshair::before { left:0; right:0; top:50%; height:2px; transform:translateY(-60px); }
   #ua-wsi-crosshair::after { top:0; bottom:0; left:50%; width:2px; transform:translateX(-1px); transform:translateY(-60px); }
+  #ua-colormode-ctl {
+    position:absolute; top:38px; left:8px; z-index:40;
+    display:flex; align-items:center; gap:5px;
+    font-size:10px; color:#8892a4; background:rgba(15,15,24,0.82);
+    border:1px solid #2a2a4a; border-radius:4px; padding:2px 8px;
+  }
+  #ua-colormode-select {
+    font-family:inherit; font-size:10px; color:#eaeaea; background:#0f0f18;
+    border:1px solid #2a2a4a; border-radius:3px; padding:1px 4px; cursor:pointer; max-width:140px;
+  }
+  #ua-legend {
+    display:none; margin-top:8px; padding:8px 10px;
+    background:rgba(15,15,24,0.9); border:1px solid #2a2a4a; border-radius:6px;
+    max-height:130px; overflow-y:auto;
+  }
 </style>
 <div class="ua-instance">
 <div id="ua-root">
   <div id="ua-wrap">
     <canvas id="ua-canvas"></canvas>
-    <div id="ua-reset" title="reset zoom/pan">⤾ reset view</div>
+    <div id="ua-reset" title="reset zoom/pan">Reset view</div>
     <div id="ua-zoomlabel">100%</div>
     <div id="ua-sizectl" title="dot/pie size">
       <span>size</span>
       <input type="range" id="ua-size-slider" min="2" max="14" step="1" value="3" />
+    </div>
+    <div id="ua-colormode-ctl">
+      <select id="ua-colormode-select"><option value="__labels__">Labels</option></select>
     </div>
     <div id="ua-classify-ctl">
       <button id="ua-classify-btn">Classify</button>
@@ -793,6 +811,7 @@ def _render(samples, pts, meta, labels, colors, host, port, canvas_width, canvas
       <div id="ua-popup-meta"></div>
     </div>
   </div>
+  <div id="ua-legend"></div>
 </div>
 <div id="ua-tooltip"></div>
 <div id="ua-wsi-backdrop"></div>
@@ -861,6 +880,8 @@ def _render(samples, pts, meta, labels, colors, host, port, canvas_width, canvas
   const magCtx          = magCanvas.getContext('2d');
   const magStatus       = getEl('ua-magnifier-status');
   const wsiCrosshair    = getEl('ua-wsi-crosshair');
+  const colorModeSelect = getEl('ua-colormode-select');
+  const legendEl        = getEl('ua-legend');
   const GRAY = '#555a6e';
   let baseR = parseFloat(sizeSlider.value);
   const HIT = 8;
@@ -889,6 +910,107 @@ def _render(samples, pts, meta, labels, colors, host, port, canvas_width, canvas
 
   let hoverIdx = -1, selectedIdx = -1, popupSeq = 0;
 
+  // ── color-by-field setup ───────────────────────────────────────────────
+  let colorMode = '__labels__';
+
+  // Collect field names from META
+  const metaFields = SAMPLES.length > 0 ? Object.keys(META[SAMPLES[0]] || {}) : [];
+  // Populate select options
+  metaFields.forEach(f => {
+    const opt = document.createElement('option');
+    opt.value = f; opt.textContent = f;
+    colorModeSelect.appendChild(opt);
+  });
+
+  // Determine field type and build color maps
+  const _META_PAL = [
+    '#e94560','#0f9d58','#4285f4','#f4b400','#9c27b0','#00bcd4',
+    '#ff7043','#8bc34a','#3f51b5','#e91e63','#009688','#795548',
+    '#607d8b','#cddc39','#ff5722','#673ab7','#ff9800','#03a9f4',
+    '#8d6e63','#26a69a',
+  ];
+  const metaIsNumeric = {}, metaNumRange = {}, metaCatColors = {};
+  for (const field of metaFields) {
+    const vals = SAMPLES.map(s => (META[s] != null ? META[s][field] : null))
+                        .filter(v => v !== null && v !== undefined);
+    const nums = vals.filter(v => typeof v === 'number' && isFinite(v));
+    if (nums.length > 0 && nums.length === vals.length) {
+      metaIsNumeric[field] = true;
+      metaNumRange[field] = [Math.min(...nums), Math.max(...nums)];
+    } else {
+      metaIsNumeric[field] = false;
+      const uniq = [...new Set(vals.map(v => String(v)))].sort();
+      const cmap = {};
+      uniq.forEach((v, i) => { cmap[v] = _META_PAL[i % _META_PAL.length]; });
+      metaCatColors[field] = cmap;
+    }
+  }
+
+  // Viridis colour scale (5 anchors)
+  const _VIR = [[68,1,84],[59,82,139],[33,145,140],[94,201,98],[253,231,37]];
+  function viridisColor(t) {
+    t = Math.max(0, Math.min(1, t));
+    const n = _VIR.length - 1;
+    const i = Math.min(Math.floor(t * n), n - 1);
+    const f = t * n - i;
+    const a = _VIR[i], b = _VIR[i + 1];
+    return `rgb(${Math.round(a[0]+(b[0]-a[0])*f)},${Math.round(a[1]+(b[1]-a[1])*f)},${Math.round(a[2]+(b[2]-a[2])*f)})`;
+  }
+
+  function getMetaColor(sample) {
+    const m = META[sample];
+    if (!m) return GRAY;
+    const val = m[colorMode];
+    if (val === null || val === undefined) return GRAY;
+    if (metaIsNumeric[colorMode]) {
+      const [mn, mx] = metaNumRange[colorMode];
+      const t = mx > mn ? (val - mn) / (mx - mn) : 0.5;
+      return viridisColor(t);
+    } else {
+      return (metaCatColors[colorMode] || {})[String(val)] || GRAY;
+    }
+  }
+
+  function renderLegend() {
+    legendEl.style.display = 'block';
+    if (colorMode === '__labels__') {
+      const allLabels = Object.keys(COLORS);
+      if (!allLabels.length) { legendEl.style.display = 'none'; return; }
+      const items = allLabels.map(l =>
+        `<span style="display:inline-flex;align-items:center;gap:4px;margin:2px 8px 2px 0;font-size:10px;color:#ccc;">
+           <span style="width:9px;height:9px;border-radius:50%;background:${COLORS[l]};display:inline-block;flex-shrink:0;"></span>${l}</span>`).join('');
+      legendEl.innerHTML = `<div style="font-size:10px;color:#8892a4;margin-bottom:5px;">Labels</div>
+        <div style="display:flex;flex-wrap:wrap;">${items}</div>`;
+      return;
+    }
+    if (metaIsNumeric[colorMode]) {
+      const [mn, mx] = metaNumRange[colorMode];
+      let stops = '';
+      for (let i = 0; i <= 12; i++) { const t = i/12; stops += `<stop offset="${(t*100).toFixed(1)}%" stop-color="${viridisColor(t)}"/>`; }
+      const fmt = v => (Number.isInteger(v) ? v : v.toFixed(2));
+      legendEl.innerHTML = `<div style="font-size:10px;color:#8892a4;margin-bottom:5px;">${colorMode}</div>
+        <div style="display:flex;align-items:center;gap:7px;">
+          <span style="font-size:10px;color:#aaa;">${fmt(mn)}</span>
+          <svg width="140" height="13" style="border-radius:3px;flex-shrink:0;">
+            <defs><linearGradient id="ua-vir-grad" x1="0" x2="1" y1="0" y2="0">${stops}</linearGradient></defs>
+            <rect width="140" height="13" fill="url(#ua-vir-grad)"/></svg>
+          <span style="font-size:10px;color:#aaa;">${fmt(mx)}</span></div>`;
+    } else {
+      const cmap = metaCatColors[colorMode] || {};
+      const items = Object.entries(cmap).map(([v, c]) =>
+        `<span style="display:inline-flex;align-items:center;gap:4px;margin:2px 8px 2px 0;font-size:10px;color:#ccc;">
+           <span style="width:9px;height:9px;border-radius:50%;background:${c};display:inline-block;flex-shrink:0;"></span>${v}</span>`).join('');
+      legendEl.innerHTML = `<div style="font-size:10px;color:#8892a4;margin-bottom:5px;">${colorMode}</div>
+        <div style="display:flex;flex-wrap:wrap;">${items}</div>`;
+    }
+  }
+
+  colorModeSelect.addEventListener('change', () => {
+    colorMode = colorModeSelect.value;
+    renderLegend();
+    draw();
+  });
+
   function draw() {
     ctx.clearRect(0, 0, CW, CH);
     // radius scales gently with zoom so points stay legible but don't
@@ -903,18 +1025,23 @@ def _render(samples, pts, meta, labels, colors, host, port, canvas_width, canvas
     function drawPoint(i) {
       const [cx, cy] = toScreen(PX[i][0], PX[i][1]);
       if (cx < -20 || cx > CW+20 || cy < -20 || cy > CH+20) return;  // cull offscreen
-      const labs = hasAnyAuto ? (AUTO_LABELS[SAMPLES[i]] || []) : (LABELS[SAMPLES[i]] || []);
       const rad = (i === hoverIdx || i === selectedIdx) ? rBase + 2 : rBase;
-      if (labs.length === 0) {
+      if (colorMode !== '__labels__') {
         ctx.beginPath(); ctx.arc(cx, cy, rad, 0, 2*Math.PI);
-        ctx.fillStyle = GRAY; ctx.fill();
+        ctx.fillStyle = getMetaColor(SAMPLES[i]); ctx.fill();
       } else {
-        const step = 2*Math.PI / labs.length;
-        labs.forEach((l, j) => {
-          ctx.beginPath(); ctx.moveTo(cx, cy);
-          ctx.arc(cx, cy, rad, j*step, (j+1)*step);
-          ctx.closePath(); ctx.fillStyle = COLORS[l] || GRAY; ctx.fill();
-        });
+        const labs = hasAnyAuto ? (AUTO_LABELS[SAMPLES[i]] || []) : (LABELS[SAMPLES[i]] || []);
+        if (labs.length === 0) {
+          ctx.beginPath(); ctx.arc(cx, cy, rad, 0, 2*Math.PI);
+          ctx.fillStyle = GRAY; ctx.fill();
+        } else {
+          const step = 2*Math.PI / labs.length;
+          labs.forEach((l, j) => {
+            ctx.beginPath(); ctx.moveTo(cx, cy);
+            ctx.arc(cx, cy, rad, j*step, (j+1)*step);
+            ctx.closePath(); ctx.fillStyle = COLORS[l] || GRAY; ctx.fill();
+          });
+        }
       }
       if (i === selectedIdx) {
         ctx.beginPath(); ctx.arc(cx, cy, rad + 2.5, 0, 2*Math.PI);
@@ -922,14 +1049,19 @@ def _render(samples, pts, meta, labels, colors, host, port, canvas_width, canvas
       }
     }
 
-    // unlabeled/grey points render first (behind), colored/labeled points
-    // render second so they're always visually on top.
-    const activeLabelMap = hasAnyAuto ? AUTO_LABELS : LABELS;
-    for (let i = 0; i < SAMPLES.length; i++) {
-      if ((activeLabelMap[SAMPLES[i]] || []).length === 0) drawPoint(i);
-    }
-    for (let i = 0; i < SAMPLES.length; i++) {
-      if ((activeLabelMap[SAMPLES[i]] || []).length > 0) drawPoint(i);
+    if (colorMode !== '__labels__') {
+      // single pass: all points rendered with meta color
+      for (let i = 0; i < SAMPLES.length; i++) drawPoint(i);
+    } else {
+      // unlabeled/grey points render first (behind), colored/labeled points
+      // render second so they're always visually on top.
+      const activeLabelMap = hasAnyAuto ? AUTO_LABELS : LABELS;
+      for (let i = 0; i < SAMPLES.length; i++) {
+        if ((activeLabelMap[SAMPLES[i]] || []).length === 0) drawPoint(i);
+      }
+      for (let i = 0; i < SAMPLES.length; i++) {
+        if ((activeLabelMap[SAMPLES[i]] || []).length > 0) drawPoint(i);
+      }
     }
     zoomLabel.textContent = Math.round(vscale * 100) + '%';
   }
@@ -1379,6 +1511,7 @@ def _render(samples, pts, meta, labels, colors, host, port, canvas_width, canvas
           renderLabelList(SAMPLES[selectedIdx]);
           renderAutoList(SAMPLES[selectedIdx]);
         }
+        if (colorMode === '__labels__') renderLegend();
         draw();
       }
     } catch (e) { /* best effort */ }
@@ -1456,6 +1589,7 @@ def _render(samples, pts, meta, labels, colors, host, port, canvas_width, canvas
     } catch (e) { /* best effort */ }
   });
 
+  renderLegend();
   draw();
 })();
 </script>
