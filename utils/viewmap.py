@@ -271,24 +271,39 @@ def annotateScatter(
 
     def _classify_all():
         """Run every trained classifier on every sample; assign labels whose
-        predicted probability >= AUTO_LABEL_THRESHOLD.  Returns a new dict
-        mapping sample -> [label, ...].  Caller must hold `lock`."""
+        predicted probability >= AUTO_LABEL_THRESHOLD. Returns a new dict
+        mapping sample -> [label, ...]. Caller must hold `lock`."""
         result: dict = {}
         if not have_features or not clfs:
             return result
-        for i, sample in enumerate(samples):
-            if not valid_row[i]:
-                continue
-            x = X_all[i:i + 1]
-            assigned = []
-            for label, clf in clfs.items():
-                prob = float(clf.predict_proba(x)[0, 1])
-                if prob >= AUTO_LABEL_THRESHOLD:
-                    assigned.append(label)
+
+        valid_idx = [i for i, ok in enumerate(valid_row) if ok]
+        if not valid_idx:
+            return result
+
+        valid_samples = [samples[i] for i in valid_idx]
+        X_valid = X_all[valid_idx]  # shape: (n_valid, n_features)
+
+        # One batched predict_proba call per classifier instead of one per row
+        label_probs = {}
+        for label, clf in clfs.items():
+            probs = clf.predict_proba(X_valid)[:, 1]  # shape: (n_valid,)
+            label_probs[label] = probs
+
+        # Assemble per-sample assigned labels
+        assigned_lists = [[] for _ in valid_idx]
+        for label, probs in label_probs.items():
+            mask = probs >= AUTO_LABEL_THRESHOLD
+            for row_pos in np.nonzero(mask)[0]:
+                assigned_lists[row_pos].append(label)
+
+        for sample, assigned in zip(valid_samples, assigned_lists):
             if assigned:
                 result[sample] = assigned
+
         with open(auto_labels_path, "w") as f:
             json.dump(result, f, indent=2)
+
         return result
 
     if have_features:
