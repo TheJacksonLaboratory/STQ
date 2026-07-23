@@ -5,6 +5,8 @@ process DIMRED_CLUSTER_MORPH {
     label 'python_low_process'
     errorStrategy  { task.attempt <= 2  ? 'retry' : 'finish' }
     publishDir "${params.outdir}/${sample_id}/figures", pattern: 'figures/*/*.png', saveAs: { filename -> "${filename.split("/")[filename.split("/").length - 1]}" }, mode: 'copy', overwrite: params.overwrite_files_on_publish
+    publishDir "${params.outdir}/${sample_id}", pattern: 'clusters.csv.gz', mode: 'copy', overwrite: params.overwrite_files_on_publish
+    publishDir "${params.outdir}/${sample_id}", pattern: 'umap.csv.gz', mode: 'copy', overwrite: params.overwrite_files_on_publish
     memory { 1.GB + (Float.valueOf(size) / 1000.0).round(2) * params.memory_scale_factor * 3.GB }
     
     input:
@@ -12,6 +14,8 @@ process DIMRED_CLUSTER_MORPH {
     
     output:
     tuple val(sample_id), file("figures/*/*.png")
+    tuple val(sample_id), file("clusters.csv.gz")
+    tuple val(sample_id), file("umap.csv.gz")
 
     script:
     """
@@ -107,6 +111,10 @@ process DIMRED_CLUSTER_MORPH {
     sc.pl.umap(ad, color=['cluster'], s=None, show=False, save='/umap_plot_cluster.png');
     sc.pl.umap(ad, color=['cluster'] + cols1, s=None, ncols=3, show=False, save='/umap_plot_morphometric.png');
     sc.pl.umap(ad, color=['cluster'] + cols2, s=None, ncols=3, show=False, save='/umap_plot_classification.png');
+
+    # Save cluster and UMAP coordinates
+    ad.obs['cluster'].to_csv('clusters.csv.gz')
+    pd.DataFrame(ad.obsm['X_umap'], index=ad.obs.index, columns=['UMAP1', 'UMAP2']).to_csv('umap.csv.gz')
     """
 }
 
@@ -117,6 +125,8 @@ process DIMRED_CLUSTER {
     label 'python_low_process'
     errorStrategy  { task.attempt <= 2  ? 'retry' : 'finish' }
     publishDir "${params.outdir}/${sample_id}/figures", pattern: 'figures/*/*.png', saveAs: { filename -> "${filename.split("/")[filename.split("/").length - 1]}" }, mode: 'copy', overwrite: params.overwrite_files_on_publish
+    publishDir "${params.outdir}/${sample_id}", pattern: 'clusters.csv.gz', mode: 'copy', overwrite: params.overwrite_files_on_publish
+    publishDir "${params.outdir}/${sample_id}", pattern: 'umap.csv.gz', mode: 'copy', overwrite: params.overwrite_files_on_publish
     memory { 1.GB + (Float.valueOf(size) / 1000.0).round(2) * params.memory_scale_factor * 3.GB }
     
     input:
@@ -124,6 +134,8 @@ process DIMRED_CLUSTER {
     
     output:
     tuple val(sample_id), file("figures/*/*.png")
+    tuple val(sample_id), file("clusters.csv.gz")
+    tuple val(sample_id), file("umap.csv.gz")
 
     script:
     """
@@ -207,6 +219,10 @@ process DIMRED_CLUSTER {
     # UMAP plots
     plt.rcParams["figure.figsize"] = (3,3)
     sc.pl.umap(ad, color=['cluster'], s=None, show=False, save='/umap_plot_cluster.png');
+
+    # Save cluster and UMAP coordinates
+    ad.obs['cluster'].to_csv('clusters.csv.gz')
+    pd.DataFrame(ad.obsm['X_umap'], index=ad.obs.index, columns=['UMAP1', 'UMAP2']).to_csv('umap.csv.gz')
     """
 }
 
