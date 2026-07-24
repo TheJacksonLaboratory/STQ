@@ -62,7 +62,7 @@ def loadSamplesParallel(image_paths, save_path, F=1, CPU=16, target_mpp=0.5):
 
     return df_mfeat
 
-def loadSubsetClusters(image_paths, ids, save_path):
+def loadSubsetClusters(image_paths, ids, save_path, threshold=None):
     if os.path.isfile(save_path):
         return pd.read_pickle(save_path)
     dfs = []
@@ -71,12 +71,22 @@ def loadSubsetClusters(image_paths, ids, save_path):
         base = os.path.dirname(p)
         cname = f'{base}/clusters.csv.gz'
         se = pd.read_csv(cname, index_col=0).iloc[:, 0]
+
         fname = f'{base}/features/false-1-ctranspath_features.tsv.gz'
         dff = pd.read_csv(fname, index_col=0).iloc[:, 7:]
         assert (dff.index==se.index).all()
         dff.index = se.values
         dff = dff.groupby(level=0).quantile(qs).unstack().reorder_levels([1, 0], axis=1).T.sort_index().T
         dff.index = s + '.cls' + dff.index.astype(str)
+
+        if threshold is not None:
+            se_counts = pd.read_csv(f'{base}/nucseg/per_spot_data.csv', index_col=0)['total_count']
+            se_counts = se_counts.reindex(se.index).fillna(0).astype(int)
+            se_counts.index = se.values
+            se_counts = se_counts.groupby(level=0).mean()
+            se_counts.index = s + '.cls' + se_counts.index.astype(str)
+            dff = dff.loc[se_counts > threshold]
+
         dfs.append(dff)
     dfs = pd.concat(dfs)
     dfs.to_pickle(save_path)
