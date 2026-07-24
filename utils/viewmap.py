@@ -76,6 +76,7 @@ import json, logging, os, socket, threading
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from io import BytesIO
 from urllib.parse import urlparse, unquote, parse_qs
+import zarr
 
 import numpy as np
 import pandas as pd
@@ -83,6 +84,7 @@ import tifffile
 from PIL import Image
 from IPython.display import display, HTML
 from matplotlib import pyplot as plt
+from functools import lru_cache
 
 try:
     from sklearn.linear_model import LogisticRegression as LR
@@ -124,12 +126,38 @@ AUTO_LABEL_THRESHOLD = 0.75
 # whole-slide magnifying glass. Kept square; magnifier circle diameter is 512, need to downsample.
 TILE_SIZE = 1024
 
+@lru_cache(maxsize=32)
+def _load_grid(samplepath):
+    se = pd.read_csv(f'{samplepath}/clusters.csv.gz', index_col=0)['cluster']
+    grid = pd.read_csv(f'{samplepath}/grid/grid.csv', header=None, index_col=0)
+    xy = grid.loc[se.index, [4, 5]].to_numpy()
+    clusters = se.to_numpy()
+    cluster_to_idx = {cl: np.flatnonzero(clusters == cl) for cl in np.unique(clusters)}
+    return xy, cluster_to_idx
+
+def chooseTile(samplepath, c, rng=np.random.default_rng(42)):
+    xy, cluster_to_idx = _load_grid(samplepath)
+    idx = cluster_to_idx[c]
+    itile = rng.choice(idx)
+    x, y = xy[itile]
+    return x, y
+
+def loadTile(x, y, ts=512, L=0, scale=2):
+    hs = ts // 2
+    f = (L+1)**scale
+    x_, y_, hs = x // f, y // f, hs // f
+    with tifffile.imread(image_path, aszarr=True) as store:
+        z = zarr.open(store, mode='r')
+        arr = z[str(L)][x_ - hs: x_ + hs, y_ - hs: y_ + hs, :]
+    return arr
 
 def annotateScatter(
     df: pd.DataFrame,
     df_meta: pd.DataFrame | None = None,
     df_features: pd.DataFrame | None = None,
     image_paths: dict | None = None,
+    show_tiles: bool = False,
+    tile_size: int = 512, # in pixels
     savepath: str = "./labels/",
     canvas_width: int = 700,
     canvas_height: int = 700,
@@ -145,7 +173,7 @@ def annotateScatter(
     image_paths = image_paths or {}
     samples = df.index.astype(str).tolist()
     pts = df[["x", "y"]].astype(float).values.tolist()
-    missing = [s for s in samples if s not in image_paths]
+    missing = [s_ for s in samples if (s_:=s if not show_tiles else s.split('.cls')[0]) not in image_paths]
     if missing:
         print(f"[annotateScatter] no image path for {len(missing)} sample(s) "
               f"(e.g. {missing[:3]}) -- popup will show no thumbnail for those.")
@@ -324,7 +352,7 @@ def annotateScatter(
         with lock:
             if sample in _thumb_cache:      # re-check: another thread may have just filled it
                 return _thumb_cache[sample]
-            path = image_paths[sample]
+            path = image_paths[sample if not show_tiles else sample.split('.cls')[0]]
             with tifffile.TiffFile(path) as tif:
                 arr = tif.pages[0].asarray()
             if arr.ndim == 2:
