@@ -414,6 +414,57 @@ def annotateScatter(
             _wsi_cache[sample] = {"png": buf.getvalue(), "w": im.width, "h": im.height, "points": points}
             return _wsi_cache[sample]
 
+    # ── hover tooltip tile (show_tiles mode): one random tile per sample ───
+    _hover_tile_cache: dict[str, bytes] = {}   # sample -> PNG bytes
+
+    def _load_hover_tile(sample):
+        """Pick a random tile for `sample` (using chooseTile on its cluster grid)
+        and return PNG bytes.  Results are cached in _hover_tile_cache so that
+        revisiting the same point is instant."""
+        if sample in _hover_tile_cache:
+            return _hover_tile_cache[sample]
+        with lock:
+            if sample in _hover_tile_cache:
+                return _hover_tile_cache[sample]
+            base_sample = sample.split('.cls')[0] if '.cls' in sample else sample
+            sample_path = os.path.dirname(image_paths[base_sample])
+            image_path  = os.path.join(sample_path, 'image.ome.tiff')
+            # cluster id is encoded as the integer suffix after '.cls'
+            cls_part = sample.split('.cls')[-1] if '.cls' in sample else '0'
+            try:
+                c = int(cls_part)
+            except ValueError:
+                c = 0
+            x, y = chooseTile(sample_path, c)
+            ts = tile_size
+            hs = ts // 2
+            L, scale = 0, 2
+            f = (L + 1) ** scale
+            x_, y_, hs_ = int(x) // f, int(y) // f, hs // f
+            with tifffile.imread(image_path, aszarr=True) as store:
+                z = zarr.open(store, mode='r')
+                arr = np.asarray(z[str(L)][x_ - hs_: x_ + hs_, y_ - hs_: y_ + hs_, :])
+            if arr.ndim == 2:
+                arr = np.stack([arr] * 3, axis=-1)
+            arr = arr[..., :3]
+            if arr.dtype != np.uint8:
+                mx = arr.max()
+                arr = ((arr / mx) * 255).astype(np.uint8) if mx > 0 else arr.astype(np.uint8)
+            im = Image.fromarray(arr)
+            buf = BytesIO()
+            im.save(buf, format="PNG")
+            _hover_tile_cache[sample] = buf.getvalue()
+            return _hover_tile_cache[sample]
+
+    def _load_hover_tile_safe(sample):
+        """Wrapper that caches None on any error so failed samples aren't retried."""
+        try:
+            return _load_hover_tile(sample)
+        except Exception as exc:
+            # print(f"[annotateScatter] hover tile failed for '{sample}': {exc}")
+            _hover_tile_cache[sample] = None
+            return None
+
     # ── live full-resolution tiles for the whole-slide magnifying glass ────
     _full_wsi_cache: dict[str, dict] = {}   # sample -> {'tf','z','h','w'} | None (open handles, kept alive)
 
@@ -563,6 +614,26 @@ def annotateScatter(
                 self.send_header("Cache-Control", "no-store")
                 self.end_headers()
                 self.wfile.write(body)
+            elif p.path.startswith("/hover_tile/"):
+                sample = unquote(p.path[len("/hover_tile/"):])
+                if not show_tiles:
+                    self.send_response(404)
+                    self.send_header("Access-Control-Allow-Origin", "*")
+                    self.end_headers()
+                    return
+                body = _load_hover_tile_safe(sample)
+                if body is None:
+                    self.send_response(404)
+                    self.send_header("Access-Control-Allow-Origin", "*")
+                    self.end_headers()
+                    return
+                self.send_response(200)
+                self.send_header("Content-Type", "image/png")
+                self.send_header("Content-Length", str(len(body)))
+                self.send_header("Access-Control-Allow-Origin", "*")
+                self.send_header("Cache-Control", "public, max-age=86400")
+                self.end_headers()
+                self.wfile.write(body)
             elif p.path.startswith("/predict/"):
                 sample = unquote(p.path[len("/predict/"):])
                 try:
@@ -640,6 +711,12 @@ def annotateScatter(
             if body:
                 self.wfile.write(body)
 
+        def handle(self):
+            try:
+                super().handle()
+            except BrokenPipeError:
+                pass  # client aborted (e.g. AbortController) -- not an error
+
         def log_message(self, *a):
             pass
 
@@ -647,10 +724,10 @@ def annotateScatter(
     srv = ThreadingHTTPServer((host, port), Handler)
     threading.Thread(target=srv.serve_forever, daemon=True).start()
 
-    display(HTML(_render(samples, pts, meta, labels, colors, host, port, canvas_width, canvas_height, have_features, auto_labels, have_magnifier)))
+    display(HTML(_render(samples, pts, meta, labels, colors, host, port, canvas_width, canvas_height, have_features, auto_labels, have_magnifier, show_tiles)))
 
 
-def _render(samples, pts, meta, labels, colors, host, port, canvas_width, canvas_height, have_features, auto_labels, have_magnifier):
+def _render(samples, pts, meta, labels, colors, host, port, canvas_width, canvas_height, have_features, auto_labels, have_magnifier, show_tiles=False):
     css = """
 <style>
   #ua-root * { box-sizing:border-box; margin:0; padding:0; }
@@ -870,6 +947,7 @@ def _render(samples, pts, meta, labels, colors, host, port, canvas_width, canvas
         f"  const SRV        = 'http://{host}:{port}';\n"
         f"  const HAS_FEATURES = {json.dumps(have_features)};\n"
         f"  const HAS_MAGNIFIER = {json.dumps(have_magnifier)};\n"
+        f"  const SHOW_TILES    = {json.dumps(show_tiles)};\n"
         + r"""
   // Scope all element lookups to THIS widget instance's own container, rather
   // than the global document -- Jupyter keeps previous cell outputs in the
@@ -1198,22 +1276,78 @@ def _render(samples, pts, meta, labels, colors, host, port, canvas_width, canvas
   }
 
   // ── hover tooltip ────────────────────────────────────────────────────
-  canvas.addEventListener('mousemove', e => {
-    if (dragging && dragged) return;   // panning takes priority over hover
-    const [mx, my] = canvasXY(e);
-    const idx = nearest(mx, my);
-    if (idx !== hoverIdx) { hoverIdx = idx; draw(); }
-    if (idx < 0) { tooltip.style.display = 'none'; return; }
-    const sample = SAMPLES[idx];
+  let _tooltipTileCache = {};   // sample -> object URL (blob), cached client-side too
+  let _tooltipLastSample = null;
+  let _tooltipFetchCtrl  = null;
+
+  function _showTooltip(sample, e) {
     const meta = metaTableHtml(sample);
-    tooltip.innerHTML = `<b style="color:#e94560;">${sample}</b>` +
+    const tileImg = SHOW_TILES
+      ? `<div id="ua-tt-tile" style="margin-bottom:4px;text-align:center;"><img src="" style="max-width:200px;max-height:200px;border-radius:4px;background:#111;display:block;" /></div>`
+      : '';
+    tooltip.innerHTML =
+      `<b style="color:#e94560;">${sample}</b>` +
+      tileImg +
       tooltipLabelsHtml(sample) +
       (meta ? `<div style="margin-top:4px;">${meta}</div>` : '');
     tooltip.style.display = 'block';
     tooltip.style.left = (e.clientX + 14) + 'px';
     tooltip.style.top  = (e.clientY + 14) + 'px';
+
+    if (SHOW_TILES) {
+      const tileDiv = tooltip.querySelector('#ua-tt-tile');
+      const imgEl   = tileDiv.querySelector('img');
+      if (sample in _tooltipTileCache) {
+        // already resolved (success or failure)
+        if (_tooltipTileCache[sample] === null) {
+          tileDiv.innerHTML = '<span style="color:#888;font-size:10px;">Tile not available</span>';
+        } else {
+          imgEl.src = _tooltipTileCache[sample];
+        }
+      } else {
+        // fetch tile asynchronously; abort any in-flight request for a different sample
+        if (_tooltipFetchCtrl) _tooltipFetchCtrl.abort();
+        _tooltipFetchCtrl = new AbortController();
+        fetch(SRV + '/hover_tile/' + encodeURIComponent(sample), { signal: _tooltipFetchCtrl.signal })
+          .then(r => {
+            if (!r.ok) throw new Error('not ok');
+            return r.blob();
+          })
+          .then(blob => {
+            const url = URL.createObjectURL(blob);
+            _tooltipTileCache[sample] = url;
+            if (_tooltipLastSample === sample && tooltip.style.display === 'block') {
+              const el = tooltip.querySelector('#ua-tt-tile img');
+              if (el) el.src = url;
+            }
+          })
+          .catch(err => {
+            if (err.name === 'AbortError') return;  // intentional abort, don't cache failure
+            _tooltipTileCache[sample] = null;
+            if (_tooltipLastSample === sample && tooltip.style.display === 'block') {
+              const div = tooltip.querySelector('#ua-tt-tile');
+              if (div) div.innerHTML = '<span style="color:#888;font-size:10px;">Tile not available</span>';
+            }
+          });
+      }
+    }
+  }
+
+  canvas.addEventListener('mousemove', e => {
+    if (dragging && dragged) return;   // panning takes priority over hover
+    const [mx, my] = canvasXY(e);
+    const idx = nearest(mx, my);
+    if (idx !== hoverIdx) { hoverIdx = idx; draw(); }
+    if (idx < 0) { _tooltipLastSample = null; tooltip.style.display = 'none'; return; }
+    const sample = SAMPLES[idx];
+    tooltip.style.left = (e.clientX + 14) + 'px';
+    tooltip.style.top  = (e.clientY + 14) + 'px';
+    if (sample !== _tooltipLastSample) {
+      _tooltipLastSample = sample;
+      _showTooltip(sample, e);
+    }
   });
-  canvas.addEventListener('mouseleave', () => { hoverIdx = -1; tooltip.style.display = 'none'; draw(); });
+  canvas.addEventListener('mouseleave', () => { hoverIdx = -1; _tooltipLastSample = null; tooltip.style.display = 'none'; draw(); });
 
   // ── click -> popup ───────────────────────────────────────────────────
   function renderLabelList(sample) {
