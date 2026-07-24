@@ -371,7 +371,8 @@ def annotateScatter(
     _wsi_cache: dict[str, dict] = {}   # sample -> {'png','w','h','points'} | None
 
     def _info_path(sample):
-        return image_paths[sample].replace("thumbnail.tiff", "info.json")
+        key = sample.split('.cls')[0] if show_tiles and '.cls' in sample else sample
+        return image_paths[key].replace("thumbnail.tiff", "info.json")
 
     def _load_wsi(sample):
         """Lazily (per-click) load the whole slide this sample's thumbnail
