@@ -41,6 +41,7 @@ render effectively O(1) instead of O(number of samples).
 """
 
 import base64, glob, json, os, re, socket, threading
+import concurrent.futures
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from io import BytesIO
 from urllib.parse import urlparse
@@ -548,6 +549,16 @@ def annotateContours(
                 self.send_header('Access-Control-Allow-Origin', '*')
                 self.end_headers()
                 self.wfile.write(body)
+            elif parsed.path == '/bg_status':
+                with _bg_lock:
+                    body = json.dumps(_bg_status).encode()
+                self.send_response(200)
+                self.send_header('Content-Type', 'application/json')
+                self.send_header('Content-Length', str(len(body)))
+                self.send_header('Access-Control-Allow-Origin', '*')
+                self.send_header('Cache-Control', 'no-store')
+                self.end_headers()
+                self.wfile.write(body)
             else:
                 self.send_response(404)
                 self.end_headers()
@@ -754,11 +765,60 @@ def annotateContours(
             pass
 
     _save_lock = threading.Lock()
+    _bg_lock   = threading.Lock()
+    _bg_status = {"total": len(samples), "done": 0, "skipped": 0, "errors": 0, "running": False}
+
+    def _bg_process_sample(idx):
+        """Check one sample; run autodetect + save if it has no existing files."""
+        sample = samples[idx]
+        existing = glob.glob(os.path.join(savepath, sample + '.oid*.json'))
+        sep_file = os.path.join(savepath, sample + '.sep.json')
+        if existing or os.path.isfile(sep_file):
+            with _bg_lock:
+                _bg_status["skipped"] += 1
+            return
+        try:
+            img = images[idx]
+            full_w, full_h = sizes[idx]
+            components = _detect_all_tissue_components(img)
+            with _save_lock:
+                for comp in components:
+                    used = {_oid_of(f) for f in _sample_files(sample)}
+                    oid = 0
+                    while oid in used:
+                        oid += 1
+                    data = {
+                        "0": {"points": [round(float(x) / full_w, 4) for x, y in comp]},
+                        "1": {"points": [round(float(y) / full_h, 4) for x, y in comp]},
+                    }
+                    fname = os.path.join(savepath, f'{sample}.oid{oid}.json')
+                    with open(fname, 'w') as fh:
+                        json.dump(data, fh, indent=2)
+            with _bg_lock:
+                _bg_status["done"] += 1
+        except Exception as exc:
+            with _bg_lock:
+                _bg_status["errors"] += 1
+
+    def _run_bg_autodetect():
+        with _bg_lock:
+            _bg_status["running"] = True
+        try:
+            with concurrent.futures.ThreadPoolExecutor(max_workers=10) as pool:
+                futures = [pool.submit(_bg_process_sample, i) for i in range(len(samples))]
+                concurrent.futures.wait(futures)
+        finally:
+            with _bg_lock:
+                _bg_status["running"] = False
 
     host = socket.gethostbyname(socket.gethostname())
     srv = ThreadingHTTPServer((host, port), Handler)
     t   = threading.Thread(target=srv.serve_forever, daemon=True)
     t.start()
+
+    # Start background autodetect (daemon so it doesn't block kernel shutdown).
+    _bg_thread = threading.Thread(target=_run_bg_autodetect, daemon=True)
+    _bg_thread.start()
 
     # ── HTML + JS ────────────────────────────────────────────────────────────
     css = """
@@ -809,6 +869,11 @@ def annotateContours(
   #ca-ruler-wrap.disabled input { cursor:not-allowed; pointer-events:none; }
   #ca-status { font-size:11px; color:var(--muted); min-height:16px; }
   #ca-contour-list { font-size:10px; color:var(--muted); max-height:52px; overflow-y:auto; line-height:1.6; }
+  #ca-bg-status {
+    font-size:10px; color:var(--muted); padding:2px 8px;
+    background:rgba(15,15,30,0.6); border:1px solid var(--accent2);
+    border-radius:var(--radius); display:inline-block;
+  }
 </style>
 <div id="ca-root">
   <div id="ca-header">
@@ -841,6 +906,7 @@ def annotateContours(
   </div>
   <div id="ca-status">Loading…</div>
   <div id="ca-contour-list"></div>
+  <div id="ca-bg-status">⏳ Background autodetect starting…</div>
 </div>
 """
 
@@ -1084,16 +1150,9 @@ def annotateContours(
         contours.splice(mi, 1, ...parts.map(p => ({points: p, file: null})));
         totalNew += parts.length;
       }
+      _dirty = true;
       redraw(); updateList();
-      if (autosaveCb.checked) {
-        for (let i = 0; i < contours.length; i++) {
-          if (!contours[i].file) { await doSave(i); if (imgIdx !== snapIdx) return; }
-        }
-        await reindexFiles(sample);
-        statusEl.textContent = '✂ Split ' + res.splits.length + ' contour(s) → ' + totalNew + ' parts saved.';
-      } else {
-        statusEl.textContent = '✂ Split ' + res.splits.length + ' contour(s) into ' + totalNew + ' parts. Click Save contour to write files.';
-      }
+      statusEl.textContent = '✂ Split ' + res.splits.length + ' contour(s) into ' + totalNew + ' parts. Save to write files.';
     } catch(e) { /* best effort */ }
     finally { _setBusy(-1); }
   }
@@ -1221,15 +1280,11 @@ def annotateContours(
       redraw(); updateList();
     }
 
-    if (contours.length === 0 && separators.length === 0 && autodetectCb.checked) {
-      await detectAllTissue();
-    } else {
-      statusEl.textContent = wandCb.checked
-        ? 'Scribble inside a tissue — it will snap to the tissue boundary. (Hold ⌘/Ctrl to draw free-hand.)'
-        : (autosaveCb.checked
-            ? 'Draw a contour — saved automatically on mouse-up.'
-            : 'Draw a contour, then click Save contour.');
-    }
+    statusEl.textContent = wandCb.checked
+      ? 'Scribble inside a tissue — it will snap to the tissue boundary. (Hold ⌘/Ctrl to draw free-hand.)'
+      : (autosaveCb.checked
+          ? 'Draw a contour — saved automatically on mouse-up.'
+          : 'Draw a contour, then click Save contour.');
   }
 
   function canvasXY(e) {
@@ -1746,6 +1801,38 @@ def annotateContours(
   }
   // Register in CAPTURE phase (true) so we beat JupyterLab's own capture listeners.
   window.addEventListener('keydown', _handleKey, true);
+
+  // ── background autodetect status badge ──────────────────────────────
+  const bgStatusEl = document.getElementById('ca-bg-status');
+  let _bgPollTimer = null;
+
+  function _pollBgStatus() {
+    fetch(srvUrl() + '/bg_status')
+      .then(r => r.json())
+      .then(s => {
+        const total   = s.total || 0;
+        const done    = s.done  || 0;
+        const skipped = s.skipped || 0;
+        const errors  = s.errors || 0;
+        const processed = done + skipped + errors;
+        if (s.running) {
+          bgStatusEl.textContent = '\u23f3 BG autodetect: ' + processed + ' / ' + total
+            + ' \u2014 ' + done + ' detected, ' + skipped + ' skipped'
+            + (errors > 0 ? ', ' + errors + ' errors' : '');
+          bgStatusEl.style.color = 'var(--muted)';
+          _bgPollTimer = setTimeout(_pollBgStatus, 2000);
+        } else {
+          bgStatusEl.textContent = '\u2705 BG autodetect done: ' + done + ' detected, ' + skipped + ' already had files'
+            + (errors > 0 ? ', \u26a0 ' + errors + ' error(s)' : '');
+          bgStatusEl.style.color = errors > 0 ? '#f4b400' : '#0f9d58';
+          _bgPollTimer = null;
+        }
+      })
+      .catch(() => {
+        _bgPollTimer = setTimeout(_pollBgStatus, 5000);
+      });
+  }
+  _pollBgStatus();
 
   loadImage(0);
 })();
