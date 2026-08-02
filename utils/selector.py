@@ -69,10 +69,26 @@ def getMPPs(paths):
     for slide in tqdm(paths, desc='Reading slide MPPs'):
         with tifffile.TiffFile(slide) as tif:
             page = tif.pages[0]
-            mpp = np.round(10000/page.tags['XResolution'].value[0], 4)
+
+            if 'XResolution' in page.tags:
+                mpp = np.round(10000/page.tags['XResolution'].value[0], 4)
+            else:
+                try:
+                    desc = page.tags[270].value
+                    mpp = float([f for f in desc.split('|') if 'MPP' in f][0].split(' ')[-1])
+                except:
+                    mpp = 0.5
+                    print(slide)
+
+        if 'ndpi' in slide:
             sample = slide.split('/')[-1].replace('.ndpi', '')
-            mpps[sample] = mpp
-            slidepaths[sample] = slide
+        elif 'svs' in slide:
+            sample = slide.split('/')[-1].split('.')[0]
+        else:
+            sample = slide
+        
+        mpps[sample] = mpp
+        slidepaths[sample] = slide
     se = pd.Series(mpps).value_counts().sort_index()
     print(se.to_dict())
     return mpps, slidepaths
@@ -87,7 +103,12 @@ def makeSamplesheet(jpath, paths, sname):
         writer.writerow(["sample", "fastq", "image", "grid", "roifile", "mpp"])
         for jfile in jfiles[:]:
             slide = jfile.split('.oid')[0]
-            sample = slide.split('/')[-1].replace('.ndpi', '')
+            if 'ndpi' in slide:
+                sample = slide.split('/')[-1].replace('.ndpi', '')
+            elif 'svs' in slide:
+                sample = slide.split('/')[-1].split('.')[0]
+            else:
+                sample = slide
             mpp = mpps[sample]
             oid = jfile.split('.json')[0].split('.oid')[-1]
             writer.writerow([f"{sample}.oid{oid}", "", slidepaths[sample], "", jpath + jfile, mpp])
@@ -103,8 +124,26 @@ def loadAndFilter(paths, spath=None, downsample=1, maskfunc=None):
     for i, p in tqdm(enumerate(paths), total=len(paths)):
         sample = p.split('/')[-1]
         sname = f"{spath}/{sample}.tiff"
+        # Find out number of levels
+        tlevel = 3
+        level = tlevel
+        img = None
+        for il in range(tlevel+1, -1, -1):
+            try:
+                img = tifffile.imread(p, level=il)
+                level = il
+                break
+            except:
+                pass
+        # print(f"Reading {p} at level {level}")
         if not os.path.isfile(sname):
-            img = tifffile.imread(p, level=2)
+            try:
+                img = tifffile.imread(p, level=level)
+            except Exception as e:
+                print(f"Error reading {p} level {level}: {e}")
+            
+
+
             whp = (img>250).all(axis=2)
             img[whp] = np.quantile(img[~whp], 0.99)
             m = maskfunc(img, None, kernel_size=7)
@@ -389,7 +428,23 @@ def _detect_all_tissue_components(img_rgb, separator_lines=None, bg_value=255, b
         approx = cv2.approxPolyDP(c, epsilon=2.0, closed=True).reshape(-1,2).astype(float) + offset
         mins = approx.min(axis=0)
         maxs = approx.max(axis=0)
-        if (mins<=np.array([0, 0])).any() or (maxs>=dims).any():
+        # Allow contours that touch the image border only slightly: measure
+        # the fraction of the contour's perimeter that lies on any edge, and
+        # reject only if that fraction exceeds 10%.
+        on_edge = (
+            (approx[:, 0] <= 0) | (approx[:, 0] >= dims[0] - 1) |
+            (approx[:, 1] <= 0) | (approx[:, 1] >= dims[1] - 1)
+        )
+        n = len(approx)
+        edge_len = 0.0
+        total_len = 0.0
+        for i in range(n):
+            j = (i + 1) % n
+            seg_len = np.hypot(*(approx[j] - approx[i]))
+            total_len += seg_len
+            if on_edge[i] and on_edge[j]:
+                edge_len += seg_len
+        if total_len > 0 and edge_len / total_len > 0.10:
             continue
         span = maxs-mins
         if span.min() < min_span and span.max() > max_span:
