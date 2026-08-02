@@ -36,11 +36,13 @@ def contourMask(contour, xy):
     path = Path(contour)
     return path.contains_points(xy, radius=1e-9)
 
-def loadFilterFlat(fname, target_mpp=0.5):
+def loadFilterFlat(fname, target_mpp=0.5, jsonfile=None):
     dft = pd.read_csv(fname, index_col=0)
     dff = dft.iloc[:, 7:]
     xy = dft.iloc[:, [6, 5]].values
-    with open(os.path.dirname(os.path.dirname(fname)) + '/info.json', 'r') as f:
+    if jsonfile is None:
+        jsonfile = os.path.dirname(os.path.dirname(fname)) + '/info.json'
+    with open(jsonfile, 'r') as f:
         info = json.loads(f.read())
     image = info['image']
     with tifffile.TiffFile(image) as f:
@@ -86,6 +88,7 @@ def multiscale_neighborhood_quantiles(
     qs=np.linspace(0.05, 0.95, 10, endpoint=True),
     xy_cols=(6, 5),
     feat_start_col=7,
+    jsonfile=None,
     workers=-1,
 ):
     """
@@ -114,7 +117,7 @@ def multiscale_neighborhood_quantiles(
     print(f"Loaded {len(dft)} tiles, {dff.shape[1]} features")
     
     if True:
-        mask = loadFilterFlat(fname)
+        mask = loadFilterFlat(fname, jsonfile=jsonfile)
         xy = dft.iloc[:, list(xy_cols)].loc[mask].to_numpy(dtype=float)
         dft = dft.loc[mask]
         dff = dff.loc[mask]
@@ -216,10 +219,12 @@ def doCluster(out):
     sc.tl.leiden(adsub, key_added='cluster', resolution=0.25)
     return adsub
 
-def mapOne(dataPath, ibatch, sample, F):
-    out = multiscale_neighborhood_quantiles(f"{dataPath}/results-batch-{ibatch}/{sample}/features/false-{F}-ctranspath_features.tsv.gz",
-                                            Rs=[1, 2, 3, 4, 5, 6, 7, 9, 10, 20, 35, 45, 70, 100],
-                                            qs=np.linspace(0.05, 0.95, 10), f=1.75)
+def mapOne(dataPath, ibatch, sample, F, fpath=None, jsonfile=None,
+        Rs=[1, 2, 3, 4, 5, 6, 7, 9, 10, 20, 35, 45, 70, 100],
+        qs=np.linspace(0.05, 0.95, 10), f=1.75):
+    if fpath is None:
+        fpath = f"{dataPath}/results-batch-{ibatch}/{sample}/features/false-{F}-ctranspath_features.tsv.gz"
+    out = multiscale_neighborhood_quantiles(fpath, Rs=Rs, qs=qs, f=f, jsonfile=jsonfile)
     ad = doCluster(out)
     # sc.pl.spatial(ad, color=['x', 'y'], spot_size=500, cmap='jet')
     # sc.pl.umap(ad, color=['R', 'x', 'y'], cmap='jet')
