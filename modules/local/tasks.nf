@@ -722,7 +722,7 @@ process ASSEMBLE_TILES_CELLS {
 
     tag "$sample_id"
     label 'python_low_process'
-    errorStrategy  { task.attempt <= 1  ? 'retry' : 'finish' }
+    errorStrategy  { task.attempt <= 1  ? 'retry' : 'ignore' }
     publishDir "${params.outdir}/${sample_id}", pattern: 'canvas.tif', mode: 'copy', overwrite: params.overwrite_files_on_publish
     memory { 4.GB }
     
