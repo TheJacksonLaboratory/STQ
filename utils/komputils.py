@@ -23,6 +23,29 @@ def contourMask(contour, xy):
     path = Path(contour)
     return path.contains_points(xy, radius=1e-9)
 
+def loadFilterFlat(fname):
+    dft = pd.read_csv(fname, index_col=0)
+    dff = dft.iloc[:, 7:]
+    xy = dft.iloc[:, [6, 5]].values
+    with open(os.path.dirname(os.path.dirname(fname)) + '/info.json', 'r') as f:
+        info = json.loads(f.read())
+    image = info['image']
+    with tifffile.TiffFile(image) as f:
+        fshape = f.pages[0].shape
+    
+    scale = float(info['mpp']) / target_mpp
+    dims = fshape[1], fshape[0]
+    roifile = info['roifile']
+    with open(roifile.replace('/dev-komp/data-200/', '/roi/data_batch_0/'), 'r') as f:
+        contour = json.loads(f.read())
+    contour = np.array([contour['0']['points'], contour['1']['points']])
+    contour = (scale * contour * np.array(dims)[:, None]).astype(int)
+    cmin = contour.min(axis=1)
+    contour[0] -= cmin[0]
+    contour[1] -= cmin[1]
+    m = contourMask(contour, xy)
+    return m
+
 def loadSamplesParallel(image_paths, save_path, F=1, CPU=16, target_mpp=0.5):
     def _q(args):
         s, fname = args
