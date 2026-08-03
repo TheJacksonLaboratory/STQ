@@ -46,6 +46,55 @@ def loadFilterFlat(fname):
     m = contourMask(contour, xy)
     return m
 
+def makeSlideVector(spath, model='ctranspath', F=1, target_mpp=0.5, save=True):
+    dft = pd.read_csv(f'{spath}/features/false-{F}-{model}_features.tsv.gz', index_col=0)
+    dff = dft.iloc[:, 7:]
+    xy = dft.iloc[:, [6, 5]].values
+    with open(f'{spath}/info.json', 'r') as f:
+        info = json.loads(f.read())
+    image = info['image']
+    with tifffile.TiffFile(image) as f:
+        fshape = f.pages[0].shape
+    scale = float(info['mpp']) / target_mpp
+    dims = fshape[1], fshape[0]
+    roifile = info['roifile']
+    with open(roifile.replace('/dev-komp/data-200/', '/roi/data_batch_0/'), 'r') as f:
+        contour = json.loads(f.read())
+    contour = np.array([contour['0']['points'], contour['1']['points']])
+    contour = (scale * contour * np.array(dims)[:, None]).astype(int)
+    cmin = contour.min(axis=1)
+    contour[0] -= cmin[0]
+    contour[1] -= cmin[1]
+    m = contourMask(contour, xy)
+    se = dff.loc[m].quantile(qs).stack()
+    if save:
+        se.to_pickle(f'{spath}/sampler-vector-{F}-{model}.pkl')
+    return se
+
+def makeClusterVectors(spath, model='ctranspath', F=1, save=True, threshold=1.0):
+    dft = pd.read_csv(f'{spath}/features/false-{F}-{model}_features.tsv.gz', index_col=0)
+    dff = dft.iloc[:, 7:]
+
+    s = spath.split('/')[-1]
+
+    se = pd.read_csv(f'{spath}/clusters.csv.gz', index_col=0).iloc[:, 0]
+    assert (dff.index==se.index).all()
+    dff.index = se.values
+    dff = dff.groupby(level=0).quantile(qs).unstack().reorder_levels([1, 0], axis=1).T.sort_index().T
+    dff.index = s + '.cls' + dff.index.astype(str)
+
+    if threshold is not None:
+        se_counts = pd.read_csv(f'{spath}/nucseg/per_spot_data.csv', index_col=0)['total_count']
+        se_counts = se_counts.reindex(se.index).fillna(0).astype(int)
+        se_counts.index = se.values
+        se_counts = se_counts.groupby(level=0).mean()
+        se_counts.index = s + '.cls' + se_counts.index.astype(str)
+        dff = dff.loc[se_counts > threshold]
+
+    if save:
+        dff.to_pickle(f'{spath}/sampler-clusters-{F}-{model}.pkl')
+    return dff
+
 def loadSamplesParallel(image_paths, save_path, F=1, CPU=16, target_mpp=0.5):
     def _q(args):
         s, fname = args
