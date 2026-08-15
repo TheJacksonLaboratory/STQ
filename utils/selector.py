@@ -63,6 +63,19 @@ CONTOUR_GROW_PX = 10
 # before connected-component analysis, so the wand stops at drawn separators.
 SEP_BARRIER_PX = 5
 
+def makeSamplesheetDICOM(jpath, slidepaths, mpps, sname):
+    jfiles = [f for f in os.listdir(jpath) if f.endswith('.json') and not f.endswith('.sep.json')]
+    print(f'Found {len(jfiles)} tissue JSON files in {jpath}')
+    with open(sname, "w", newline="") as f:
+        writer = csv.writer(f)
+        writer.writerow(["sample", "fastq", "image", "grid", "roifile", "mpp"])
+        for jfile in jfiles[:]:
+            sample = jfile.split('.oid')[0]
+            mpp = mpps[sample]
+            oid = jfile.split('.json')[0].split('.oid')[-1]
+            writer.writerow([f"{sample}.oid{oid}", "", slidepaths[sample], "", jpath + jfile, mpp])
+    return sname
+
 def getMPPs(paths):
     mpps = {}
     slidepaths = {}
@@ -114,6 +127,52 @@ def makeSamplesheet(jpath, paths, sname):
             writer.writerow([f"{sample}.oid{oid}", "", slidepaths[sample], "", jpath + jfile, mpp])
     print(f"Wrote {len(jfiles)} samples")
     return sname
+
+def findDICOMplane(sample, rpath, largest=False):
+    fpath = f'{rpath}/{sample}'
+    files = os.listdir(fpath)
+    n = len(files)
+    temp = {}
+    for i in range(n):
+        with tifffile.TiffFile(f'{fpath}/{files[i]}') as tf:
+            tags = tf.series[0].pages[0].tags
+            d = {t.name: t.value for t in list(tags)}
+        d['ratio'] = d['ImageWidth']/d['ImageLength']
+        d['mpp'] = 10000/d['XResolution'][0]
+        temp[i] = d
+    m = np.median([temp[i]['ratio'] for i in range(n)])
+    ibest = 0
+    wbest = temp[ibest]['ImageWidth']
+    for i in range(n):
+        r = temp[i]['ratio']
+        if abs(r-m)/m > 0.01:
+            continue
+        w = temp[i]['ImageWidth']
+        if largest:
+            if w>wbest:
+                ibest = i
+                wbest = w
+        else:
+            if w<wbest:
+                ibest = i
+                wbest = w
+    return f'{rpath}/{sample}/{files[ibest]}', temp[ibest]['mpp']
+
+def loadAndFilterDICOM(paths, maskfunc=None):
+    if maskfunc is None:
+        print('Provide a mask function, such as wsiMask.getInTissuePixelMask from STQ')
+        raise
+    imgs = []
+    samples = sorted(list(paths.keys()))
+    for s in tqdm(samples, total=len(samples)):
+        img = tifffile.imread(paths[s])
+        whp = (img>250).all(axis=2)
+        img[whp] = np.quantile(img[~whp], 0.99)
+        m = maskfunc(img, None, kernel_size=7)
+        wh = m.T==0
+        img[wh, ...] = 255
+        imgs.append(img)
+    return samples, imgs
 
 def loadAndFilter(paths, spath=None, downsample=1, maskfunc=None):
     if maskfunc is None:
