@@ -344,7 +344,7 @@ def annotateScatter(
     _thumb_cache: dict[str, dict] = {}   # sample -> {'png': bytes, 'w': int, 'h': int}
 
     def _load_thumb(sample):
-        """Decode + resize once per sample, cache both the PNG bytes and the
+        """Decode + resize once per sample, cache both the JPEG bytes and the
         resulting (post-resize) pixel dimensions together, so /thumb and
         /dims never disagree and the image is only ever decoded once."""
         if sample in _thumb_cache:
@@ -353,19 +353,23 @@ def annotateScatter(
             if sample in _thumb_cache:      # re-check: another thread may have just filled it
                 return _thumb_cache[sample]
             path = image_paths[sample if not show_tiles else sample.split('.cls')[0]]
-            with tifffile.TiffFile(path) as tif:
-                arr = tif.pages[0].asarray()
-            if arr.ndim == 2:
-                arr = np.stack([arr] * 3, axis=-1)
-            if arr.dtype != np.uint8:
-                mx = arr.max()
-                arr = ((arr / mx) * 255).astype(np.uint8) if mx > 0 else arr.astype(np.uint8)
-            im = Image.fromarray(arr[..., :3])
-            r = thumb_max_dim / max(im.size)
-            im = im.resize((max(1, round(im.width * r)), max(1, round(im.height * r))))
-            buf = BytesIO()
-            im.save(buf, format="PNG")
-            _thumb_cache[sample] = {"png": buf.getvalue(), "w": im.width, "h": im.height}
+            jpeg_path = path.replace('.tiff', '.jpeg')
+            with Image.open(jpeg_path) as probe:
+                orig_w, orig_h = probe.size
+            r = thumb_max_dim / max(orig_w, orig_h)
+            if r >= 1.0:
+                # already small enough -- serve raw JPEG bytes, no decode/encode needed
+                with open(jpeg_path, 'rb') as f:
+                    raw = f.read()
+                _thumb_cache[sample] = {"png": raw, "mime": "image/jpeg", "w": orig_w, "h": orig_h}
+            else:
+                new_w = max(1, round(orig_w * r))
+                new_h = max(1, round(orig_h * r))
+                with Image.open(jpeg_path) as im:
+                    im = im.convert('RGB').resize((new_w, new_h), Image.LANCZOS)
+                    buf = BytesIO()
+                    im.save(buf, format="JPEG", quality=85)
+                _thumb_cache[sample] = {"png": buf.getvalue(), "mime": "image/jpeg", "w": new_w, "h": new_h}
             return _thumb_cache[sample]
 
     _wsi_cache: dict[str, dict] = {}   # sample -> {'png','w','h','points'} | None
@@ -540,13 +544,14 @@ def annotateScatter(
             if p.path.startswith("/thumb/"):
                 sample = unquote(p.path[len("/thumb/"):])
                 try:
-                    body = _load_thumb(sample)["png"]
+                    t = _load_thumb(sample)
+                    body = t["png"]
                 except Exception:
                     self.send_response(404)
                     self.end_headers()
                     return
                 self.send_response(200)
-                self.send_header("Content-Type", "image/png")
+                self.send_header("Content-Type", t.get("mime", "image/jpeg"))
                 self.send_header("Content-Length", str(len(body)))
                 self.send_header("Access-Control-Allow-Origin", "*")
                 self.end_headers()
@@ -1280,6 +1285,7 @@ def _render(samples, pts, meta, labels, colors, host, port, canvas_width, canvas
   let _tooltipTileCache = {};   // sample -> object URL (blob), cached client-side too
   let _tooltipLastSample = null;
   let _tooltipFetchCtrl  = null;
+  let _tooltipHoverTimer = null;  // debounce: only fetch tile after hovering ≥1s
 
   function _showTooltip(sample, e) {
     const meta = metaTableHtml(sample);
@@ -1306,30 +1312,35 @@ def _render(samples, pts, meta, labels, colors, host, port, canvas_width, canvas
           imgEl.src = _tooltipTileCache[sample];
         }
       } else {
-        // fetch tile asynchronously; abort any in-flight request for a different sample
+        // only fetch after hovering for ≥1s to keep the request queue small
         if (_tooltipFetchCtrl) _tooltipFetchCtrl.abort();
-        _tooltipFetchCtrl = new AbortController();
-        fetch(SRV + '/hover_tile/' + encodeURIComponent(sample), { signal: _tooltipFetchCtrl.signal })
-          .then(r => {
-            if (!r.ok) throw new Error('not ok');
-            return r.blob();
-          })
-          .then(blob => {
-            const url = URL.createObjectURL(blob);
-            _tooltipTileCache[sample] = url;
-            if (_tooltipLastSample === sample && tooltip.style.display === 'block') {
-              const el = tooltip.querySelector('#ua-tt-tile img');
-              if (el) el.src = url;
-            }
-          })
-          .catch(err => {
-            if (err.name === 'AbortError') return;  // intentional abort, don't cache failure
-            _tooltipTileCache[sample] = null;
-            if (_tooltipLastSample === sample && tooltip.style.display === 'block') {
-              const div = tooltip.querySelector('#ua-tt-tile');
-              if (div) div.innerHTML = '<span style="color:#888;font-size:10px;">Tile not available</span>';
-            }
-          });
+        if (_tooltipHoverTimer) clearTimeout(_tooltipHoverTimer);
+        _tooltipHoverTimer = setTimeout(() => {
+          _tooltipHoverTimer = null;
+          if (_tooltipLastSample !== sample) return;  // sample changed while waiting
+          _tooltipFetchCtrl = new AbortController();
+          fetch(SRV + '/hover_tile/' + encodeURIComponent(sample), { signal: _tooltipFetchCtrl.signal })
+            .then(r => {
+              if (!r.ok) throw new Error('not ok');
+              return r.blob();
+            })
+            .then(blob => {
+              const url = URL.createObjectURL(blob);
+              _tooltipTileCache[sample] = url;
+              if (_tooltipLastSample === sample && tooltip.style.display === 'block') {
+                const el = tooltip.querySelector('#ua-tt-tile img');
+                if (el) el.src = url;
+              }
+            })
+            .catch(err => {
+              if (err.name === 'AbortError') return;  // intentional abort, don't cache failure
+              _tooltipTileCache[sample] = null;
+              if (_tooltipLastSample === sample && tooltip.style.display === 'block') {
+                const div = tooltip.querySelector('#ua-tt-tile');
+                if (div) div.innerHTML = '<span style="color:#888;font-size:10px;">Tile not available</span>';
+              }
+            });
+        }, 1000);
       }
     }
   }
@@ -1348,7 +1359,12 @@ def _render(samples, pts, meta, labels, colors, host, port, canvas_width, canvas
       _showTooltip(sample, e);
     }
   });
-  canvas.addEventListener('mouseleave', () => { hoverIdx = -1; _tooltipLastSample = null; tooltip.style.display = 'none'; draw(); });
+  canvas.addEventListener('mouseleave', () => {
+    hoverIdx = -1; _tooltipLastSample = null; tooltip.style.display = 'none';
+    if (_tooltipHoverTimer) { clearTimeout(_tooltipHoverTimer); _tooltipHoverTimer = null; }
+    if (_tooltipFetchCtrl) { _tooltipFetchCtrl.abort(); _tooltipFetchCtrl = null; }
+    draw();
+  });
 
   // ── click -> popup ───────────────────────────────────────────────────
   function renderLabelList(sample) {
