@@ -158,7 +158,7 @@ def findDICOMplane(sample, rpath, largest=False):
                 wbest = w
     return f'{rpath}/{sample}/{files[ibest]}', temp[ibest]['mpp']
 
-def loadAndFilterDICOM(paths, maskfunc=None):
+def loadAndFilterDICOM(paths, maskfunc=None, downsample=1):
     if maskfunc is None:
         print('Provide a mask function, such as wsiMask.getInTissuePixelMask from STQ')
         raise
@@ -171,7 +171,7 @@ def loadAndFilterDICOM(paths, maskfunc=None):
         m = maskfunc(img, None, kernel_size=7)
         wh = m.T==0
         img[wh, ...] = 255
-        imgs.append(img)
+        imgs.append(img[::downsample, ::downsample])
     return samples, imgs
 
 def loadAndFilter(paths, spath=None, downsample=1, maskfunc=None):
