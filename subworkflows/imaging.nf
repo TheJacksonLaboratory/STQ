@@ -61,6 +61,8 @@ include { CREATE_CELLSZARRZIP;
 
 include { DIMRED_CLUSTER;
           DIMRED_CLUSTER_MORPH;
+          MAKE_CLUSTER_VECTORS;
+          MAKE_SAMPLER_VECTOR;
         } from '../modules/local/postprocessing'
         
 workflow IMG {
@@ -289,6 +291,9 @@ workflow IMG {
             if (params.extract_conch_features) {
                 features_out = features_out.concat( conch_features_out )
             }
+
+            MAKE_SAMPLER_VECTOR ( samples
+                                 .combine(features_out, by: 0) )
             
             if ( params.do_clustering ) {
                 if ( params.do_imaging_anndata ) {
@@ -365,6 +370,12 @@ workflow IMG {
                                          .join(thumbimage)
                                          .join(GENERATE_PERSPOT_SEGMENTATION_DATA.out.data)
                                          .join(features_selected_out) )
+
+                    MAKE_CLUSTER_VECTORS ( thumbimage
+                                         .join(GENERATE_PERSPOT_SEGMENTATION_DATA.out.data)
+                                         .join(features_selected_out)
+                                         .join(DIMRED_CLUSTER_MORPH.out.clusters) )
+
                 }
             }
         }

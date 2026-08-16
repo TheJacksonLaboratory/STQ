@@ -13,9 +13,9 @@ process DIMRED_CLUSTER_MORPH {
     tuple val(sample_id), path(grid_csv), path(grid_json), path(thumb), path(segmentation_csv), path(features_h5ad), val(expansion_factor), val(suffix)
     
     output:
-    tuple val(sample_id), file("figures/*/*.png")
-    tuple val(sample_id), file("clusters.csv.gz")
-    tuple val(sample_id), file("umap.csv.gz")
+    tuple val(sample_id), file("figures/*/*.png"), emit: figures
+    tuple val(sample_id), file("clusters.csv.gz"), emit: clusters
+    tuple val(sample_id), file("umap.csv.gz"), emit: umap
 
     script:
     """
@@ -115,6 +115,113 @@ process DIMRED_CLUSTER_MORPH {
     # Save cluster and UMAP coordinates
     ad.obs['cluster'].to_csv('clusters.csv.gz')
     pd.DataFrame(ad.obsm['X_umap'], index=ad.obs.index, columns=['UMAP1', 'UMAP2']).to_csv('umap.csv.gz')
+    """
+}
+
+
+process MAKE_SAMPLER_VECTOR {
+
+    tag "$sample_id"
+    label 'python_low_process'
+    errorStrategy  { task.attempt <= 2  ? 'retry' : 'finish' }
+    publishDir "${params.outdir}/${sample_id}", pattern: 'sampler-vector-*.pkl', mode: 'copy', overwrite: params.overwrite_files_on_publish
+    memory { 1.GB + (Float.valueOf(size) / 1000.0).round(2) * params.memory_scale_factor * 3.GB }
+    
+    input:
+    tuple val(sample_id), val(meta), path(srgrid), path(features_csv), val(expansion_factor), val(suffix)
+    
+    output:
+    tuple val(sample_id), file("sampler-vector-*.pkl")
+
+    script:
+    """
+    #!/usr/bin/env python
+    
+    import os
+    os.environ["NUMBA_CACHE_DIR"] = "./tmp"
+
+    import json
+    import numpy as np
+    import pandas as pd
+    import tifffile
+    from matplotlib.path import Path
+
+    def contourMask(contour, xy):
+        contour = np.asarray(contour).T
+        xy = np.asarray(xy)
+        path = Path(contour)
+        return path.contains_points(xy, radius=1e-9)
+
+    qs = np.linspace(0.05, 0.95, 10, endpoint=True)
+
+    dft = pd.read_csv("${features_csv}", index_col=0)
+    dff = dft.iloc[:, 7:]
+    xy = dft.iloc[:, [6, 5]].values
+    with tifffile.TiffFile('${meta.image}') as f:
+        fshape = f.pages[0].shape
+
+    scale = float(${meta.mpp}) / float(${params.target_mpp})
+    dims = fshape[1], fshape[0]
+    with open('${meta.roifile}', 'r') as f:
+        contour = json.loads(f.read())
+    contour = np.array([contour['0']['points'], contour['1']['points']])
+    contour = (scale * contour * np.array(dims)[:, None]).astype(int)
+    cmin = contour.min(axis=1)
+    contour[0] -= cmin[0]
+    contour[1] -= cmin[1]
+    m = contourMask(contour, xy)
+    se = dff.loc[m].quantile(qs).stack()
+
+    F = "${expansion_factor}"
+    model = "${suffix}"
+    se.to_pickle(f'sampler-vector-{F}-{model}.pkl')
+    """
+}
+
+
+process MAKE_CLUSTER_VECTORS {
+
+    tag "$sample_id"
+    label 'python_low_process'
+    errorStrategy  { task.attempt <= 2  ? 'retry' : 'finish' }
+    publishDir "${params.outdir}/${sample_id}", pattern: 'sampler-clusters-*.pkl', mode: 'copy', overwrite: params.overwrite_files_on_publish
+    memory { 1.GB + (Float.valueOf(size) / 1000.0).round(2) * params.memory_scale_factor * 3.GB }
+    
+    input:
+    tuple val(sample_id), path(thumb), path(segmentation_csv), path(features_h5ad), val(expansion_factor), val(suffix), path(clusters)
+    
+    output:
+    tuple val(sample_id), file("sampler-clusters-*.pkl")
+
+    script:
+    """
+    #!/usr/bin/env python
+    
+    import os
+    os.environ["NUMBA_CACHE_DIR"] = "./tmp"
+
+    import numpy as np
+    import pandas as pd
+    import scanpy as sc
+    qs = np.linspace(0.05, 0.95, 10, endpoint=True)
+
+    dff = sc.read_h5ad("${features_h5ad}").to_df()
+    se = pd.read_csv("${clusters}", index_col=0).iloc[:, 0]
+    assert (dff.index==se.index).all()
+    dff.index = se.values
+    dff = dff.groupby(level=0).quantile(qs).unstack().reorder_levels([1, 0], axis=1).T.sort_index().T
+    dff.index = "${sample_id}" + '.cls' + dff.index.astype(str)
+
+    se_counts = pd.read_csv("${segmentation_csv}", index_col=0)['total_count']
+    se_counts = se_counts.reindex(se.index).fillna(0).astype(int)
+    se_counts.index = se.values
+    se_counts = se_counts.groupby(level=0).mean()
+    se_counts.index = "${sample_id}" + '.cls' + se_counts.index.astype(str)
+    dff = dff.loc[se_counts > float(${params.sampler_clusters_min_cell_count})]
+
+    F = "${expansion_factor}"
+    model = "${suffix}"
+    dff.to_pickle(f'sampler-clusters-{F}-{model}.pkl')
     """
 }
 
