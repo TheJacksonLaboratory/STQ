@@ -1,8 +1,12 @@
 """Kaiko-ai Midnight-12k loader (transformers Dinov2Model, MIT license).
 
-Per config_kaikoMidnight12k.json: Dinov2Model, hidden_size=1536, patch14,
-no register tokens (register-token support isn't present in this config,
-unlike the timm-side H-optimus/H0-mini family).
+Per config_kaikoMidnight12k.json: Dinov2Model, hidden_size=1536, patch14.
+Midnight is trained with DINOv2-style register tokens, so its
+Dinov2Model/Dinov2WithRegistersModel config carries a `num_register_tokens`
+attribute; last_hidden_state is laid out as [CLS, reg_0..reg_{n-1}, patch...].
+We read that count off the loaded model's config (defaulting to 0 for
+configs without it) so the CLS/patch split below correctly skips the
+register tokens instead of averaging one of them into the patch mean.
 
 Unlike Phikon/Phikon-v2, Midnight's own model-card usage snippet does not
 actually call AutoImageProcessor -- it builds a plain torchvision v2
@@ -24,9 +28,12 @@ def load(model_path, destination, **kwargs):
     model.to(destination)
     model.eval()
 
+    num_register_tokens = getattr(model.config, 'num_register_tokens', 0)
+
     return {
         'model': model,
         'transform': build_normalizer('midnight'),
         'forward_fn': lambda m, batch: m(pixel_values=batch).last_hidden_state,
-        'postprocess_fn': concat_cls_mean_patch_postprocess(num_prefix_tokens=1),
+        'postprocess_fn': concat_cls_mean_patch_postprocess(
+            num_prefix_tokens=1 + num_register_tokens),
     }

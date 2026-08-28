@@ -51,9 +51,12 @@ def load_virchow2(model_path, destination, **kwargs):
     model, transform = _build(model_path, destination, add_reg=True)
 
     def postprocess(features):
-        # Remove the register tokens and compute mean over tokens.
-        # (Preserves the original pipeline's exact slicing behavior.)
-        return features[:, 4:].mean(axis=1)
+        # Token layout is [CLS, reg_0..reg_3, patch_0, ...]: CLS is index 0
+        # and the 4 register tokens occupy indices 1-4, so patch tokens
+        # start at index 5 (per Virchow2's official model-card recipe).
+        # The previous features[:, 4:] slice still included the last
+        # register token (index 4) in the mean -- off by one.
+        return features[:, 5:].mean(axis=1)
 
     return {
         'model': model,
