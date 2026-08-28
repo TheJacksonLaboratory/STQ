@@ -1,0 +1,19 @@
+  -----Implemented in STQ v3----
+InceptionV3           (2015, Google) — license: Apache 2.0
+CTransPath            (2022, Wang et al.) — license: GPL-3.0
+MOCOv3                (2021, Facebook AI Research) — license: CC-BY-NC 4.0
+CONCH                 (2023, Mahmood Lab) — license: CC-BY-NC-ND 4.0
+UNI                   (2024, Mahmood Lab) — license: CC-BY-NC-ND 4.0
+UNI2                  (2025, Mahmood Lab) — license: CC-BY-NC-ND 4.0
+
+  -----Recently added to STQ----
+Virchow               (2024, Paige-AI [now Tempus], Microsoft Research) — license: Apache 2.0
+Virchow2              (2024, Paige-AI [now Tempus], Microsoft Research) — license: CC-BY-NC-ND 4.0
+H-optimus-0           (2024, Bioptimus) — license: Apache 2.0
+Phikon                (2023, Owkin) — license: Owkin non-commercial license
+Phikon-v2             (2024, Owkin) — license: Owkin non-commercial license
+prov-gigapath         (2024, University of Washington, Microsoft Research, Providence Research) — license: research-use-only license (Apache-2.0-based, MSR/Providence terms)
+prov-gigapath-flash   (2026, University of Washington, Microsoft Research, Providence Research) — license: research-use-only license (Apache-2.0-based, MSR/Providence terms)
+Kaiko-Midnight12k     (2025, Kaiko.ai) - MIT license
+H-optimus-1           (2025, Bioptimus) — license: CC-BY-NC-ND 4.0
+H0-mini               (2025, Bioptimus, Owkin) — license: CC-BY-NC-ND 4.0
