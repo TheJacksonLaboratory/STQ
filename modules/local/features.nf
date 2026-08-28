@@ -23,7 +23,7 @@ process GET_UNI_FEATURES {
         vtilemask="${tile_mask}"
     fi
     
-    CUDEV="\$CUDA_VISIBLE_DEVICES"
+    CUDEV="\${CUDA_VISIBLE_DEVICES:-}"
 
     python -u ${projectDir}/bin/run-extract.py \
     --wsi-file="${image}" \
@@ -67,7 +67,7 @@ process GET_UNI2_FEATURES {
         vtilemask="${tile_mask}"
     fi
     
-    CUDEV="\$CUDA_VISIBLE_DEVICES"
+    CUDEV="\${CUDA_VISIBLE_DEVICES:-}"
 
     python -u ${projectDir}/bin/run-extract.py \
     --wsi-file="${image}" \
@@ -111,7 +111,7 @@ process GET_HOPTIMUS0_FEATURES {
         vtilemask="${tile_mask}"
     fi
     
-    CUDEV="\$CUDA_VISIBLE_DEVICES"
+    CUDEV="\${CUDA_VISIBLE_DEVICES:-}"
 
     python -u ${projectDir}/bin/run-extract.py \
     --wsi-file="${image}" \
@@ -155,7 +155,7 @@ process GET_CTRANSPATH_FEATURES {
         vtilemask="${tile_mask}"
     fi
 
-    CUDEV="\$CUDA_VISIBLE_DEVICES"
+    CUDEV="\${CUDA_VISIBLE_DEVICES:-}"
 
     python -u ${projectDir}/bin/run-extract.py \
     --wsi-file="${image}" \
@@ -190,8 +190,6 @@ process GET_MOCOV3_FEATURES {
 
     script:
     """
-    CUDEV="\$CUDA_VISIBLE_DEVICES"
-
     # If the grid from SpaceRanger, then don't owerwrite the tile mask with my mask
     filesize=`wc -c <"${meta_grid_csv}"`
     if [ \$filesize -ge 10 ];
@@ -200,6 +198,8 @@ process GET_MOCOV3_FEATURES {
     else
         vtilemask="${tile_mask}"
     fi
+
+    CUDEV="\${CUDA_VISIBLE_DEVICES:-}"
 
     python -u ${projectDir}/bin/run-extract.py \
     --wsi-file="${image}" \
@@ -243,7 +243,7 @@ process GET_CONCH_FEATURES {
         vtilemask="${tile_mask}"
     fi
 
-    CUDEV="\$CUDA_VISIBLE_DEVICES"
+    CUDEV="\${CUDA_VISIBLE_DEVICES:-}"
 
     python -u ${projectDir}/bin/run-extract.py \
     --wsi-file="${image}" \
@@ -288,7 +288,7 @@ process GET_INCEPTION_FEATURES {
         vtilemask="${tile_mask}"
     fi
 
-    CUDEV="\$CUDA_VISIBLE_DEVICES"
+    CUDEV="\${CUDA_VISIBLE_DEVICES:-}"
 
     python -u ${projectDir}/bin/run-extract.py \
     --wsi-file="${image}" \
@@ -332,7 +332,7 @@ process GET_VIRCHOW_FEATURES {
         vtilemask="${tile_mask}"
     fi
     
-    CUDEV="\$CUDA_VISIBLE_DEVICES"
+    CUDEV="\${CUDA_VISIBLE_DEVICES:-}"
 
     python -u ${projectDir}/bin/run-extract.py \
     --wsi-file="${image}" \
@@ -376,7 +376,7 @@ process GET_VIRCHOW2_FEATURES {
         vtilemask="${tile_mask}"
     fi
     
-    CUDEV="\$CUDA_VISIBLE_DEVICES"
+    CUDEV="\${CUDA_VISIBLE_DEVICES:-}"
 
     python -u ${projectDir}/bin/run-extract.py \
     --wsi-file="${image}" \
@@ -420,7 +420,7 @@ process GET_PHIKON_FEATURES {
         vtilemask="${tile_mask}"
     fi
 
-    CUDEV="\$CUDA_VISIBLE_DEVICES"
+    CUDEV="\${CUDA_VISIBLE_DEVICES:-}"
 
     python -u ${projectDir}/bin/run-extract.py \
     --wsi-file="${image}" \
@@ -464,7 +464,7 @@ process GET_PHIKON2_FEATURES {
         vtilemask="${tile_mask}"
     fi
 
-    CUDEV="\$CUDA_VISIBLE_DEVICES"
+    CUDEV="\${CUDA_VISIBLE_DEVICES:-}"
 
     python -u ${projectDir}/bin/run-extract.py \
     --wsi-file="${image}" \
@@ -508,7 +508,7 @@ process GET_HOPTIMUS1_FEATURES {
         vtilemask="${tile_mask}"
     fi
 
-    CUDEV="\$CUDA_VISIBLE_DEVICES"
+    CUDEV="\${CUDA_VISIBLE_DEVICES:-}"
 
     python -u ${projectDir}/bin/run-extract.py \
     --wsi-file="${image}" \
@@ -552,7 +552,7 @@ process GET_H0MINI_FEATURES {
         vtilemask="${tile_mask}"
     fi
 
-    CUDEV="\$CUDA_VISIBLE_DEVICES"
+    CUDEV="\${CUDA_VISIBLE_DEVICES:-}"
 
     python -u ${projectDir}/bin/run-extract.py \
     --wsi-file="${image}" \
@@ -596,7 +596,7 @@ process GET_MIDNIGHT12K_FEATURES {
         vtilemask="${tile_mask}"
     fi
 
-    CUDEV="\$CUDA_VISIBLE_DEVICES"
+    CUDEV="\${CUDA_VISIBLE_DEVICES:-}"
 
     python -u ${projectDir}/bin/run-extract.py \
     --wsi-file="${image}" \
@@ -640,7 +640,7 @@ process GET_GIGAPATH_FEATURES {
         vtilemask="${tile_mask}"
     fi
 
-    CUDEV="\$CUDA_VISIBLE_DEVICES"
+    CUDEV="\${CUDA_VISIBLE_DEVICES:-}"
 
     python -u ${projectDir}/bin/run-extract.py \
     --wsi-file="${image}" \
@@ -684,7 +684,7 @@ process GET_GIGAPATHF_FEATURES {
         vtilemask="${tile_mask}"
     fi
 
-    CUDEV="\$CUDA_VISIBLE_DEVICES"
+    CUDEV="\${CUDA_VISIBLE_DEVICES:-}"
 
     python -u ${projectDir}/bin/run-extract.py \
     --wsi-file="${image}" \
