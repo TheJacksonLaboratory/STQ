@@ -2,7 +2,7 @@ process GET_UNI_FEATURES {
 
     tag "$sample_id"
     label 'process_uni'
-    errorStrategy  { task.attempt <= 2  ? 'retry' : 'finish' }
+    errorStrategy  { task.attempt <= 1  ? 'retry' : 'finish' }
     memory { 56.GB + (Float.valueOf(size) / 1000.0).round(2) * params.memory_scale_factor * 28.GB }
     publishDir "${params.outdir}/${sample_id}/features", pattern: 'features/*.csv.gz', saveAs: { filename -> "${expansion_factor}-${filename.split("/")[filename.split("/").length - 1]}" }, mode: 'copy', overwrite: params.overwrite_files_on_publish
     
@@ -46,7 +46,7 @@ process GET_UNI2_FEATURES {
 
     tag "$sample_id"
     label 'process_uni2'
-    errorStrategy  { task.attempt <= 2  ? 'retry' : 'finish' }
+    errorStrategy  { task.attempt <= 1  ? 'retry' : 'finish' }
     memory { 56.GB + (Float.valueOf(size) / 1000.0).round(2) * params.memory_scale_factor * 28.GB }
     publishDir "${params.outdir}/${sample_id}/features", pattern: 'features/*.csv.gz', saveAs: { filename -> "${expansion_factor}-${filename.split("/")[filename.split("/").length - 1]}" }, mode: 'copy', overwrite: params.overwrite_files_on_publish
     
@@ -90,7 +90,7 @@ process GET_HOPTIMUS0_FEATURES {
 
     tag "$sample_id"
     label 'process_hoptimus0'
-    errorStrategy  { task.attempt <= 0  ? 'retry' : 'finish' }
+    errorStrategy  { task.attempt <= 1  ? 'retry' : 'finish' }
     memory { 56.GB + (Float.valueOf(size) / 1000.0).round(2) * params.memory_scale_factor * 28.GB }
     publishDir "${params.outdir}/${sample_id}/features", pattern: 'features/*.csv.gz', saveAs: { filename -> "${expansion_factor}-${filename.split("/")[filename.split("/").length - 1]}" }, mode: 'copy', overwrite: params.overwrite_files_on_publish
     
@@ -134,7 +134,7 @@ process GET_CTRANSPATH_FEATURES {
 
     tag "$sample_id"
     label 'process_ctranspath'
-    errorStrategy  { task.attempt <= 0  ? 'retry' : 'finish' }
+    errorStrategy  { task.attempt <= 1  ? 'retry' : 'finish' }
     memory { 56.GB + (Float.valueOf(size) / 1000.0).round(2) * params.memory_scale_factor * 16.GB }
     publishDir "${params.outdir}/${sample_id}/features", pattern: 'features/*.csv.gz', saveAs: { filename -> "${expansion_factor}-${filename.split("/")[filename.split("/").length - 1]}" }, mode: 'copy', overwrite: params.overwrite_files_on_publish
 
@@ -178,7 +178,7 @@ process GET_MOCOV3_FEATURES {
 
     tag "$sample_id"
     label 'process_mocov3'
-    errorStrategy  { task.attempt <= 0  ? 'retry' : 'finish' }
+    errorStrategy  { task.attempt <= 1  ? 'retry' : 'finish' }
     memory { 56.GB + (Float.valueOf(size) / 1000.0).round(2) * params.memory_scale_factor * 16.GB }
     publishDir "${params.outdir}/${sample_id}/features", pattern: 'features/*.csv.gz', saveAs: { filename -> "${expansion_factor}-${filename.split("/")[filename.split("/").length - 1]}" }, mode: 'copy', overwrite: params.overwrite_files_on_publish
 
@@ -222,7 +222,7 @@ process GET_CONCH_FEATURES {
 
     tag "$sample_id"
     label 'process_conch'
-    errorStrategy  { task.attempt <= 2  ? 'retry' : 'finish' }
+    errorStrategy  { task.attempt <= 1  ? 'retry' : 'finish' }
     memory { 60.GB + (Float.valueOf(size) / 1000.0).round(2) * params.memory_scale_factor * 16.GB }
     publishDir "${params.outdir}/${sample_id}/features", pattern: 'features/*.csv.gz', saveAs: { filename -> "${expansion_factor}-${filename.split("/")[filename.split("/").length - 1]}" }, mode: 'copy', overwrite: params.overwrite_files_on_publish
 
@@ -267,7 +267,7 @@ process GET_INCEPTION_FEATURES {
 
     tag "$sample_id"
     label 'process_inception'
-    errorStrategy  { task.attempt <= 0  ? 'retry' : 'finish' }
+    errorStrategy  { task.attempt <= 1  ? 'retry' : 'finish' }
     memory { 56.GB + (Float.valueOf(size) / 1000.0).round(2) * params.memory_scale_factor * 16.GB }
     publishDir "${params.outdir}/${sample_id}/features", pattern: 'features/*.csv.gz', saveAs: { filename -> "${expansion_factor}-${filename.split("/")[filename.split("/").length - 1]}" }, mode: 'copy', overwrite: params.overwrite_files_on_publish
 
@@ -311,7 +311,7 @@ process GET_VIRCHOW_FEATURES {
 
     tag "$sample_id"
     label 'process_virchow'
-    errorStrategy  { task.attempt <= 0  ? 'retry' : 'finish' }
+    errorStrategy  { task.attempt <= 1  ? 'retry' : 'finish' }
     memory { 56.GB + (Float.valueOf(size) / 1000.0).round(2) * params.memory_scale_factor * 28.GB }
     publishDir "${params.outdir}/${sample_id}/features", pattern: 'features/*.csv.gz', saveAs: { filename -> "${expansion_factor}-${filename.split("/")[filename.split("/").length - 1]}" }, mode: 'copy', overwrite: params.overwrite_files_on_publish
     
@@ -355,7 +355,7 @@ process GET_VIRCHOW2_FEATURES {
 
     tag "$sample_id"
     label 'process_virchow2'
-    errorStrategy  { task.attempt <= 0  ? 'retry' : 'finish' }
+    errorStrategy  { task.attempt <= 1  ? 'retry' : 'finish' }
     memory { 56.GB + (Float.valueOf(size) / 1000.0).round(2) * params.memory_scale_factor * 28.GB }
     publishDir "${params.outdir}/${sample_id}/features", pattern: 'features/*.csv.gz', saveAs: { filename -> "${expansion_factor}-${filename.split("/")[filename.split("/").length - 1]}" }, mode: 'copy', overwrite: params.overwrite_files_on_publish
     
@@ -399,7 +399,7 @@ process GET_PHIKON_FEATURES {
 
     tag "$sample_id"
     label 'process_phikon'
-    errorStrategy  { task.attempt <= 0  ? 'retry' : 'finish' }
+    errorStrategy  { task.attempt <= 1  ? 'retry' : 'finish' }
     memory { 56.GB + (Float.valueOf(size) / 1000.0).round(2) * params.memory_scale_factor * 28.GB }
     publishDir "${params.outdir}/${sample_id}/features", pattern: 'features/*.csv.gz', saveAs: { filename -> "${expansion_factor}-${filename.split("/")[filename.split("/").length - 1]}" }, mode: 'copy', overwrite: params.overwrite_files_on_publish
 
@@ -443,7 +443,7 @@ process GET_PHIKON2_FEATURES {
 
     tag "$sample_id"
     label 'process_phikon2'
-    errorStrategy  { task.attempt <= 0  ? 'retry' : 'finish' }
+    errorStrategy  { task.attempt <= 1  ? 'retry' : 'finish' }
     memory { 56.GB + (Float.valueOf(size) / 1000.0).round(2) * params.memory_scale_factor * 28.GB }
     publishDir "${params.outdir}/${sample_id}/features", pattern: 'features/*.csv.gz', saveAs: { filename -> "${expansion_factor}-${filename.split("/")[filename.split("/").length - 1]}" }, mode: 'copy', overwrite: params.overwrite_files_on_publish
 
@@ -487,7 +487,7 @@ process GET_HOPTIMUS1_FEATURES {
 
     tag "$sample_id"
     label 'process_hoptimus1'
-    errorStrategy  { task.attempt <= 0  ? 'retry' : 'finish' }
+    errorStrategy  { task.attempt <= 1  ? 'retry' : 'finish' }
     memory { 56.GB + (Float.valueOf(size) / 1000.0).round(2) * params.memory_scale_factor * 28.GB }
     publishDir "${params.outdir}/${sample_id}/features", pattern: 'features/*.csv.gz', saveAs: { filename -> "${expansion_factor}-${filename.split("/")[filename.split("/").length - 1]}" }, mode: 'copy', overwrite: params.overwrite_files_on_publish
 
@@ -531,7 +531,7 @@ process GET_H0MINI_FEATURES {
 
     tag "$sample_id"
     label 'process_h0mini'
-    errorStrategy  { task.attempt <= 0  ? 'retry' : 'finish' }
+    errorStrategy  { task.attempt <= 1  ? 'retry' : 'finish' }
     memory { 56.GB + (Float.valueOf(size) / 1000.0).round(2) * params.memory_scale_factor * 28.GB }
     publishDir "${params.outdir}/${sample_id}/features", pattern: 'features/*.csv.gz', saveAs: { filename -> "${expansion_factor}-${filename.split("/")[filename.split("/").length - 1]}" }, mode: 'copy', overwrite: params.overwrite_files_on_publish
 
@@ -575,7 +575,7 @@ process GET_MIDNIGHT12K_FEATURES {
 
     tag "$sample_id"
     label 'process_midnight12k'
-    errorStrategy  { task.attempt <= 0  ? 'retry' : 'finish' }
+    errorStrategy  { task.attempt <= 1  ? 'retry' : 'finish' }
     memory { 56.GB + (Float.valueOf(size) / 1000.0).round(2) * params.memory_scale_factor * 28.GB }
     publishDir "${params.outdir}/${sample_id}/features", pattern: 'features/*.csv.gz', saveAs: { filename -> "${expansion_factor}-${filename.split("/")[filename.split("/").length - 1]}" }, mode: 'copy', overwrite: params.overwrite_files_on_publish
 
@@ -619,7 +619,7 @@ process GET_GIGAPATH_FEATURES {
 
     tag "$sample_id"
     label 'process_gigapath'
-    errorStrategy  { task.attempt <= 0  ? 'retry' : 'finish' }
+    errorStrategy  { task.attempt <= 1  ? 'retry' : 'finish' }
     memory { 56.GB + (Float.valueOf(size) / 1000.0).round(2) * params.memory_scale_factor * 28.GB }
     publishDir "${params.outdir}/${sample_id}/features", pattern: 'features/*.csv.gz', saveAs: { filename -> "${expansion_factor}-${filename.split("/")[filename.split("/").length - 1]}" }, mode: 'copy', overwrite: params.overwrite_files_on_publish
 
@@ -663,7 +663,7 @@ process GET_GIGAPATHF_FEATURES {
 
     tag "$sample_id"
     label 'process_gigapathf'
-    errorStrategy  { task.attempt <= 0  ? 'retry' : 'finish' }
+    errorStrategy  { task.attempt <= 1  ? 'retry' : 'finish' }
     memory { 56.GB + (Float.valueOf(size) / 1000.0).round(2) * params.memory_scale_factor * 28.GB }
     publishDir "${params.outdir}/${sample_id}/features", pattern: 'features/*.csv.gz', saveAs: { filename -> "${expansion_factor}-${filename.split("/")[filename.split("/").length - 1]}" }, mode: 'copy', overwrite: params.overwrite_files_on_publish
 
