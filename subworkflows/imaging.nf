@@ -2,7 +2,6 @@
 include { LOAD_SAMPLE_INFO;
           GET_IMAGE_SIZE;
           EXTRACT_ROI;
-          COLOR_NORMALIZATION;
           STAIN_NORMALIZATION;
           CONVERT_TO_TILED_TIFF;
           RESIZE_IMAGE;
