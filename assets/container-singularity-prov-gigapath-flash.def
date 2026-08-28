@@ -1,0 +1,30 @@
+bootstrap: docker
+from: condaforge/mambaforge:23.3.1-1
+
+%environment
+    export DEBIAN_FRONTEND=noninteractive
+
+%post
+    echo 'debconf debconf/frontend select Noninteractive' | debconf-set-selections
+
+    apt-get update
+    apt-get install -y dialog apt-utils
+    apt-get install -y openslide-tools
+    apt-get install -y git
+    apt-get install -y procps
+
+    /opt/conda/bin/mamba install python=3.10
+    /opt/conda/bin/mamba install -y -c anaconda pip numpy pandas pyarrow scipy
+    /opt/conda/bin/mamba install -y -c conda-forge pillow openslide-python
+
+    /opt/conda/bin/pip install --upgrade pip
+
+    /opt/conda/bin/pip install torch==2.4.1 torchvision==0.19.1 \
+        --index-url https://download.pytorch.org/whl/cu121
+    /opt/conda/bin/pip install "timm>=1.0.3" "transformers==4.36.2" \
+        "huggingface-hub==0.20.2" einops safetensors
+
+    git clone https://github.com/prov-gigapath/prov-gigapath.git
+    cd prov-gigapath
+    git reset --hard 55431e04ff853a08f752a0ba42e6e9c48e60c776
+    /opt/conda/bin/pip install -e . --no-deps
