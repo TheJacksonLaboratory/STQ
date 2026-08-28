@@ -3,8 +3,8 @@
 #SBATCH -N 1
 #SBATCH -n 1
 #SBATCH --mem=12GB
-#SBATCH -q batch
-#SBATCH -p compute
+#SBATCH -q build
+#SBATCH -p build
 
 #singularity run http://s3-far.jax.org/builder/builder $2 $1
 singularity build --fakeroot $1 $2
