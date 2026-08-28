@@ -92,31 +92,6 @@ process EXTRACT_ROI {
 }
 
 
-process COLOR_NORMALIZATION {
-
-    tag "$sample_id"
-    label 'color_normalization_process'
-    errorStrategy  { task.attempt <= 3  ? 'retry' : 'finish' }
-    memory { 6.GB + (Float.valueOf(size) / 1000.0).round(2) * params.memory_scale_factor * 30.GB }
-
-    input:
-    tuple val(sample_id), path("outfile.tiff"), val(size)
-    
-    output:
-    tuple val(sample_id), file("output_images/outfile.tiff")
-
-    script:    
-    """
-    [ ! -d "output_images" ] && mkdir "output_images"
-    
-    python -u "${projectDir}/bin/StainNetNorm.py" \
-    --source_dir "." \
-    --save_dir "output_images/" \
-    --model_path ${params.stainnet}
-    """
-}
-
-
 process STAIN_NORMALIZATION {
 
     tag "$sample_id"
@@ -133,7 +108,7 @@ process STAIN_NORMALIZATION {
     script:    
     """
     [ ! -d "output_images" ] && mkdir "output_images"
-    
+    echo "Stain normalization using reference image: ${params.stain_reference_image}"
     python -u "${projectDir}/bin/StainToolsNorm.py" \
     --referenceImagePath "${params.stain_reference_image}" \
     --inputImagePath "outfile.tiff" \

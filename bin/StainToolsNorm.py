@@ -69,23 +69,29 @@ if __name__ == '__main__':
     
     print('s:', args.s)
 
-    target = tifffile.imread(args.referenceImagePath)
-    if target.shape[0]<=4:
-        target = np.moveaxis(target, 0, 2)
-    target = target[:,:,:3]
-
-    max_color = 255
-    quantile = 0.95  
-    v = max_color - int(np.quantile(target.ravel(), quantile))
-    print('Color max shift:', v)
-    target[(target.astype(int) + v) > max_color] = max_color
-    target[(target.astype(int) + v) <= max_color] += v
-    target = target.astype(np.uint8)
-    target = np.asfortranarray(target)
-    print(target.shape)
     normalizer = StainNormalizer(method='macenko')
-    normalizer.fit(target)
-    
+    if os.path.isfile(args.referenceImagePath):
+        target = tifffile.imread(args.referenceImagePath)
+        if target.shape[0]<=4:
+            target = np.moveaxis(target, 0, 2)
+        target = target[:,:,:3]
+
+        max_color = 255
+        quantile = 0.95  
+        v = max_color - int(np.quantile(target.ravel(), quantile))
+        print('Color max shift:', v)
+        target[(target.astype(int) + v) > max_color] = max_color
+        target[(target.astype(int) + v) <= max_color] += v
+        target = target.astype(np.uint8)
+        target = np.asfortranarray(target)
+        print(target.shape)
+        normalizer.fit(target)
+    else:
+        print('Reference image not found, using default stain matrix and maxC values.')
+        normalizer.stain_matrix_target = np.array([[0.58059271, 0.79782917, 0.16242139],
+                                                   [0.02721403, 0.9904569,  0.1351093 ]])
+        normalizer.maxC_target = np.array([[2.63492876, 1.47773439]])
+
     img = tifffile.imread(args.inputImagePath)
     if img.shape[0]<=4:
         img = np.moveaxis(img, 0, 2)
