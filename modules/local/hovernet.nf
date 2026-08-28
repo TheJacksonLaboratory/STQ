@@ -88,6 +88,15 @@ process INFER_PREP_HOVERNET {
     if [[ "${params.hovernet_device_mode}" == "gpu" ]];
     then
         CUDEV="\$CUDA_VISIBLE_DEVICES"
+        num_inference_workers=${params.gpu_hovernet_num_inference_workers}
+        hovernet_batch_size=${params.gpu_hovernet_batch_size}
+        hovernet_chunk_size=${params.gpu_hovernet_chunk_size}
+        hovernet_tile_size=${params.gpu_hovernet_tile_size}
+    else
+        num_inference_workers=${params.cpu_hovernet_num_inference_workers}
+        hovernet_batch_size=${params.cpu_hovernet_batch_size}
+        hovernet_chunk_size=${params.cpu_hovernet_chunk_size}
+        hovernet_tile_size=${params.cpu_hovernet_tile_size}
     fi
      
     python /hover_net/run_infer.py \
@@ -95,12 +104,12 @@ process INFER_PREP_HOVERNET {
     --device_mode="${params.hovernet_device_mode}" \
     --cpu_count=${task.cpus} \
     --model_mode=fast \
-    --nr_inference_workers=${params.hovernet_num_inference_workers} \
+    --nr_inference_workers=\${num_inference_workers} \
     --nr_post_proc_workers=${task.cpus} \
     --nr_types=6 \
     --type_info_path=/hover_net/type_info.json \
     --model_path=/hovernet_fast_pannuke_type_tf2pytorch.tar \
-    --batch_size=${params.hovernet_batch_size} \
+    --batch_size=\${hovernet_batch_size} \
     --run_prep_stage \
     wsi \
     --input_dir="./${image}" \
@@ -108,8 +117,8 @@ process INFER_PREP_HOVERNET {
     --input_mask_dir=mask/ \
     --slide_mag=40 \
     --proc_mag=40 \
-    --chunk_shape=${params.hovernet_chunk_size} \
-    --tile_shape=${params.hovernet_tile_size} 
+    --chunk_shape=\${hovernet_chunk_size} \
+    --tile_shape=\${hovernet_tile_size} 
     """ 
 }
 
@@ -131,20 +140,17 @@ process INFER_HOVERNET {
     [ ! -d "mask" ] && mkdir "mask"
     cp ${mask} mask/outfile.png
 
-    # stage as "cache/pred_map.npy"
-
-     
     python /hover_net/run_infer.py \
     --gpu="" \
     --device_mode="cpu" \
     --cpu_count=${task.cpus} \
     --model_mode=fast \
-    --nr_inference_workers=${params.hovernet_num_inference_workers} \
+    --nr_inference_workers=${params.cpu_hovernet_num_inference_workers} \
     --nr_post_proc_workers=${task.cpus} \
     --nr_types=6 \
     --type_info_path=/hover_net/type_info.json \
     --model_path=/hovernet_fast_pannuke_type_tf2pytorch.tar \
-    --batch_size=${params.hovernet_batch_size} \
+    --batch_size=${params.cpu_hovernet_batch_size} \
     --run_post_stage \
     wsi \
     --input_dir="./${image}" \
@@ -152,8 +158,8 @@ process INFER_HOVERNET {
     --input_mask_dir=mask/ \
     --slide_mag=40 \
     --proc_mag=40 \
-    --chunk_shape=${params.hovernet_chunk_size} \
-    --tile_shape=${params.hovernet_tile_size}
+    --chunk_shape=${params.cpu_hovernet_chunk_size} \
+    --tile_shape=${params.cpu_hovernet_tile_size}
 
     mkdir -p ${params.nuclei_segmentation_dir}/
     cp hovernet/outfile.json ${params.nuclei_segmentation_dir}/outfile.json    
@@ -235,6 +241,11 @@ process INFER_HOVERNET_TILES_RAW {
     if [[ "${params.hovernet_device_mode}" == "gpu" ]];
     then
         CUDEV="\$CUDA_VISIBLE_DEVICES"
+        num_inference_workers=${params.gpu_hovernet_num_inference_workers}
+        hovernet_batch_size=${params.gpu_hovernet_batch_size}
+    else
+        num_inference_workers=${params.cpu_hovernet_num_inference_workers}
+        hovernet_batch_size=${params.cpu_hovernet_batch_size}
     fi
    
     python /hover_net/run_infer.py \
@@ -242,12 +253,12 @@ process INFER_HOVERNET_TILES_RAW {
     --device_mode="${params.hovernet_device_mode}" \
     --cpu_count=${task.cpus} \
     --model_mode=fast \
-    --nr_inference_workers=${params.hovernet_num_inference_workers} \
+    --nr_inference_workers=\${num_inference_workers} \
     --nr_post_proc_workers=${task.cpus} \
     --nr_types=6 \
     --type_info_path=/hover_net/type_info.json \
     --model_path=/hovernet_fast_pannuke_type_tf2pytorch.tar \
-    --batch_size=${params.hovernet_batch_size} \
+    --batch_size=\${hovernet_batch_size} \
     tile \
     --input_dir="tiles/" \
     --output_dir="temp/" \
@@ -276,22 +287,22 @@ process INFER_HOVERNET_TILES {
     script:
     """ 
     CUDEV=""
-    if [[ "${params.hovernet_device_mode}" == "gpu" ]];
+    if [[ "${params.sts_hovernet_device_mode}" == "gpu" ]];
     then
         CUDEV="\$CUDA_VISIBLE_DEVICES"
     fi
    
     python /hover_net/run_infer.py \
     --gpu="\$CUDEV" \
-    --device_mode="${params.hovernet_device_mode}" \
+    --device_mode="${params.sts_hovernet_device_mode}" \
     --cpu_count=${task.cpus} \
     --model_mode=fast \
-    --nr_inference_workers=${params.hovernet_num_inference_workers} \
+    --nr_inference_workers=1 \
     --nr_post_proc_workers=${task.cpus} \
     --nr_types=6 \
     --type_info_path=/hover_net/type_info.json \
     --model_path=/hovernet_fast_pannuke_type_tf2pytorch.tar \
-    --batch_size=${params.hovernet_batch_size} \
+    --batch_size=1 \
     tile \
     --input_dir="tiles/" \
     --output_dir="temp/" \
