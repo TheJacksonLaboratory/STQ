@@ -3,8 +3,8 @@ process CREATE_CELLSZARRZIP {
 
     tag "$sample_id"
     label 'zarr'
-    maxRetries 2
-    errorStrategy  { task.attempt <= maxRetries  ? 'retry' : 'finish' }
+    errorStrategy  { task.attempt <= 2  ? 'retry' : 'finish' }
+    memory { 56.GB }
     publishDir "${params.outdir}/${sample_id}", pattern: 'cells.zarr.zip', mode: 'copy', overwrite: params.overwrite_files_on_publish
     publishDir "${params.outdir}/${sample_id}", pattern: 'cells-index.pkl', mode: 'copy', overwrite: params.overwrite_files_on_publish
 
