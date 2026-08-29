@@ -167,13 +167,16 @@ process MAKE_SAMPLER_VECTOR {
     if not roifile=='':
         with open(roifile, 'r') as f:
             contour = json.loads(f.read())
-        contour = np.array([contour['0']['points'], contour['1']['points']])
-        contour = (scale * contour * np.array(dims)[:, None]).astype(int)
-        cmin = contour.min(axis=1)
-        contour[0] -= cmin[0]
-        contour[1] -= cmin[1]
-        m = contourMask(contour, xy)
-        dff = dff.loc[m]
+        if 'points' in contour['0'] and 'points' in contour['1']:
+            contour = np.array([contour['0']['points'], contour['1']['points']])
+            contour = (scale * contour * np.array(dims)[:, None]).astype(int)
+            cmin = contour.min(axis=1)
+            contour[0] -= cmin[0]
+            contour[1] -= cmin[1]
+            m = contourMask(contour, xy)
+            dff = dff.loc[m]
+        else:
+            print('ROI file does not contain points, using all tiles.')
     else:
         print('No ROI file provided, using all tiles.')
 
