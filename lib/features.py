@@ -72,11 +72,13 @@ def load_model(model_name, model_path, use_conch_normalizer=False):
     mocov3 needs on sys.path, and models needing an extra package (conch,
     prov-gigapath-flash) only require it when actually requested.
     """
-    if model_name in GPU_ONLY_MODELS and not torch.cuda.is_available():
+    if not torch.cuda.is_available():
         # CUDA can occasionally report "not yet initialized" right after the
         # container/process starts (e.g. Error 802), even though a GPU is
         # actually present. Retry a few times with a short sleep before
-        # giving up, instead of failing immediately.
+        # concluding no GPU is available, otherwise we'd either fail
+        # GPU_ONLY_MODELS unnecessarily, or silently fall back to running on
+        # CPU for models that also support it.
         import time
         for attempt in range(5):
             time.sleep(2)
@@ -86,8 +88,9 @@ def load_model(model_name, model_path, use_conch_normalizer=False):
                 pass
             if torch.cuda.is_available():
                 break
-        else:
-            raise RuntimeError(f"Model '{model_name}' requires a GPU, but none is available.")
+
+    if model_name in GPU_ONLY_MODELS and not torch.cuda.is_available():
+        raise RuntimeError(f"Model '{model_name}' requires a GPU, but none is available.")
 
     destination = "cuda" if torch.cuda.is_available() else "cpu"
     loader_fn = get_loader(model_name)
