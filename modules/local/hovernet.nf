@@ -418,7 +418,11 @@ process INFER_STARDIST {
     
     normalizer = MyNormalizer(0, 255)
     
-    nuclei, details = model.predict_instances_big(img, axes='YXC', block_size=int($params.stardist_block_size / np.power(2, $task.attempt)), min_overlap=128, context=128, normalizer=normalizer, n_tiles=(4,4,1))
+    scale_factor = float(${params.target_mpp}) / 0.25
+    print('Scale factor:', scale_factor)
+    nuclei, details = model.predict_instances_big(img, axes='YXC', block_size=int($params.stardist_block_size / np.power(2, $task.attempt)),
+                                                min_overlap=128, context=128, normalizer=normalizer, n_tiles=(4,4,1),
+                                                scale=scale_factor)
     
     data = makeJSONoutput(details)
     

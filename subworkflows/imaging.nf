@@ -65,8 +65,13 @@ include { CONVERT_SEGMENTATION_DATA;
           CONVERT_CSV_TO_ANNDATA;
         } from '../modules/local/merge'
 
+include { CREATE_CELLSZARRZIP;
+        } from '../modules/local/zarr'
+
 include { DIMRED_CLUSTER;
           DIMRED_CLUSTER_MORPH;
+          MAKE_CLUSTER_VECTORS;
+          MAKE_SAMPLER_VECTOR;
         } from '../modules/local/postprocessing'
         
 workflow IMG {
@@ -79,14 +84,23 @@ workflow IMG {
         
         LOAD_SAMPLE_INFO ( samples
                            .join(images) )
+
+        mpp = LOAD_SAMPLE_INFO.out.mpp
          
         GET_IMAGE_SIZE ( LOAD_SAMPLE_INFO.out.main )
         
         if ( params.short_workflow ) {
-            GET_THUMB ( LOAD_SAMPLE_INFO.out.image )
+            if ( params.reuse_previous_run ) {
+                thumbimage = LOAD_SAMPLE_INFO.out.image.map { sample_id, image ->
+                    tuple(sample_id, image.getParent().resolve("thumbnail.tiff"))
+                }
+            }
+            else {
+                GET_THUMB ( LOAD_SAMPLE_INFO.out.image )
+                thumbimage = GET_THUMB.out
+            }
 
             convertedimage = LOAD_SAMPLE_INFO.out.image
-            thumbimage = GET_THUMB.out
             imagesize = GET_IMAGE_SIZE.out
         }
         else {
@@ -131,7 +145,9 @@ workflow IMG {
             }
         }
         
-        MAKE_TINY_THUMB ( thumbimage )
+        if ( !params.reuse_previous_run ) {
+            MAKE_TINY_THUMB ( thumbimage )
+        }
 
         if ( params.check_focus ) {
             CHECK_FOCUS ( convertedimage
@@ -148,29 +164,42 @@ workflow IMG {
             
                 EXPORT_SUPERPIXELATION_CONTOURS ( SUPERPIXELATION.out.main
                                                   .join(imagesize) )
-                }
             }
+        }
 
 
-        GET_PIXEL_MASK ( thumbimage
-                         .join(imagesize) )
-        
-        TILE_WSI ( convertedimage
-                  .join(LOAD_SAMPLE_INFO.out.grid)
-                  .join(imagesize)
-                  .join(LOAD_SAMPLE_INFO.out.mpp) )
-        
-        GET_TILE_MASK ( thumbimage
-                        .join(GET_PIXEL_MASK.out)
-                        .join(TILE_WSI.out.grid) 
-                        .join(imagesize))    
+        if ( params.reuse_previous_run ) {
+            grid = LOAD_SAMPLE_INFO.out.image.map { sample_id, image ->
+                tuple(sample_id, image.getParent().resolve("grid/grid.csv"), image.getParent().resolve("grid/grid.json"))
+            }
+            mask = LOAD_SAMPLE_INFO.out.image.map { sample_id, image ->
+                tuple(sample_id, image.getParent().resolve("mask/tile_mask.csv"))
+            }
+        }
+        else {
+            GET_PIXEL_MASK ( thumbimage
+                             .join(imagesize) )
+            
+            TILE_WSI ( convertedimage
+                      .join(LOAD_SAMPLE_INFO.out.grid)
+                      .join(imagesize)
+                      .join(LOAD_SAMPLE_INFO.out.mpp) )
+            
+            GET_TILE_MASK ( thumbimage
+                            .join(GET_PIXEL_MASK.out)
+                            .join(TILE_WSI.out.grid) 
+                            .join(imagesize))
+
+            grid = TILE_WSI.out.grid
+            mask = GET_TILE_MASK.out.mask
+        }
                         
                         
         // Tilitng sub-workflow for a small number of tiles
         if ( params.sample_tiles_subworkflow ) {
             SELECT_SAVE_TILES ( convertedimage
-                                .join(TILE_WSI.out.grid)
-                                .join(GET_TILE_MASK.out.mask) )
+                                .join(grid)
+                                .join(mask) )
                                              
             INFER_HOVERNET_TILES ( SELECT_SAVE_TILES.out.tiles )
             
@@ -182,8 +211,8 @@ workflow IMG {
 
             if (params.extract_transpath_features) {                   
                 GET_CTRANSPATH_FEATURES ( convertedimage
-                                         .join(GET_TILE_MASK.out.mask)
-                                         .join(TILE_WSI.out.grid)
+                                         .join(mask)
+                                         .join(grid)
                                          .join(LOAD_SAMPLE_INFO.out.grid)
                                          .join(imagesize)
                                          .combine(Channel.fromList(params.expansion_factor)) )
@@ -193,8 +222,8 @@ workflow IMG {
 
             if (params.extract_mocov3_features) {                   
                 GET_MOCOV3_FEATURES ( convertedimage
-                                         .join(GET_TILE_MASK.out.mask)
-                                         .join(TILE_WSI.out.grid)
+                                         .join(mask)
+                                         .join(grid)
                                          .join(LOAD_SAMPLE_INFO.out.grid)
                                          .join(imagesize)
                                          .combine(Channel.fromList(params.expansion_factor)) )
@@ -204,8 +233,8 @@ workflow IMG {
 
             if (params.extract_inception_features) {
                 GET_INCEPTION_FEATURES ( convertedimage
-                                         .join(GET_TILE_MASK.out.mask)
-                                         .join(TILE_WSI.out.grid)
+                                         .join(mask)
+                                         .join(grid)
                                          .join(LOAD_SAMPLE_INFO.out.grid)
                                          .join(imagesize)
                                          .combine(Channel.fromList(params.expansion_factor)) )
@@ -215,8 +244,8 @@ workflow IMG {
 
             if (params.extract_uni_features) {                   
                 GET_UNI_FEATURES ( convertedimage
-                                         .join(GET_TILE_MASK.out.mask)
-                                         .join(TILE_WSI.out.grid)
+                                         .join(mask)
+                                         .join(grid)
                                          .join(LOAD_SAMPLE_INFO.out.grid)
                                          .join(imagesize)
                                          .combine(Channel.fromList(params.expansion_factor)) )
@@ -226,8 +255,8 @@ workflow IMG {
 
             if (params.extract_uni2_features) {                   
                 GET_UNI2_FEATURES ( convertedimage
-                                         .join(GET_TILE_MASK.out.mask)
-                                         .join(TILE_WSI.out.grid)
+                                         .join(mask)
+                                         .join(grid)
                                          .join(LOAD_SAMPLE_INFO.out.grid)
                                          .join(imagesize)
                                          .combine(Channel.fromList(params.expansion_factor)) )
@@ -237,8 +266,8 @@ workflow IMG {
 
             if (params.extract_conch_features) {                   
                 GET_CONCH_FEATURES ( convertedimage
-                                         .join(GET_TILE_MASK.out.mask)
-                                         .join(TILE_WSI.out.grid)
+                                         .join(mask)
+                                         .join(grid)
                                          .join(LOAD_SAMPLE_INFO.out.grid)
                                          .join(imagesize)
                                          .combine(Channel.fromList(params.expansion_factor)) )
@@ -248,8 +277,8 @@ workflow IMG {
 
             if (params.extract_hoptimus0_features) {                   
                 GET_HOPTIMUS0_FEATURES ( convertedimage
-                                         .join(GET_TILE_MASK.out.mask)
-                                         .join(TILE_WSI.out.grid)
+                                         .join(mask)
+                                         .join(grid)
                                          .join(LOAD_SAMPLE_INFO.out.grid)
                                          .join(imagesize)
                                          .combine(Channel.fromList(params.expansion_factor)) )
@@ -259,8 +288,8 @@ workflow IMG {
 
             if (params.extract_virchow_features) {                   
                 GET_VIRCHOW_FEATURES ( convertedimage
-                                         .join(GET_TILE_MASK.out.mask)
-                                         .join(TILE_WSI.out.grid)
+                                         .join(mask)
+                                         .join(grid)
                                          .join(LOAD_SAMPLE_INFO.out.grid)
                                          .join(imagesize)
                                          .combine(Channel.fromList(params.expansion_factor)) )
@@ -270,8 +299,8 @@ workflow IMG {
             
             if (params.extract_virchow2_features) {                   
                 GET_VIRCHOW2_FEATURES ( convertedimage
-                                         .join(GET_TILE_MASK.out.mask)
-                                         .join(TILE_WSI.out.grid)
+                                         .join(mask)
+                                         .join(grid)
                                          .join(LOAD_SAMPLE_INFO.out.grid)
                                          .join(imagesize)
                                          .combine(Channel.fromList(params.expansion_factor)) )
@@ -281,8 +310,8 @@ workflow IMG {
 
             if (params.extract_phikon_features) {                   
                 GET_PHIKON_FEATURES ( convertedimage
-                                         .join(GET_TILE_MASK.out.mask)
-                                         .join(TILE_WSI.out.grid)
+                                         .join(mask)
+                                         .join(grid)
                                          .join(LOAD_SAMPLE_INFO.out.grid)
                                          .join(imagesize)
                                          .combine(Channel.fromList(params.expansion_factor)) )
@@ -292,8 +321,8 @@ workflow IMG {
 
             if (params.extract_phikon2_features) {                   
                 GET_PHIKON2_FEATURES ( convertedimage
-                                         .join(GET_TILE_MASK.out.mask)
-                                         .join(TILE_WSI.out.grid)
+                                         .join(mask)
+                                         .join(grid)
                                          .join(LOAD_SAMPLE_INFO.out.grid)
                                          .join(imagesize)
                                          .combine(Channel.fromList(params.expansion_factor)) )
@@ -303,8 +332,8 @@ workflow IMG {
 
             if (params.extract_hoptimus1_features) {                   
                 GET_HOPTIMUS1_FEATURES ( convertedimage
-                                         .join(GET_TILE_MASK.out.mask)
-                                         .join(TILE_WSI.out.grid)
+                                         .join(mask)
+                                         .join(grid)
                                          .join(LOAD_SAMPLE_INFO.out.grid)
                                          .join(imagesize)
                                          .combine(Channel.fromList(params.expansion_factor)) )
@@ -314,8 +343,8 @@ workflow IMG {
 
             if (params.extract_h0mini_features) {                   
                 GET_H0MINI_FEATURES ( convertedimage
-                                         .join(GET_TILE_MASK.out.mask)
-                                         .join(TILE_WSI.out.grid)
+                                         .join(mask)
+                                         .join(grid)
                                          .join(LOAD_SAMPLE_INFO.out.grid)
                                          .join(imagesize)
                                          .combine(Channel.fromList(params.expansion_factor)) )
@@ -325,8 +354,8 @@ workflow IMG {
 
             if (params.extract_midnight12k_features) {                   
                 GET_MIDNIGHT12K_FEATURES ( convertedimage
-                                         .join(GET_TILE_MASK.out.mask)
-                                         .join(TILE_WSI.out.grid)
+                                         .join(mask)
+                                         .join(grid)
                                          .join(LOAD_SAMPLE_INFO.out.grid)
                                          .join(imagesize)
                                          .combine(Channel.fromList(params.expansion_factor)) )
@@ -336,8 +365,8 @@ workflow IMG {
 
             if (params.extract_gigapath_features) {                   
                 GET_GIGAPATH_FEATURES ( convertedimage
-                                         .join(GET_TILE_MASK.out.mask)
-                                         .join(TILE_WSI.out.grid)
+                                         .join(mask)
+                                         .join(grid)
                                          .join(LOAD_SAMPLE_INFO.out.grid)
                                          .join(imagesize)
                                          .combine(Channel.fromList(params.expansion_factor)) )
@@ -347,8 +376,8 @@ workflow IMG {
 
             if (params.extract_gigapathf_features) {                   
                 GET_GIGAPATHF_FEATURES ( convertedimage
-                                         .join(GET_TILE_MASK.out.mask)
-                                         .join(TILE_WSI.out.grid)
+                                         .join(mask)
+                                         .join(grid)
                                          .join(LOAD_SAMPLE_INFO.out.grid)
                                          .join(imagesize)
                                          .combine(Channel.fromList(params.expansion_factor)) )
@@ -409,6 +438,9 @@ workflow IMG {
                 features_out = features_out.concat( gigapathf_features_out )
             }
 
+            MAKE_SAMPLER_VECTOR ( samples
+                                 .combine(features_out, by: 0) )
+
             if ( params.do_clustering ) {
                 if ( params.do_imaging_anndata ) {
                     CONVERT_CSV_TO_ANNDATA ( features_out
@@ -420,8 +452,8 @@ workflow IMG {
 
         if ( params.do_nuclear_segmentation ) {
         
-            GET_TISSUE_MASK ( TILE_WSI.out.grid
-                      .join(GET_TILE_MASK.out.mask)
+            GET_TISSUE_MASK ( grid
+                      .join(mask)
                       .join(imagesize) )
                       
             if ( params.hovernet_segmentation ) {
@@ -451,6 +483,9 @@ workflow IMG {
                 segmaskout = INFER_STARDIST.out.mask
             }
 
+            CREATE_CELLSZARRZIP ( mpp
+                                .join(segmaskout) )
+
             COMPRESS_JSON_FILE ( jsonout )
         
             COMPUTE_SEGMENTATION_DATA ( jsonout
@@ -467,7 +502,7 @@ workflow IMG {
                                                .join(imagesize) )
                 }
 
-            GENERATE_PERSPOT_SEGMENTATION_DATA ( TILE_WSI.out.grid
+            GENERATE_PERSPOT_SEGMENTATION_DATA ( grid
                                              .join(COMPUTE_SEGMENTATION_DATA.out)
                                              .join(imagesize) )
 
@@ -477,10 +512,15 @@ workflow IMG {
                     .filter{ it[2]== params.expansion_factor_for_clustering }
                     .filter{ it[3] == params.suffix_for_clustering }
 
-                    DIMRED_CLUSTER_MORPH ( TILE_WSI.out.grid
+                    DIMRED_CLUSTER_MORPH ( grid
                                          .join(thumbimage)
                                          .join(GENERATE_PERSPOT_SEGMENTATION_DATA.out.data)
                                          .join(features_selected_out) )
+
+                    MAKE_CLUSTER_VECTORS ( thumbimage
+                                         .join(GENERATE_PERSPOT_SEGMENTATION_DATA.out.data)
+                                         .join(features_selected_out)
+                                         .join(DIMRED_CLUSTER_MORPH.out.clusters) )
                 }
             }
         }
@@ -491,7 +531,7 @@ workflow IMG {
                     .filter{ it[2]== params.expansion_factor_for_clustering }
                     .filter{ it[3] == params.suffix_for_clustering }
 
-                    DIMRED_CLUSTER ( TILE_WSI.out.grid
+                    DIMRED_CLUSTER ( grid
                                      .join(thumbimage)
                                      .join(features_selected_out) )
                 }
