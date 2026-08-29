@@ -80,7 +80,12 @@ workflow IMG {
         samples
 
     main:    
-        images = samples.map{[it[0], (it[1].image)]}
+        if ( params.reuse_previous_run ) {
+            images = samples.map{ tuple(it[0], file("${params.outdir}/${it[0]}/image.ome.tiff")) }
+        }
+        else {
+            images = samples.map{[it[0], (it[1].image)]}
+        }
         
         LOAD_SAMPLE_INFO ( samples
                            .join(images) )
@@ -92,15 +97,18 @@ workflow IMG {
         if ( params.short_workflow ) {
             if ( params.reuse_previous_run ) {
                 thumbimage = LOAD_SAMPLE_INFO.out.image.map { sample_id, image ->
-                    tuple(sample_id, image.getParent().resolve("thumbnail.tiff"))
+                    tuple(sample_id, file("${params.outdir}/${sample_id}/thumbnail.tiff"))
+                }
+                convertedimage = LOAD_SAMPLE_INFO.out.image.map { sample_id, image ->
+                    tuple(sample_id, file("${params.outdir}/${sample_id}/image.ome.tiff"))
                 }
             }
             else {
                 GET_THUMB ( LOAD_SAMPLE_INFO.out.image )
                 thumbimage = GET_THUMB.out
+                convertedimage = LOAD_SAMPLE_INFO.out.image
             }
 
-            convertedimage = LOAD_SAMPLE_INFO.out.image
             imagesize = GET_IMAGE_SIZE.out
         }
         else {
@@ -170,10 +178,10 @@ workflow IMG {
 
         if ( params.reuse_previous_run ) {
             grid = LOAD_SAMPLE_INFO.out.image.map { sample_id, image ->
-                tuple(sample_id, image.getParent().resolve("grid/grid.csv"), image.getParent().resolve("grid/grid.json"))
+                tuple(sample_id, file("${params.outdir}/${sample_id}/grid/grid.csv"), file("${params.outdir}/${sample_id}/grid/grid.json"))
             }
             mask = LOAD_SAMPLE_INFO.out.image.map { sample_id, image ->
-                tuple(sample_id, image.getParent().resolve("mask/tile_mask.csv"))
+                tuple(sample_id, file("${params.outdir}/${sample_id}/mask/tile_mask.csv"))
             }
         }
         else {
@@ -438,7 +446,19 @@ workflow IMG {
                 features_out = features_out.concat( gigapathf_features_out )
             }
 
-            MAKE_SAMPLER_VECTOR ( samples
+            if ( params.reuse_previous_run ) {
+                samples_for_sampler = samples.map { sample_id, meta, srgrid ->
+                    def meta2 = meta.clone()
+                    meta2.image = file("${params.outdir}/${sample_id}/image.ome.tiff").toAbsolutePath().toString()
+                    meta2.mpp = params.target_mpp
+                    tuple(sample_id, meta2, srgrid)
+                }
+            }
+            else {
+                samples_for_sampler = samples
+            }
+
+            MAKE_SAMPLER_VECTOR ( samples_for_sampler
                                  .combine(features_out, by: 0) )
 
             if ( params.do_clustering ) {

@@ -19,8 +19,10 @@ workflow {
     .map( { it -> [ (it.sample), it ] } )
     .set{ samples }
     
-    EXPORT_PARAMETERS ()
-    EXPORT_SAMPLEINFO ( samples )
+    if ( !params.reuse_previous_run ) {
+        EXPORT_PARAMETERS ()
+        EXPORT_SAMPLEINFO ( samples )
+    }
 
     if ( params.workflow == "arbitrary_grid" ) {
         ARB ( samples )

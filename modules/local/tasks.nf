@@ -2,6 +2,7 @@
 process LOAD_SAMPLE_INFO {
 
     tag "$sample_id"
+    publishDir "${params.outdir}/${sample_id}", pattern: 'roifile.json', saveAs: { meta.roifile != "" ? "roifile.json" : null }, mode: 'copy', overwrite: params.overwrite_files_on_publish
 
     input:
     tuple val(sample_id), val(meta), path(srgrid), path(image)
@@ -14,7 +15,12 @@ process LOAD_SAMPLE_INFO {
     
     script:
     """
-    mpp=${meta.mpp}
+    if [ "${params.reuse_previous_run}" = "true" ];
+    then
+        mpp=${params.target_mpp}
+    else
+        mpp=${meta.mpp}
+    fi
 
     if [ ! "${meta.roifile}" = "" ];
     then
